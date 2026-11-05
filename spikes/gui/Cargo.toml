@@ -1,0 +1,14 @@
+[package]
+name = "spike-gui"
+description = "Phase 0 GUI spike: GPUI Kit under load (grid, tree, keys, editor, dock) with an FPS benchmark"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+gpui-kit = { workspace = true, features = ["tree-sitter-sql"] }
+ferrodb-mock.workspace = true
+ferrodb-api.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,4 @@
+# UI thread must never block: forbid obvious blocking calls in UI crates via review + this list.
+disallowed-methods = [
+  { path = "std::thread::sleep", reason = "never sleep on the UI thread; use timers / background executor" },
+]

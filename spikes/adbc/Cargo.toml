@@ -1,0 +1,11 @@
+[package]
+name = "spike-adbc"
+description = "Phase 0 ADBC spike: load an ADBC driver dynamically and read Arrow results"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+adbc_core = "0.25.0"
+adbc_driver_manager = "0.25.0"
+arrow-array = { workspace = true, features = ["ffi"] }

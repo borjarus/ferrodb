@@ -1,0 +1,21 @@
+[package]
+name = "ferrodb-api"
+description = "FerroDb contracts: the only point where the UI meets the logic (v0)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+futures.workspace = true
+async-channel.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+bson.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+[package]
+name = "ferrodb-mock"
+description = "MockBackend: implementation of ferrodb-api with database profiles and load scenarios"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ferrodb-api.workspace = true
+futures.workspace = true
+async-channel.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+bson.workspace = true
+
+[dev-dependencies]
+futures = { workspace = true, features = ["executor"] }
+
+[lints]
+workspace = true

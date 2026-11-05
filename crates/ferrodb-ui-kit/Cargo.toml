@@ -1,0 +1,16 @@
+[package]
+name = "ferrodb-ui-kit"
+description = "Facade over GPUI Kit: the only crate that names GPUI Kit types directly"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gpui-kit = { workspace = true, features = ["tree-sitter-sql", "tree-sitter-javascript"] }
+ferrodb-api.workspace = true
+
+[features]
+test-support = ["gpui-kit/test-support"]
+
+[lints]
+workspace = true

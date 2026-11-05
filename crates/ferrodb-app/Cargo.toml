@@ -1,0 +1,40 @@
+[package]
+name = "ferrodb-app"
+description = "FerroDb — database IDE for SQL and NoSQL"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+default-run = "ferrodb"
+
+[[bin]]
+name = "ferrodb"
+path = "src/main.rs"
+
+[dependencies]
+ferrodb-api.workspace = true
+ferrodb-mock.workspace = true
+ferrodb-ui.workspace = true
+ferrodb-ui-kit.workspace = true
+gpui-kit.workspace = true
+directories.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+ferrodb-ui-kit = { workspace = true, features = ["test-support"] }
+gpui-kit = { workspace = true, features = ["test-support"] }
+tempfile = "3"
+
+[lints]
+workspace = true
+
+# `cargo packager --release -p ferrodb-app` (see `cargo xtask package`)
+[package.metadata.packager]
+product-name = "FerroDb"
+identifier = "dev.ferrodb.app"
+category = "DeveloperTool"
+before-packaging-command = "cargo build --release -p ferrodb-app"
+out-dir = "../../target/packages"
+binaries = [{ path = "ferrodb", main = true }]
+formats = ["nsis", "dmg", "app", "deb", "appimage"]

@@ -1,0 +1,13 @@
+[package]
+name = "spike-jdbc-reader"
+description = "Phase 0 JDBC bridge spike: Rust side reading Arrow IPC from the Java host"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+arrow-array.workspace = true
+arrow-ipc.workspace = true
+arrow-schema.workspace = true
+ferrodb-mock.workspace = true
+memory-stats = "1.2.0"

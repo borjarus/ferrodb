@@ -1,0 +1,76 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/ferrodb-api",
+  "crates/ferrodb-mock",
+  "crates/ferrodb-ui-kit",
+  "crates/ferrodb-ui",
+  "crates/ferrodb-app",
+  "xtask",
+  "spikes/gui",
+  "spikes/adbc",
+  "spikes/jdbc-bridge/reader",
+]
+default-members = ["crates/ferrodb-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.99"
+repository = "https://example.invalid/ferrodb"
+
+[workspace.dependencies]
+# internal
+ferrodb-api = { path = "crates/ferrodb-api" }
+ferrodb-mock = { path = "crates/ferrodb-mock" }
+ferrodb-ui-kit = { path = "crates/ferrodb-ui-kit" }
+ferrodb-ui = { path = "crates/ferrodb-ui" }
+
+# GUI — exactly pinned (pins the gpui-pre 0.3.10 snapshot); see ADR-001
+gpui-kit = { version = "=0.8.1" }
+
+# async / bridge
+futures = "0.3.34"
+async-channel = "2.5.0"
+
+# data
+arrow-array = "60.1.0"
+arrow-schema = "60.1.0"
+arrow-ipc = "60.1.0"
+bson = "3.1.0"
+chrono = "0.4.45"
+
+# config / serialization
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+toml = "1.2.0"
+directories = "6.0.0"
+
+# misc
+thiserror = "2.0.21"
+anyhow = "1.0.104"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+fluent-bundle = "0.16.0"
+unic-langid = { version = "0.9.6", features = ["macros"] }
+nucleo-matcher = "0.3.1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+# GPUI types (Context, Window…) carry lifetimes; spelling them out adds noise only.
+elided_lifetimes_in_paths = "allow"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+[profile.dev]
+# GPUI is heavy; keep deps optimized so the UI is usable in debug builds.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

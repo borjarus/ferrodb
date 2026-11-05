@@ -1,0 +1,32 @@
+[package]
+name = "ferrodb-ui"
+description = "FerroDb views and their presentation state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ferrodb-api.workspace = true
+ferrodb-ui-kit.workspace = true
+# Only so that GPUI derive/action macros resolve their paths (they look up
+# `gpui-kit` in this crate's dependencies). Views import GPUI via ferrodb-ui-kit.
+gpui-kit.workspace = true
+futures.workspace = true
+async-channel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+fluent-bundle.workspace = true
+fluent-syntax = "0.12"
+unic-langid.workspace = true
+nucleo-matcher.workspace = true
+
+[dev-dependencies]
+ferrodb-mock.workspace = true
+ferrodb-ui-kit = { workspace = true, features = ["test-support"] }
+gpui-kit = { workspace = true, features = ["test-support"] }
+tempfile = "3"
+
+[lints]
+workspace = true

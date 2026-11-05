@@ -1,0 +1,7 @@
+/target
+**/*.rs.bk
+/spikes/jdbc-bridge/java/build
+/spikes/jdbc-bridge/java/.gradle
+/spikes/**/target
+*.arrow
+.DS_Store
