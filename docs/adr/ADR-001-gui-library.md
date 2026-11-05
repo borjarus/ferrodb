@@ -56,10 +56,13 @@ Other findings:
 
 | Criterion | Windows | macOS | Linux X11 | Linux Wayland |
 |---|---|---|---|---|
+| Starts and renders correctly | ✅ | pending | ✅ VM, lavapipe (functional only) | ✅ VM, sway, lavapipe (functional only) |
 | ≥ 60 fps grid | ✅ release 58.5–60.2 (vsync) | pending | pending | pending |
 | ≥ 60 fps tree | ✅ | pending | pending | pending |
 | Smooth 50k-line editing | ✅ (manual) | pending | pending | pending |
 | Correct IME | pending (manual, Polish + CJK) | pending | pending | pending |
+
+The Linux functional run (2026-11-05, Ubuntu 26.04 VM without a GPU) is described in [spike-results.md](../spike-results.md). The fps criteria on Linux still need real GPU hardware.
 
 **If the grid criterion fails in release mode**, apply these mitigations before considering a switch:
 - format cells from already-fetched batches only (the real grid never generates data on the UI thread);

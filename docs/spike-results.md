@@ -50,6 +50,36 @@ Notes:
 
 ## macOS — pending
 
-## Linux X11 — pending
+## Linux — functional check in a VM (2026-11-05)
 
-## Linux Wayland — pending
+**Scope: functional only.** The FPS figures below are not comparable with Windows and say nothing about performance on real hardware:
+- the VM has no GPU, so Vulkan runs on Mesa lavapipe (`llvmpipe`, LLVM 21.1.8, CPU rendering);
+- VirtualBox ran on top of Hyper-V (NEM backend), roughly 12× slower than native for CPU-bound code.
+
+A real-hardware run (Intel/AMD GPU, X11 and Wayland sessions) is still required before M0.
+
+Setup:
+- Ubuntu 26.04 LTS guest (`bento/ubuntu-26.04` 202606.01.0, kernel 7.0), VirtualBox 7.2.22 via Vagrant 2.4.9, 4 vCPU, 16 GB RAM.
+- `spike-gui` release binary built in WSL Ubuntu 26.04 (Rust 1.99.0, 6m 46s). It needs glibc ≥ 2.43 (`asinf`, `acosf`, `atan2f`, … from libm), so it does not run on Ubuntu 24.04 (glibc 2.39). Release builds should be made on the oldest supported distro.
+- Dynamic dependencies: `libxcb`, `libxkbcommon`, `libxkbcommon-x11` and libc only. Wayland, Vulkan, fontconfig and freetype are loaded at runtime. With the runtime packages from `xtask/linux-deps.sh` installed, `ldd` reports nothing missing.
+
+### Linux X11 (Xvfb 1600×1000, no window manager)
+
+- The window opens at 1400×900 with the title "FerroDb — GUI spike". It renders correctly: tabs, the 1M×50 grid, and Polish diacritics with the Noto fonts.
+- `--bench` runs all four cases and exits with code 0 after 28 s.
+- Under lavapipe: grid scroll 1.0 fps, grid random jump 2.1 fps, tree 2.7 fps, keys 3.0 fps. These are functional numbers only.
+- Startup: 100k tree items built in 2.6–5.3 s, editor with 50k lines in 14 ms.
+- The `libEGL warning: DRI3 error` comes from Mesa probing Xvfb and is harmless.
+
+### Linux Wayland (sway 1.x headless, pixman renderer, no XWayland)
+
+- Runs as a native Wayland client: `DISPLAY` is unset and XWayland is not installed. sway tiles it with its own title bar and the content renders correctly, the same as on X11.
+- `--bench` runs all four cases and exits with code 0 after 25 s.
+- Under lavapipe: grid scroll 2.2 fps, grid random jump 1.8 fps, tree 3.7 fps, keys 2.9 fps.
+- The `EGL`/`ZINK: failed to choose pdev` warnings come from Mesa's EGL probe on a GPU-less machine and are harmless; rendering goes through Vulkan.
+
+**Verdict (Linux): functional GO on X11 and Wayland.** Still open:
+- performance on real GPU hardware;
+- IME (ibus/fcitx5);
+- HiDPI / fractional scaling;
+- client-side decorations on GNOME/Mutter.
