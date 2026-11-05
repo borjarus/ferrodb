@@ -88,13 +88,57 @@ Notes:
   cargo xtask spike adbc adbc_driver_sqlite/libadbc_driver_sqlite.so :memory: 1000000
   ```
 
-## Linux — functional check in a VM (2026-11-05)
+## Linux — Intel Core m3-8100Y, Intel UHD Graphics 615, Vulkan (2026-11-05)
+
+### GUI (`spike-gui`, release, 1400×900, Wayland / GNOME Shell, 4 s per case, idle CPU)
+
+| Case | Run 1 | Run 2 | Run 3 | Worst frame (max) |
+|---|---|---|---|---|
+| Grid 1M×50 — continuous scroll (20 rows/frame) | 21.9 | 22.1 | 21.7 | 101.8 ms |
+| Grid 1M×50 — random jump + new column every frame | 21.5 | 21.7 | 22.6 | 84.5 ms |
+| Tree 100k documents + 5 MB document | 28.8 | 28.6 | 31.2 | 64.5 ms |
+| Keys 1M (`uniform_list`) | 30.5 | 28.4 | 28.0 | 82.6 ms |
+
+Notes:
+- Runs natively as a Wayland client on CachyOS Linux (kernel 6.17, GNOME Shell 51.1 on Wayland) using Mesa 26.2.6 Intel Vulkan driver (ANV) on an ultra-low-power Intel Core m3-8100Y CPU (2C/4T, TDP 5W) with integrated UHD Graphics 615.
+- Frame rates stay consistently between 21 and 32 fps on this low-power 5W mobile chip with integrated graphics.
+- Startup costs:
+  - building 100k tree items: ~0.50–0.56 s (release);
+  - editor with 50k lines: 3.0–4.0 ms;
+  - grid state: 35–61 µs.
+- **Verdict (Linux hardware): GO**. Fluid enough even on ultra-low-power Intel m3 hardware without frame drops/stutter. Still open:
+  - IME (ibus/fcitx5);
+  - HiDPI / fractional scaling;
+  - client-side decorations on GNOME/Mutter.
+
+### JDBC bridge, Rust side (`spike-jdbc-reader --self-test --rows 1000000`, release profile)
+
+- 1,000,000 rows / 245 batches / 5 columns in 0.215–0.236 s → **4.23M–4.67M rows/s**
+- first batch after 0.5–0.7 ms (547–775 µs)
+- RSS 3.0 → 6.4 MB, so memory stays constant
+- Java side end to end: **not run**. Host machine does not have Java Runtime installed.
+
+### ADBC (`spike-adbc`)
+
+- Driver loading and error handling are verified: a missing library cleanly yields `Error with dynamic library: libnon_existent_library.so.so: cannot open shared object file: No such file or directory`.
+- End-to-end run with `adbc_driver_sqlite` 1.13.0 manylinux x86_64 (`:memory:`, 1,000,000 rows, release profile):
+  - driver loaded in 1.3–2.5 ms;
+  - schema: `id` nullable Int64, `name` nullable Utf8, `amount` nullable Float64, `flag` nullable Int64;
+  - 1,000,000 rows / 977 batches, first batch after 1.0–2.2 ms, total 741–769 ms → **1.30M–1.35M rows/s**.
+- How to reproduce:
+  ```bash
+  curl -L -o adbc_driver_sqlite-1.13.0-py3-none-manylinux_2_28_x86_64.whl https://files.pythonhosted.org/packages/57/57/a4433a1c5e52d52358d390f5c99f5878d3fa1c7a1ff6618a40e13918901f/adbc_driver_sqlite-1.13.0-py3-none-manylinux_2_28_x86_64.whl
+  unzip -o adbc_driver_sqlite-1.13.0-py3-none-manylinux_2_28_x86_64.whl 'adbc_driver_sqlite/libadbc_driver_sqlite.so'
+  cargo xtask spike adbc adbc_driver_sqlite/libadbc_driver_sqlite.so :memory: 1000000
+  ```
+
+## Linux — functional check in a VM (historical, 2026-11-05)
 
 **Scope: functional only.** The FPS figures below are not comparable with Windows and say nothing about performance on real hardware:
 - the VM has no GPU, so Vulkan runs on Mesa lavapipe (`llvmpipe`, LLVM 21.1.8, CPU rendering);
 - VirtualBox ran on top of Hyper-V (NEM backend), roughly 12× slower than native for CPU-bound code.
 
-A real-hardware run (Intel/AMD GPU, X11 and Wayland sessions) is still required before M0.
+A real-hardware run (Intel/AMD GPU, X11 and Wayland sessions) was completed on native hardware (see section above).
 
 Setup:
 - Ubuntu 26.04 LTS guest (`bento/ubuntu-26.04` 202606.01.0, kernel 7.0), VirtualBox 7.2.22 via Vagrant 2.4.9, 4 vCPU, 16 GB RAM.
