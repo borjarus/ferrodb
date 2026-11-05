@@ -1,0 +1,8 @@
+grid state created in 108.5µs
+tree items (100000 docs + 5 MB doc) built in 203.708458ms
+editor with 50000 lines loaded in 1.252542ms
+dock layout restored from disk: false
+Grid scroll         117.3 fps  worst frame   53.9 ms  (470 frames)
+Grid random jump    113.5 fps  worst frame   10.1 ms  (454 frames)
+Tree 100k docs      120.0 fps  worst frame    9.4 ms  (481 frames)
+Keys 1M             120.0 fps  worst frame    9.3 ms  (481 frames)

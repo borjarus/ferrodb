@@ -48,7 +48,45 @@ Notes:
   ```
   Do not put `--` before the arguments: xtask already adds one, and a second `--` is passed to the spike as the driver path (`LoadLibraryExW failed`).
 
-## macOS — pending
+## macOS — Apple M3 Max, Metal 3 (2026-11-05)
+
+### GUI (`spike-gui`, release, 1400×900, vsync 120 Hz ProMotion, 4 s per case, idle CPU)
+
+| Case | Run 1 | Run 2 | Run 3 | Worst frame (max) |
+|---|---|---|---|---|
+| Grid 1M×50 — continuous scroll (20 rows/frame) | 117.3 | 117.4 | 117.3 | 53.9 ms (first frames, page generation) |
+| Grid 1M×50 — random jump + new column every frame | 113.5 | 112.8 | 112.9 | 10.6 ms |
+| Tree 100k documents + 5 MB document | 120.0 | 120.2 | 120.1 | 9.4 ms |
+| Keys 1M (`uniform_list`) | 120.0 | 120.0 | 120.0 | 9.4 ms |
+
+Notes:
+- Runs natively on Apple Silicon with the GPUI Metal backend at 120 Hz ProMotion display refresh rate.
+- Startup costs:
+  - building 100k tree items: 0.20 s (release);
+  - editor with 50k lines: 1.2–1.3 ms;
+  - grid state: ~0.1 ms (102–108 µs).
+- **Verdict (macOS): GO** for grid, tree and keys. Solid 120 fps on Tree and Keys with worst frame time under 10 ms.
+
+### JDBC bridge, Rust side (`spike-jdbc-reader --self-test --rows 1000000`, release profile)
+
+- 1,000,000 rows / 245 batches / 5 columns in 0.115 s (115.1 ms) → **8.69M rows/s**
+- first batch after 0.4 ms (409 µs)
+- RSS 5.6 → 9.6 MB, so memory stays constant
+- Java side end to end: **not run**. Host machine does not have Java Runtime installed.
+
+### ADBC (`spike-adbc`)
+
+- Driver loading and error handling are verified: a missing library cleanly yields `dlopen(..., 0x0086) ... (no such file)`.
+- End-to-end run with `adbc_driver_sqlite` 1.8.0 arm64 (`:memory:`, 1,000,000 rows, release profile):
+  - driver loaded in 4.5 ms (warm) / 228 ms (cold with dyld verification);
+  - schema: `id` Int64, `name` Utf8, `amount` Float64, `flag` Int64;
+  - 1,000,000 rows / 977 batches, first batch after 0.8 ms, total 328 ms → **3.05M rows/s**.
+- How to reproduce:
+  ```
+  pip download adbc-driver-sqlite --no-deps --only-binary=:all:
+  unzip -o adbc_driver_sqlite-*-macosx_*.whl 'adbc_driver_sqlite/libadbc_driver_sqlite.so'
+  cargo xtask spike adbc adbc_driver_sqlite/libadbc_driver_sqlite.so :memory: 1000000
+  ```
 
 ## Linux — functional check in a VM (2026-11-05)
 
