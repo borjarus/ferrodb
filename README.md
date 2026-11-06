@@ -2,13 +2,14 @@
 
 A native, cross-platform database IDE for SQL and NoSQL, written in Rust on GPUI + GPUI Kit. The plan is in [`docs/plan-ferrodb.en.md`](docs/plan-ferrodb.en.md).
 
-**Status: phases 0 and 1.** The application skeleton runs on a mock backend. Real database drivers start in phase 3.
+**Status: phases 0–2.** The application and all its GUI components run on a mock backend; see [`docs/phase-2.md`](docs/phase-2.md). Real database drivers start in phase 3.
 
 ## Quick start
 
 ```sh
 cargo run                      # FerroDb (mock backend, default project)
 cargo run -- path/to/project   # open a project folder
+cargo run -p ferrodb-gallery   # component gallery (mock data, both themes, scenarios)
 cargo xtask ci                 # fmt + clippy + tests (+ cargo-deny if installed)
 cargo xtask spike gui --bench  # GUI performance spike (FPS report)
 ```
@@ -21,11 +22,12 @@ Environment variables:
 
 | Crate | Role |
 |---|---|
-| `crates/ferrodb-api` | Contracts (v0): `Backend` and its services; the three data models; `Capabilities`; the driver catalog; query events |
+| `crates/ferrodb-api` | Contracts (v1): `Backend` and its services; the three data models; `Capabilities`; the driver catalog; query events |
 | `crates/ferrodb-mock` | `MockBackend`: the 26-database catalog, 5 profiles (PostgreSQL-, BigQuery-, Cassandra-, MongoDB- and Redis-like) and 10 load or failure scenarios |
 | `crates/ferrodb-ui-kit` | The facade over GPUI Kit (`gpui`, `kit`, `theme`, `icons`); the only place GPUI Kit is named |
 | `crates/ferrodb-ui` | Views: workspace, dock panels, palettes, settings, actions and keymap, i18n (PL/EN) |
 | `crates/ferrodb-app` | The `ferrodb` binary: startup, window, keymap file, packaging metadata |
+| `apps/ferrodb-gallery` | Component gallery binary (plan 2.9) |
 | `spikes/` | Phase 0 prototypes: GUI under load, ADBC, JDBC bridge (Java host + Rust reader) |
 | `xtask/` | `cargo xtask ci, fmt, lint, test, package, spike` |
 | `docs/adr/` | ADR-001…008 |
@@ -62,7 +64,8 @@ Environment variables:
 
 `cargo test --workspace` runs:
 - unit tests for the API, mock, keymap, i18n, palette ranking, settings and double-Shift detection;
-- **UI tests without a window** (`crates/ferrodb-ui/tests/ui.rs`): startup with the default layout, layout surviving a restart, Find Action listing every action, Search Everywhere over the mock index, and palette actions running in the workspace.
+- **UI tests without a window** (`crates/ferrodb-ui/tests/ui.rs`): startup with the default layout, layout surviving a restart, Find Action listing every action, Search Everywhere over the mock index, and palette actions running in the workspace;
+- **phase-2 flows** (`crates/ferrodb-ui/tests/flows.rs`, 23 tests on `MockBackend::deterministic()`): explorer, data source dialog and driver download, console, grid editing with preview, documents, keys, Services and history, load scenarios, mockups and the gallery.
 
 ## Phase 0 spike results
 

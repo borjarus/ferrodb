@@ -8,7 +8,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ferrodb_api::{ConnectionState, DataSourceId, NodeRef, QueryLanguage, SearchTarget};
+use ferrodb_api::{
+    ConnectionState, DataSourceId, DdlOptions, NodeRef, ObjectKind, QueryLanguage, SearchTarget,
+};
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
     icons,
@@ -31,15 +33,18 @@ use ferrodb_ui_kit::{
 use crate::{
     AppState,
     actions::{self, WORKSPACE_CONTEXT},
+    dialogs,
     i18n::{t, t_args},
     output,
     palette::{self, PaletteKind, PaletteModel, Target},
     panels::{
-        ConsolePanel, ExplorerPanel, InspectorPanel, OutputPanel, ServicesPanel, WelcomePanel,
+        ConsolePanel, ExplorerPanel, GalleryPanel, HistoryPanel, InspectorPanel, LocalHistoryPanel,
+        OutputPanel, ServicesPanel, WelcomePanel, console::RunTarget, explorer,
     },
     project::{LAYOUT_VERSION, Project},
     settings::SettingsStore,
     settings_view,
+    views::{self, diff::DiffView, er_diagram::ErDiagram, wizard::WizardKind},
 };
 
 /// Delay before writing the layout after the last change.
@@ -49,6 +54,14 @@ const DOUBLE_SHIFT: Duration = Duration::from_millis(400);
 
 struct ActiveWorkspace(WeakEntity<Workspace>);
 impl Global for ActiveWorkspace {}
+
+/// The most recently created / used console (Local History compare).
+pub struct LastConsole(pub WeakEntity<ConsolePanel>);
+impl Global for LastConsole {}
+
+/// The explorer of the active workspace (selection-dependent actions).
+pub struct ActiveExplorer(pub WeakEntity<ExplorerPanel>);
+impl Global for ActiveExplorer {}
 
 #[derive(Default)]
 struct ShiftTracker {
@@ -81,6 +94,9 @@ pub struct Workspace {
     dock: Entity<DockArea>,
     project: Project,
     menu_bar: Option<Entity<AppMenuBar>>,
+    consoles: Vec<WeakEntity<ConsolePanel>>,
+    history_panel: Option<WeakEntity<HistoryPanel>>,
+    local_history_panel: Option<WeakEntity<LocalHistoryPanel>>,
     save_task: Option<Task<()>>,
     shift: ShiftTracker,
     /// Model of the last opened palette (inspected by UI tests).
@@ -148,6 +164,9 @@ impl Workspace {
             dock,
             project,
             menu_bar,
+            consoles: Vec::new(),
+            history_panel: None,
+            local_history_panel: None,
             save_task: None,
             shift: ShiftTracker::default(),
             last_palette: None,
@@ -180,6 +199,8 @@ impl Workspace {
         let console = cx.new(|cx| ConsolePanel::new(first_source, String::new(), window, cx));
         let services = cx.new(|cx| ServicesPanel::new(window, cx));
         let output = cx.new(|cx| OutputPanel::new(window, cx));
+        let history = cx.new(|cx| HistoryPanel::new(window, cx));
+        let local_history = cx.new(|cx| LocalHistoryPanel::new(window, cx));
         let inspector = cx.new(|cx| InspectorPanel::new(window, cx));
         dock.update(cx, |a, cx| {
             a.set_center(
@@ -200,11 +221,13 @@ impl Workspace {
                 DockPlacement::Bottom,
                 DockLayout::tabs()
                     .panel_view(panel_handle(services), cx)
-                    .panel_view(panel_handle(output), cx),
+                    .panel_view(panel_handle(output), cx)
+                    .panel_view(panel_handle(history), cx)
+                    .panel_view(panel_handle(local_history), cx),
                 window,
                 cx,
             );
-            a.set_dock_size(DockPlacement::Bottom, px(200.), window, cx);
+            a.set_dock_size(DockPlacement::Bottom, px(220.), window, cx);
             a.set_dock(
                 DockPlacement::Right,
                 DockLayout::tabs().panel_view(panel_handle(inspector), cx),
@@ -243,13 +266,109 @@ impl Workspace {
         text: String,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Entity<ConsolePanel> {
         let panel = cx.new(|cx| ConsolePanel::new(data_source, text, window, cx));
         let editor = panel.read(cx).editor().clone();
         self.dock.update(cx, |a, cx| {
-            a.add_panel_view(panel_handle(panel), DockPlacement::Center, None, window, cx)
+            a.add_panel_view(
+                panel_handle(panel.clone()),
+                DockPlacement::Center,
+                None,
+                window,
+                cx,
+            )
         });
         editor.update(cx, |e, cx| e.focus(window, cx));
+        cx.set_global(LastConsole(panel.downgrade()));
+        self.consoles.push(panel.downgrade());
+        panel
+    }
+
+    /// Consoles opened in this workspace (alive ones).
+    pub fn consoles(&self) -> Vec<Entity<ConsolePanel>> {
+        self.consoles.iter().filter_map(|c| c.upgrade()).collect()
+    }
+
+    /// Opens the data of a table / collection / key prefix: a console with a
+    /// starter query in the source language, executed immediately.
+    pub fn open_data(&mut self, node: NodeRef, window: &mut Window, cx: &mut Context<Self>) {
+        let text = template_query(&node, cx);
+        let console = self.add_console(Some(node.data_source.clone()), text, window, cx);
+        console.update(cx, |c, cx| c.run(RunTarget::Script, window, cx));
+    }
+
+    /// Adds a bottom panel unless one of that kind is open; opens the dock.
+    fn show_bottom<P: ferrodb_ui_kit::kit::dock::Panel>(
+        &mut self,
+        existing: Option<WeakEntity<P>>,
+        build: impl FnOnce(&mut Window, &mut Context<Self>) -> Entity<P>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> WeakEntity<P> {
+        if !self.dock.read(cx).is_dock_open(DockPlacement::Bottom) {
+            self.toggle_dock(DockPlacement::Bottom, window, cx);
+        }
+        if let Some(e) = existing.filter(|e| e.upgrade().is_some()) {
+            return e;
+        }
+        let panel = build(window, cx);
+        self.dock.update(cx, |a, cx| {
+            a.add_panel_view(
+                panel_handle(panel.clone()),
+                DockPlacement::Bottom,
+                None,
+                window,
+                cx,
+            )
+        });
+        panel.downgrade()
+    }
+
+    fn compare_schemas(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Compares the DDL of `customers` in the development and production
+        // sources (plan 2.8 mockup; schema compare arrives in phase 7).
+        let node = |ds: &str| {
+            NodeRef::root(DataSourceId::new(ds))
+                .child(ObjectKind::Database, "shop")
+                .child(ObjectKind::Schema, "public")
+                .child(ObjectKind::Table, "customers")
+        };
+        let backend = AppState::backend(cx);
+        let task = cx.background_executor().spawn(async move {
+            let m = backend.metadata();
+            let a = m
+                .definition(vec![node("shop-dev")], DdlOptions::default())
+                .await;
+            let b = m
+                .definition(vec![node("shop-prod")], DdlOptions::default())
+                .await;
+            (a, b)
+        });
+        cx.spawn_in(window, async move |_, cx| {
+            let (a, b) = task.await;
+            let _ = cx.update(|window, cx| {
+                let (Ok(a), Ok(b)) = (a, b) else { return };
+                let view = cx.new(|cx| {
+                    DiffView::new(
+                        "shop (dev)".into(),
+                        &a,
+                        "shop (production)".into(),
+                        &b,
+                        "sql",
+                        cx,
+                    )
+                });
+                open_view_dialog(t("action-compare"), view.into(), window, cx);
+            });
+        })
+        .detach();
+    }
+
+    fn open_gallery(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let panel = cx.new(|cx| GalleryPanel::new(window, cx));
+        self.dock.update(cx, |a, cx| {
+            a.add_panel_view(panel_handle(panel), DockPlacement::Center, None, window, cx)
+        });
     }
 
     fn default_source(cx: &App) -> Option<DataSourceId> {
@@ -270,11 +389,15 @@ impl Workspace {
             }
             Target::Search(entry) => match entry.target {
                 SearchTarget::DataSource(id) => {
-                    self.add_console(Some(id), String::new(), window, cx)
+                    self.add_console(Some(id), String::new(), window, cx);
                 }
                 SearchTarget::Object(node) => {
-                    let text = template_query(&node, cx);
-                    self.add_console(Some(node.data_source.clone()), text, window, cx)
+                    if node.kind().is_some_and(explorer::opens_data) {
+                        self.open_data(node, window, cx)
+                    } else {
+                        let text = template_query(&node, cx);
+                        self.add_console(Some(node.data_source.clone()), text, window, cx);
+                    }
                 }
                 SearchTarget::File(_) => {}
             },
@@ -638,25 +761,112 @@ pub fn open_console(
         .try_global::<ActiveWorkspace>()
         .and_then(|w| w.0.upgrade())
     {
-        ws.update(cx, |ws, cx| ws.add_console(data_source, text, window, cx));
+        ws.update(cx, |ws, cx| {
+            ws.add_console(data_source, text, window, cx);
+        });
     }
 }
 
+/// Opens the data of an object in the active workspace (explorer double-click).
+pub fn open_data(node: NodeRef, window: &mut Window, cx: &mut App) {
+    if let Some(ws) = active(cx) {
+        ws.update(cx, |ws, cx| ws.open_data(node, window, cx));
+    }
+}
+
+/// Copies the DDL of an object and shows it in a new console.
+pub fn show_ddl(node: NodeRef, window: &mut Window, cx: &mut App) {
+    let backend = AppState::backend(cx);
+    let ds = node.data_source.clone();
+    let task = cx.background_executor().spawn(async move {
+        backend
+            .metadata()
+            .definition(vec![node], DdlOptions::default())
+            .await
+    });
+    window
+        .spawn(cx, async move |cx| {
+            let ddl = task.await;
+            let _ = cx.update(|window, cx| match ddl {
+                Ok(ddl) => {
+                    cx.write_to_clipboard(ClipboardItem::new_string(ddl.clone()));
+                    window.push_notification(Notification::info(t("ddl-copied")), cx);
+                    open_console(Some(ds), ddl, window, cx);
+                }
+                Err(e) => window.push_notification(Notification::error(e.to_string()), cx),
+            });
+        })
+        .detach();
+}
+
+pub fn open_table_editor(node: Option<NodeRef>, window: &mut Window, cx: &mut App) {
+    views::table_editor::open(node, window, cx);
+}
+
+pub fn open_er_diagram(node: NodeRef, window: &mut Window, cx: &mut App) {
+    let view = cx.new(|cx| ErDiagram::new(node, cx));
+    open_view_dialog(t("action-er-diagram"), view.into(), window, cx);
+}
+
+/// Shows a view in a large dialog (mockup views of plan 2.8).
+pub fn open_view_dialog(title: String, view: AnyView, window: &mut Window, cx: &mut App) {
+    cx.set_global(LastViewDialog(Some(view.clone())));
+    window.open_dialog(cx, move |dialog, _, _| {
+        dialog
+            .title(title.clone())
+            .w(px(1000.))
+            .child(div().h(px(560.)).child(view.clone()))
+    });
+}
+
+/// View shown by the last [`open_view_dialog`] (UI tests).
+#[derive(Default)]
+pub struct LastViewDialog(pub Option<AnyView>);
+impl Global for LastViewDialog {}
+
+/// Text of the most recently used console.
+pub fn active_console_text(cx: &App) -> Option<String> {
+    let c = cx.try_global::<LastConsole>()?.0.upgrade()?;
+    Some(c.read(cx).editor().read(cx).value().to_string())
+}
+
+/// The explorer's selected object or source as a node.
+fn explorer_selection(cx: &App) -> Option<NodeRef> {
+    let e = cx.try_global::<ActiveExplorer>()?.0.upgrade()?;
+    let e = e.read(cx);
+    e.selected_object(cx)
+        .map(|o| o.node)
+        .or_else(|| e.selected_source(cx).map(NodeRef::root))
+}
+
 /// A starter query for an object, in the language of its data source.
-fn template_query(node: &NodeRef, cx: &App) -> String {
+pub fn template_query(node: &NodeRef, cx: &App) -> String {
     let name = node.name().unwrap_or_default();
     let lang = AppState::backend(cx)
         .data_sources()
         .get(&node.data_source)
         .map(|s| s.capabilities.language);
+    // Qualified name below the first level (schema.table, dataset.table).
+    let qualified = match node.path.len() {
+        0 | 1 => name.to_owned(),
+        n => format!("{}.{name}", node.path[n - 2].1),
+    };
     match lang {
         Some(QueryLanguage::Mql) => format!("db.{name}.find({{}})"),
-        Some(QueryLanguage::RedisCommands) => format!("SCAN 0 MATCH {name}*"),
+        Some(QueryLanguage::RedisCommands) => {
+            let key: Vec<&str> = node.path.iter().skip(1).map(|(_, n)| n.as_str()).collect();
+            let key = key.join(":");
+            match node.kind() {
+                Some(ObjectKind::KeyPrefix) => format!("SCAN 0 MATCH {key}:* COUNT 500"),
+                Some(ObjectKind::Key) => format!("SCAN 0 MATCH {key}"),
+                _ => "SCAN 0 MATCH * COUNT 500".into(),
+            }
+        }
         Some(QueryLanguage::PartiQl) => format!("SELECT * FROM \"{name}\""),
         Some(QueryLanguage::Cql | QueryLanguage::SqlPlusPlus) => {
-            format!("SELECT * FROM {name} LIMIT 100;")
+            format!("SELECT * FROM {qualified} LIMIT 100;")
         }
-        _ => format!("SELECT * FROM {name};"),
+        _ => format!("SELECT * FROM {qualified};"),
     }
 }
 
@@ -718,14 +928,82 @@ impl Render for Workspace {
             )
             .on_action(cx.listener(|this, _: &actions::NewConsole, w, cx| {
                 let ds = Self::default_source(cx);
-                this.add_console(ds, String::new(), w, cx)
+                this.add_console(ds, String::new(), w, cx);
             }))
             .on_action(cx.listener(|_, _: &actions::NewDataSource, w, cx| {
-                w.push_notification(
-                    Notification::info(t_args("not-implemented-phase", &[("phase", 2.into())])),
-                    cx,
-                )
+                dialogs::data_source::open_new(w, cx)
             }))
+            .on_action(cx.listener(|_, _: &actions::EditDataSource, w, cx| {
+                match explorer_selection(cx)
+                    .map(|n| n.data_source)
+                    .or_else(|| Self::default_source(cx))
+                {
+                    Some(id) => dialogs::data_source::open_edit(id, w, cx),
+                    None => {
+                        w.push_notification(Notification::info(t("explorer-select-source")), cx)
+                    }
+                }
+            }))
+            .on_action(cx.listener(|_, _: &actions::OpenDriverManager, w, cx| {
+                dialogs::driver_manager::open(w, cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::RefreshExplorer, _, cx| {
+                if let Some(e) = cx
+                    .try_global::<ActiveExplorer>()
+                    .and_then(|e| e.0.upgrade())
+                {
+                    e.update(cx, |e, cx| e.refresh(None, cx));
+                }
+            }))
+            .on_action(cx.listener(|_, _: &actions::ExportData, w, cx| {
+                views::wizard::open(WizardKind::Export, w, cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::ImportData, w, cx| {
+                views::wizard::open(WizardKind::Import, w, cx)
+            }))
+            .on_action(cx.listener(|this, _: &actions::ShowQueryHistory, w, cx| {
+                let existing = this.history_panel.clone();
+                this.history_panel = Some(this.show_bottom(
+                    existing,
+                    |w, cx| cx.new(|cx| HistoryPanel::new(w, cx)),
+                    w,
+                    cx,
+                ));
+            }))
+            .on_action(cx.listener(|this, _: &actions::ShowLocalHistory, w, cx| {
+                let existing = this.local_history_panel.clone();
+                this.local_history_panel = Some(this.show_bottom(
+                    existing,
+                    |w, cx| cx.new(|cx| LocalHistoryPanel::new(w, cx)),
+                    w,
+                    cx,
+                ));
+            }))
+            .on_action(cx.listener(|_, _: &actions::NewTable, w, cx| {
+                let node = explorer_selection(cx).filter(|n| n.kind() == Some(ObjectKind::Table));
+                open_table_editor(node, w, cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::ShowErDiagram, w, cx| {
+                let node = explorer_selection(cx)
+                    .filter(|n| {
+                        matches!(
+                            n.kind(),
+                            Some(ObjectKind::Schema | ObjectKind::Dataset | ObjectKind::Table)
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        NodeRef::root(DataSourceId::new("shop-dev"))
+                            .child(ObjectKind::Database, "shop")
+                            .child(ObjectKind::Schema, "public")
+                    });
+                open_er_diagram(node, w, cx)
+            }))
+            .on_action(
+                cx.listener(|this, _: &actions::CompareSchemas, w, cx| this.compare_schemas(w, cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &actions::OpenGallery, w, cx| this.open_gallery(w, cx)),
+            )
             .on_action(
                 cx.listener(|this, _: &actions::DeveloperScenarios, w, cx| this.scenarios(w, cx)),
             )
@@ -734,6 +1012,12 @@ impl Render for Workspace {
             }))
             // Console actions when no console is focused.
             .on_action(cx.listener(|_, _: &actions::ExecuteStatement, w, cx| {
+                w.push_notification(Notification::info(t("console-focus-required")), cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::ExecuteScript, w, cx| {
+                w.push_notification(Notification::info(t("console-focus-required")), cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::ExplainPlan, w, cx| {
                 w.push_notification(Notification::info(t("console-focus-required")), cx)
             }))
             .on_action(cx.listener(|_, _: &actions::StopQuery, _, _| {}))

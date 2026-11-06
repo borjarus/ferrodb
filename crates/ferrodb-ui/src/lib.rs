@@ -5,15 +5,21 @@
 //! [`AppState`]. In phases 1–2 that backend is the mock.
 
 pub mod actions;
+pub mod activity;
+pub mod completion;
+pub mod dialogs;
 pub mod i18n;
+pub mod inspector;
 pub mod keymap;
 pub mod menus;
 pub mod output;
 pub mod palette;
 pub mod panels;
 pub mod project;
+pub mod results;
 pub mod settings;
 pub mod settings_view;
+pub mod views;
 pub mod workspace;
 
 use std::{path::PathBuf, sync::Arc};
@@ -92,6 +98,8 @@ pub fn init(state: AppState, cx: &mut App) {
 
     apply_look(&s, cx);
     output::init(cx);
+    inspector::init(cx);
+    activity::init(cx);
     panels::register(cx);
     menus::install(cx);
 }

@@ -31,6 +31,11 @@ pub fn build(cx: &App) -> Vec<Menu> {
     let mut file = vec![
         item("action-new-console", NewConsole),
         item("action-new-data-source", NewDataSource),
+        item("action-edit-data-source", EditDataSource),
+        item("action-driver-manager", OpenDriverManager),
+        MenuItem::separator(),
+        item("action-import-data", ImportData),
+        item("action-export-data", ExportData),
         MenuItem::separator(),
         item("action-open-project", OpenProject),
         item("action-recent-projects", RecentProjects),
@@ -53,10 +58,16 @@ pub fn build(cx: &App) -> Vec<Menu> {
         item("action-toggle-right-panel", ToggleRightPanel),
         item("action-reset-layout", ResetLayout),
         MenuItem::separator(),
+        item("action-query-history", ShowQueryHistory),
+        item("action-local-history", ShowLocalHistory),
+        item("action-refresh", RefreshExplorer),
+        MenuItem::separator(),
         item("action-toggle-theme", ToggleTheme),
     ]));
     menus.push(Menu::new(t("menu-console")).items([
         item("action-execute", ExecuteStatement),
+        item("action-execute-script", ExecuteScript),
+        item("action-explain", ExplainPlan),
         item("action-stop", StopQuery),
         MenuItem::separator(),
         item("action-format", FormatCode),
@@ -65,9 +76,15 @@ pub fn build(cx: &App) -> Vec<Menu> {
         item("action-live-templates", LiveTemplates),
         item("action-quick-doc", QuickDocumentation),
     ]));
+    menus.push(Menu::new(t("menu-tools")).items([
+        item("action-new-table", NewTable),
+        item("action-er-diagram", ShowErDiagram),
+        item("action-compare", CompareSchemas),
+    ]));
     if SettingsStore::get(cx).developer_mode {
         menus.push(Menu::new(t("menu-developer")).items([
             item("action-dev-scenarios", DeveloperScenarios),
+            item("action-dev-gallery", OpenGallery),
             item("action-dev-notification", ShowNotificationDemo),
         ]));
     }

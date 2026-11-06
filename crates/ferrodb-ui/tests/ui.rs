@@ -24,7 +24,7 @@ fn init(cx: &mut TestAppContext, paths: Option<AppPaths>) {
     cx.update(|cx: &mut App| {
         ferrodb_ui::init(
             AppState {
-                backend: Arc::new(MockBackend::new()),
+                backend: Arc::new(MockBackend::deterministic()),
                 scenarios: None,
                 paths,
             },

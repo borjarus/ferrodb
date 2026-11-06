@@ -865,7 +865,9 @@ dependencies = [
  "indexmap",
  "js-sys",
  "rand 0.9.5",
+ "serde",
  "serde_bytes",
+ "serde_json",
  "simdutf8",
  "thiserror 2.0.21",
  "time",
@@ -1816,6 +1818,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrodb-gallery"
+version = "0.1.0"
+dependencies = [
+ "ferrodb-mock",
+ "ferrodb-ui",
+ "ferrodb-ui-kit",
+ "gpui-kit",
+]
+
+[[package]]
 name = "ferrodb-mock"
 version = "0.1.0"
 dependencies = [
@@ -1831,7 +1843,10 @@ dependencies = [
 name = "ferrodb-ui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-channel",
+ "bson",
+ "chrono",
  "ferrodb-api",
  "ferrodb-mock",
  "ferrodb-ui-kit",
@@ -1854,6 +1869,7 @@ version = "0.1.0"
 dependencies = [
  "ferrodb-api",
  "gpui-kit",
+ "lsp-types",
 ]
 
 [[package]]

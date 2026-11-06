@@ -24,17 +24,37 @@ actions!(
         ResetLayout,
         // data sources
         NewDataSource,
+        EditDataSource,
+        OpenDriverManager,
+        RefreshExplorer,
         // consoles
         NewConsole,
         ExecuteStatement,
+        ExecuteScript,
+        ExplainPlan,
         StopQuery,
         FormatCode,
         Rename,
         GoToDeclaration,
         LiveTemplates,
         QuickDocumentation,
+        // results
+        CopySelection,
+        FindInResults,
+        SubmitChanges,
+        RevertChanges,
+        LoadMore,
+        ExportData,
+        ImportData,
+        // tools
+        ShowQueryHistory,
+        ShowLocalHistory,
+        NewTable,
+        ShowErDiagram,
+        CompareSchemas,
         // developer
         DeveloperScenarios,
+        OpenGallery,
         ShowNotificationDemo,
     ]
 );
@@ -46,6 +66,8 @@ pub enum Category {
     Layout,
     DataSources,
     Console,
+    Results,
+    Tools,
     Developer,
 }
 
@@ -57,6 +79,8 @@ impl Category {
             Self::Layout => "category-layout",
             Self::DataSources => "category-data-sources",
             Self::Console => "category-console",
+            Self::Results => "category-results",
+            Self::Tools => "category-tools",
             Self::Developer => "category-developer",
         }
     }
@@ -64,6 +88,8 @@ impl Category {
 
 /// Key context of the console editor; console actions are bound there.
 pub const CONSOLE_CONTEXT: &str = "Console";
+/// Key context of the result grid; grid actions are bound there.
+pub const GRID_CONTEXT: &str = "ResultGrid";
 /// Key context of the main window.
 pub const WORKSPACE_CONTEXT: &str = "Workspace";
 
@@ -112,6 +138,7 @@ macro_rules! spec {
 
 const W: Option<&str> = Some(WORKSPACE_CONTEXT);
 const C: Option<&str> = Some(CONSOLE_CONTEXT);
+const G: Option<&str> = Some(GRID_CONTEXT);
 
 /// All actions of the application, in palette order.
 pub static ACTIONS: &[ActionSpec] = &[
@@ -233,6 +260,33 @@ pub static ACTIONS: &[ActionSpec] = &[
         ["connection", "database"]
     ),
     spec!(
+        EditDataSource,
+        "action-edit-data-source",
+        DataSources,
+        None,
+        None,
+        None,
+        ["properties", "connection"]
+    ),
+    spec!(
+        OpenDriverManager,
+        "action-driver-manager",
+        DataSources,
+        None,
+        None,
+        None,
+        ["jdbc", "adbc", "download", "jar"]
+    ),
+    spec!(
+        RefreshExplorer,
+        "action-refresh",
+        DataSources,
+        Some("secondary-f5"),
+        None,
+        None,
+        ["reload", "synchronize"]
+    ),
+    spec!(
         NewConsole,
         "action-new-console",
         Console,
@@ -249,6 +303,24 @@ pub static ACTIONS: &[ActionSpec] = &[
         None,
         C,
         ["run", "query"]
+    ),
+    spec!(
+        ExecuteScript,
+        "action-execute-script",
+        Console,
+        Some("secondary-shift-enter"),
+        None,
+        C,
+        ["run all", "script"]
+    ),
+    spec!(
+        ExplainPlan,
+        "action-explain",
+        Console,
+        Some("secondary-shift-e"),
+        None,
+        C,
+        ["plan", "explain"]
     ),
     spec!(
         StopQuery,
@@ -305,6 +377,114 @@ pub static ACTIONS: &[ActionSpec] = &[
         ["help"]
     ),
     spec!(
+        CopySelection,
+        "action-copy-selection",
+        Results,
+        Some("secondary-c"),
+        None,
+        G,
+        ["clipboard"]
+    ),
+    spec!(
+        FindInResults,
+        "action-find-in-results",
+        Results,
+        Some("secondary-f"),
+        None,
+        G,
+        ["search", "filter"]
+    ),
+    spec!(
+        SubmitChanges,
+        "action-submit-changes",
+        Results,
+        Some("secondary-enter"),
+        None,
+        G,
+        ["commit", "save", "apply"]
+    ),
+    spec!(
+        RevertChanges,
+        "action-revert-changes",
+        Results,
+        Some("secondary-alt-z"),
+        None,
+        G,
+        ["undo", "discard"]
+    ),
+    spec!(
+        LoadMore,
+        "action-load-more",
+        Results,
+        None,
+        None,
+        G,
+        ["page", "fetch"]
+    ),
+    spec!(
+        ExportData,
+        "action-export-data",
+        Results,
+        None,
+        None,
+        None,
+        ["csv", "json", "excel", "dump"]
+    ),
+    spec!(
+        ImportData,
+        "action-import-data",
+        Results,
+        None,
+        None,
+        None,
+        ["csv", "load"]
+    ),
+    spec!(
+        ShowQueryHistory,
+        "action-query-history",
+        Tools,
+        None,
+        None,
+        None,
+        ["history", "recent queries"]
+    ),
+    spec!(
+        ShowLocalHistory,
+        "action-local-history",
+        Tools,
+        None,
+        None,
+        None,
+        ["revisions", "restore"]
+    ),
+    spec!(
+        NewTable,
+        "action-new-table",
+        Tools,
+        None,
+        None,
+        None,
+        ["ddl", "create table", "modify"]
+    ),
+    spec!(
+        ShowErDiagram,
+        "action-er-diagram",
+        Tools,
+        None,
+        None,
+        None,
+        ["diagram", "relations", "foreign keys"]
+    ),
+    spec!(
+        CompareSchemas,
+        "action-compare",
+        Tools,
+        None,
+        None,
+        None,
+        ["diff", "compare"]
+    ),
+    spec!(
         DeveloperScenarios,
         "action-dev-scenarios",
         Developer,
@@ -312,6 +492,15 @@ pub static ACTIONS: &[ActionSpec] = &[
         None,
         None,
         ["mock", "debug"]
+    ),
+    spec!(
+        OpenGallery,
+        "action-dev-gallery",
+        Developer,
+        None,
+        None,
+        None,
+        ["components", "gallery"]
     ),
     spec!(
         ShowNotificationDemo,

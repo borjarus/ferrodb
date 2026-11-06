@@ -74,39 +74,112 @@ fn schema_kind(model: DataModel) -> SchemaKind {
     }
 }
 
+fn prop(key: &str, label: &str, default: Option<String>, required: bool) -> DriverProperty {
+    DriverProperty {
+        key: key.into(),
+        label: label.into(),
+        default,
+        required,
+        secret: false,
+        auth: Vec::new(),
+    }
+}
+
+fn secret(key: &str, label: &str, auth: &[AuthMethod]) -> DriverProperty {
+    DriverProperty {
+        secret: true,
+        auth: auth.to_vec(),
+        ..prop(key, label, None, false)
+    }
+}
+
+fn for_auth(mut p: DriverProperty, auth: &[AuthMethod]) -> DriverProperty {
+    p.auth = auth.to_vec();
+    p
+}
+
+/// Connection form fields; credentials depend on the chosen auth method.
 fn properties(model: DataModel, port: Option<u16>, id: &str) -> Vec<DriverProperty> {
-    let p = |key: &str, label: &str, default: Option<String>, required: bool, secret: bool| {
-        DriverProperty {
-            key: key.into(),
-            label: label.into(),
-            default,
-            required,
-            secret,
-        }
+    let user = || {
+        for_auth(
+            prop("user", "User", None, false),
+            &[Au::Password, Au::Kerberos],
+        )
     };
-    if id == "sqlite" {
-        return vec![p("file", "File", None, true, false)];
-    }
-    if model == Document && id == "mongodb" {
-        return vec![
-            p(
-                "uri",
-                "URI",
-                Some("mongodb://localhost:27017".into()),
-                true,
-                false,
+    let password = || secret("password", "Password", &[Au::Password]);
+    let mut v = match id {
+        "sqlite" => return vec![prop("file", "File", None, true)],
+        "mongodb" => vec![
+            prop("uri", "URI", Some("mongodb://localhost:27017".into()), true),
+            user(),
+            password(),
+            for_auth(
+                prop("certificate", "Client certificate", None, false),
+                &[Au::X509],
             ),
-            p("user", "User", None, false, false),
-            p("password", "Password", None, false, true),
-        ];
-    }
-    vec![
-        p("host", "Host", Some("localhost".into()), true, false),
-        p("port", "Port", port.map(|p| p.to_string()), false, false),
-        p("database", "Database", None, false, false),
-        p("user", "User", None, false, false),
-        p("password", "Password", None, false, true),
-    ]
+        ],
+        "snowflake" => vec![
+            prop("account", "Account", None, true),
+            prop("warehouse", "Warehouse", None, false),
+            prop("database", "Database", None, false),
+            for_auth(
+                prop("user", "User", None, true),
+                &[Au::Password, Au::KeyPair, Au::Sso],
+            ),
+            password(),
+            secret("private_key", "Private key", &[Au::KeyPair]),
+        ],
+        "bigquery" => vec![
+            prop("project", "Project", None, true),
+            prop("dataset", "Default dataset", None, false),
+            prop("location", "Location", Some("EU".into()), false),
+            secret(
+                "credentials",
+                "Service account key",
+                &[Au::GoogleServiceAccount],
+            ),
+        ],
+        "dynamodb" => vec![
+            prop("region", "Region", Some("eu-central-1".into()), true),
+            prop("endpoint", "Endpoint (optional)", None, false),
+        ],
+        _ if model == Document || model == KeyValue || port.is_some() => vec![
+            prop("host", "Host", Some("localhost".into()), true),
+            prop("port", "Port", port.map(|p| p.to_string()), false),
+            prop("database", "Database", None, false),
+            user(),
+            password(),
+        ],
+        _ => vec![prop("url", "URL", None, true), user(), password()],
+    };
+    v.extend([
+        for_auth(
+            prop("aws.profile", "AWS profile", Some("default".into()), false),
+            &[Au::AwsIam],
+        ),
+        for_auth(prop("aws.region", "AWS region", None, false), &[Au::AwsIam]),
+        for_auth(prop("tenant", "Tenant ID", None, false), &[Au::EntraId]),
+        for_auth(
+            prop("principal", "Kerberos principal", None, false),
+            &[Au::Kerberos],
+        ),
+    ]);
+    v
+}
+
+fn url_template(id: &str, family: &str) -> Option<String> {
+    Some(match (family, id) {
+        ("pgwire", "redshift") => "jdbc:redshift://{host}:{port}/{database}".into(),
+        ("pgwire", _) => "postgresql://{user}@{host}:{port}/{database}".into(),
+        ("mysql", _) => "mysql://{user}@{host}:{port}/{database}".into(),
+        ("tds", _) => "sqlserver://{host}:{port};database={database}".into(),
+        ("jdbc", _) => format!("jdbc:{id}://{{host}}:{{port}}/{{database}}"),
+        ("sqlite", _) => "sqlite:{file}".into(),
+        ("mongodb", _) => "{uri}".into(),
+        ("redis", _) => "redis://{host}:{port}/{database}".into(),
+        ("cql", _) => "cassandra://{host}:{port}/{database}".into(),
+        _ => return None,
+    })
 }
 
 fn requirements(access: AccessLayer, id: &str) -> Vec<Requirement> {
@@ -156,6 +229,7 @@ pub fn descriptors() -> Vec<DriverDescriptor> {
             requirements: requirements(s.access, s.id),
             properties: properties(s.model, s.port, s.id),
             default_port: s.port,
+            url_template: url_template(s.id, s.family),
         })
         .collect()
 }

@@ -10,7 +10,7 @@ use crate::settings::write_atomic;
 
 /// Version of the saved dock layout. Bump when panel names or the default
 /// arrangement change incompatibly; older layouts are then discarded.
-pub const LAYOUT_VERSION: usize = 1;
+pub const LAYOUT_VERSION: usize = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Project {

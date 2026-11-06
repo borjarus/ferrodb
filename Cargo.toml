@@ -6,6 +6,7 @@ members = [
   "crates/ferrodb-ui-kit",
   "crates/ferrodb-ui",
   "crates/ferrodb-app",
+  "apps/ferrodb-gallery",
   "xtask",
   "spikes/gui",
   "spikes/adbc",

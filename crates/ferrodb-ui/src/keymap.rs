@@ -151,7 +151,7 @@ mod tests {
         let merged = merge(default_bindings(), &user);
         let enter: Vec<_> = merged
             .iter()
-            .filter(|b| b.keys == "secondary-enter")
+            .filter(|b| b.keys == "secondary-enter" && b.context.as_deref() == Some("Console"))
             .collect();
         assert_eq!(enter.len(), 1);
         assert_eq!(enter[0].action, "ferrodb::FormatCode");

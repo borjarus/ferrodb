@@ -36,6 +36,9 @@ pub mod test {
 
 pub use gpui_kit::actions;
 
+/// LSP types used by the editor (completions, diagnostics).
+pub use lsp_types;
+
 use gpui_kit::{App, AssetSource, SharedString};
 use std::borrow::Cow;
 

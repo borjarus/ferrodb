@@ -21,6 +21,10 @@ fluent-bundle.workspace = true
 fluent-syntax = "0.12"
 unic-langid.workspace = true
 nucleo-matcher.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+# Extended JSON for the document browser.
+bson = { workspace = true, features = ["serde", "serde_json-1"] }
 
 [dev-dependencies]
 ferrodb-mock.workspace = true

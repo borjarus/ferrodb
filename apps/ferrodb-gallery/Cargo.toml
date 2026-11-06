@@ -1,0 +1,16 @@
+[package]
+name = "ferrodb-gallery"
+description = "FerroDb component gallery: every GUI component on mock data, both themes, mock scenarios"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+ferrodb-mock.workspace = true
+ferrodb-ui.workspace = true
+ferrodb-ui-kit.workspace = true
+gpui-kit.workspace = true
+
+[lints]
+workspace = true

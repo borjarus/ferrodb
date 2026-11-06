@@ -4,12 +4,12 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::{BoxFuture, QueryError, QueryId, Result, ResultId, SessionId};
+use crate::{BoxFuture, DataSourceId, QueryError, QueryId, Result, ResultId, SessionId};
 
 /// Text submitted for execution, already narrowed to what should run
 /// (statement under cursor, selection or whole script).
@@ -212,10 +212,22 @@ pub enum Change {
     DeleteDocument {
         document: usize,
     },
-    /// Key-value: set value / TTL.
+    /// Key-value: set the whole value of a string / JSON key.
     SetKey {
         key: String,
         value: String,
+    },
+    /// Key-value: set one member of a collection key — hash field, list
+    /// index, zset member (value = score), set member (value = new member).
+    SetKeyMember {
+        key: String,
+        member: String,
+        value: String,
+    },
+    /// Key-value: change the TTL (`None` = persist).
+    ExpireKey {
+        key: String,
+        ttl_secs: Option<u64>,
     },
     DeleteKey {
         key: String,
@@ -229,13 +241,106 @@ pub struct ApplyReport {
     pub statements: Vec<String>,
 }
 
+/// Value of one key (Redis), loaded on demand by the key browser.
+#[derive(Clone, Debug, PartialEq)]
+pub enum KeyValue {
+    String(String),
+    Hash(Vec<(String, String)>),
+    List(Vec<String>),
+    Set(Vec<String>),
+    /// Members with scores, ordered by score.
+    ZSet(Vec<(String, f64)>),
+    Stream(Vec<StreamEntry>),
+    /// RedisJSON document as JSON text.
+    Json(String),
+}
+
+impl KeyValue {
+    pub fn kind(&self) -> KeyType {
+        match self {
+            Self::String(_) => KeyType::String,
+            Self::Hash(_) => KeyType::Hash,
+            Self::List(_) => KeyType::List,
+            Self::Set(_) => KeyType::Set,
+            Self::ZSet(_) => KeyType::ZSet,
+            Self::Stream(_) => KeyType::Stream,
+            Self::Json(_) => KeyType::Json,
+        }
+    }
+
+    /// Number of elements (1 for strings and JSON).
+    pub fn len(&self) -> usize {
+        match self {
+            Self::String(_) | Self::Json(_) => 1,
+            Self::Hash(v) => v.len(),
+            Self::List(v) | Self::Set(v) => v.len(),
+            Self::ZSet(v) => v.len(),
+            Self::Stream(v) => v.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StreamEntry {
+    pub id: String,
+    pub fields: Vec<(String, String)>,
+}
+
+/// An open session, listed in the Services panel.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SessionInfo {
+    pub id: SessionId,
+    pub data_source: DataSourceId,
+    pub opened_at: SystemTime,
+    /// A manual-commit transaction is open.
+    pub in_transaction: bool,
+}
+
+/// One node of an execution plan (sources with `explain != None`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlanNode {
+    /// Operation, e.g. `Hash Join`, `Seq Scan`, `COLLSCAN`.
+    pub operation: String,
+    /// Object or condition, e.g. `orders o`, `o.customer_id = c.id`.
+    pub detail: Option<String>,
+    /// Estimated cost in database-specific units.
+    pub cost: f64,
+    /// Estimated rows / documents.
+    pub rows: u64,
+    pub children: Vec<PlanNode>,
+}
+
 pub trait QueryService: Send + Sync {
-    fn open_session(&self, ds: &crate::DataSourceId) -> BoxFuture<'_, Result<SessionId>>;
+    fn open_session(&self, ds: &DataSourceId) -> BoxFuture<'_, Result<SessionId>>;
     fn close_session(&self, session: SessionId) -> BoxFuture<'_, Result<()>>;
+    /// Open sessions (Services panel).
+    fn sessions(&self) -> Vec<SessionInfo>;
     fn execute(&self, session: SessionId, script: Script, opts: ExecOptions) -> QueryHandle;
     /// Requests up to `items` more items for a paused result; they arrive as
     /// further `Data` events on the original handle.
     fn fetch_more(&self, result: ResultId, items: usize) -> BoxFuture<'_, Result<()>>;
+    /// Cost of running `script` without running it (sources with
+    /// `cost_estimate`), in bytes processed. `None` when unknown.
+    fn estimate_cost(
+        &self,
+        session: SessionId,
+        script: Script,
+    ) -> BoxFuture<'_, Result<Option<u64>>>;
+    /// Execution plan of the first statement of `script`.
+    fn explain(&self, session: SessionId, script: Script) -> BoxFuture<'_, Result<PlanNode>>;
+    /// Value of one key (key-value sources).
+    fn key_value(&self, session: SessionId, key: String) -> BoxFuture<'_, Result<KeyValue>>;
+    /// Statements / commands that [`Self::apply_changes`] would run, for the
+    /// operation preview. Nothing is executed.
+    fn preview_changes(
+        &self,
+        result: ResultId,
+        changes: ChangeSet,
+    ) -> BoxFuture<'_, Result<Vec<String>>>;
     fn apply_changes(
         &self,
         result: ResultId,

@@ -3,7 +3,10 @@
 
 pub mod console;
 pub mod explorer;
+pub mod gallery;
+pub mod history;
 pub mod inspector;
+pub mod local_history;
 pub mod output_panel;
 pub mod services;
 pub mod welcome;
@@ -15,7 +18,10 @@ use ferrodb_ui_kit::{
 
 pub use console::ConsolePanel;
 pub use explorer::ExplorerPanel;
+pub use gallery::GalleryPanel;
+pub use history::HistoryPanel;
 pub use inspector::InspectorPanel;
+pub use local_history::LocalHistoryPanel;
 pub use output_panel::OutputPanel;
 pub use services::ServicesPanel;
 pub use welcome::WelcomePanel;
@@ -56,5 +62,14 @@ pub fn register(cx: &mut App) {
     });
     register_panel(cx, inspector::NAME, |_, window, cx| {
         panel_handle(cx.new(|cx| InspectorPanel::new(window, cx)))
+    });
+    register_panel(cx, history::NAME, |_, window, cx| {
+        panel_handle(cx.new(|cx| HistoryPanel::new(window, cx)))
+    });
+    register_panel(cx, local_history::NAME, |_, window, cx| {
+        panel_handle(cx.new(|cx| LocalHistoryPanel::new(window, cx)))
+    });
+    register_panel(cx, gallery::NAME, |_, window, cx| {
+        panel_handle(cx.new(|cx| GalleryPanel::new(window, cx)))
     });
 }

@@ -29,3 +29,4 @@ Version 1.0 covers 26 databases: relational, analytical, wide-column, document a
 
 - Each new capability is a contract change, and `ferrodb_api::API_VERSION` is bumped when the change breaks compatibility.
 - Some views will be specific to a model (document browser, key browser). That is intentional.
+- Phase 2 bumped the contract to v1: sessions, cost estimate, explain, key values, change preview, driver versions and the JDBC bridge state (see `docs/phase-2.md`).
