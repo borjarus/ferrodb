@@ -225,7 +225,7 @@ impl TableDelegate for GridDelegate {
                 t.schema
                     .fields()
                     .get(col_ix)
-                    .map(|f| format::type_label(f.data_type()))
+                    .map(|f| format::field_type_label(f))
             })
             .unwrap_or_default();
         h_flex()
@@ -498,7 +498,7 @@ impl GridView {
                 t.schema
                     .fields()
                     .get(col)
-                    .map(|f| format::type_label(f.data_type()))
+                    .map(|f| format::field_type_label(f))
             })
             .unwrap_or_default();
         inspector::show(
@@ -979,7 +979,7 @@ impl GridView {
                     .map(|(c, f)| {
                         (
                             f.name().clone(),
-                            format::type_label(f.data_type()),
+                            format::field_type_label(f),
                             d.cell_text(row, c, cx),
                         )
                     })

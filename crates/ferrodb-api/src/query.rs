@@ -46,6 +46,14 @@ pub struct ExecOptions {
     pub timeout: Option<Duration>,
     /// Ask for a cost estimate first (sources with `cost_estimate`).
     pub estimate_cost: bool,
+    /// Default schema / database for the statements (console schema picker);
+    /// `None` keeps the session's current one.
+    pub schema: Option<String>,
+    /// Values of the script's parameters (`:name`, `?`, `$1`) by name, as
+    /// returned by `LanguageService::parameters`. `None` = SQL `NULL`.
+    pub params: Vec<(String, Option<String>)>,
+    /// The user confirmed the risks reported by `LanguageService::risks`.
+    pub confirmed: bool,
 }
 
 impl Default for ExecOptions {
@@ -55,6 +63,9 @@ impl Default for ExecOptions {
             page_size: 500,
             timeout: None,
             estimate_cost: false,
+            schema: None,
+            params: Vec::new(),
+            confirmed: false,
         }
     }
 }
@@ -298,6 +309,10 @@ pub struct SessionInfo {
     pub opened_at: SystemTime,
     /// A manual-commit transaction is open.
     pub in_transaction: bool,
+    /// Current schema / database, when known.
+    pub schema: Option<String>,
+    /// A statement is running in this session.
+    pub busy: bool,
 }
 
 /// One node of an execution plan (sources with `explain != None`).

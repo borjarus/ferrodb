@@ -465,3 +465,18 @@ wizard-import-done = Import of { $path } into { $target } prepared (data transfe
 gallery-grid = Result grid
 gallery-documents = Document browser
 gallery-keys = Key browser
+
+## Phase 3: confirmation of dangerous statements and script parameters
+risk-title = Confirm execution
+risk-description = The script contains statements that may change or destroy data:
+risk-production = This data source is marked as Production.
+risk-run = Execute
+risk-delete-all = DELETE without WHERE
+risk-update-all = UPDATE without WHERE
+risk-drop = DROP
+risk-truncate = TRUNCATE
+risk-modification = Modifies data or schema
+params-title = Parameter values
+params-description = Values are inserted as SQL literals. Leave a field empty for NULL.
+params-null = NULL
+params-run = Execute

@@ -475,3 +475,18 @@ wizard-import-done = Przygotowano import { $path } do { $target } (transfer dany
 gallery-grid = Siatka wyników
 gallery-documents = Przeglądarka dokumentów
 gallery-keys = Przeglądarka kluczy
+
+## Faza 3: potwierdzanie niebezpiecznych instrukcji i parametry skryptu
+risk-title = Potwierdź wykonanie
+risk-description = Skrypt zawiera instrukcje, które mogą zmienić lub usunąć dane:
+risk-production = To źródło danych jest oznaczone jako produkcyjne.
+risk-run = Wykonaj
+risk-delete-all = DELETE bez WHERE
+risk-update-all = UPDATE bez WHERE
+risk-drop = DROP
+risk-truncate = TRUNCATE
+risk-modification = Zmienia dane lub schemat
+params-title = Wartości parametrów
+params-description = Wartości są wstawiane jako literały SQL. Puste pole oznacza NULL.
+params-null = NULL
+params-run = Wykonaj

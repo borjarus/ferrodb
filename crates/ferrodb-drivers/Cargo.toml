@@ -1,0 +1,36 @@
+[package]
+name = "ferrodb-drivers"
+description = "Driver, Connection and FamilyVariant traits, registry, native driver families"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+default = ["sqlite", "pgwire", "mysql"]
+sqlite = ["dep:rusqlite"]
+pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls"]
+mysql = ["dep:mysql_async"]
+
+[dependencies]
+ferrodb-api.workspace = true
+ferrodb-net.workspace = true
+futures.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+rustls.workspace = true
+rusqlite = { workspace = true, optional = true }
+tokio-postgres = { workspace = true, optional = true }
+tokio-postgres-rustls = { workspace = true, optional = true }
+mysql_async = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

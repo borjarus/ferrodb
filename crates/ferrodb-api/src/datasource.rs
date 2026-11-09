@@ -72,12 +72,54 @@ pub enum DataSourceEvent {
     StateChanged(DataSourceId, ConnectionState),
 }
 
+/// Secret values typed into the connection form (password, token, key…),
+/// keyed by [`crate::DriverProperty::key`]. They travel from the form to the
+/// keyring and are never persisted in configuration files nor printed:
+/// `Debug` redacts the values.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct SecretValues(pub Vec<(String, String)>);
+
+impl SecretValues {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.0.push((key.into(), value.into()));
+        self
+    }
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.0
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.as_str())
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl std::fmt::Debug for SecretValues {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map()
+            .entries(self.0.iter().map(|(k, _)| (k, "***")))
+            .finish()
+    }
+}
+
 pub trait DataSourceService: Send + Sync {
     fn list(&self) -> Vec<DataSourceInfo>;
     fn get(&self, id: &DataSourceId) -> Option<DataSourceInfo>;
-    fn save(&self, config: DataSourceConfig) -> BoxFuture<'_, Result<()>>;
+    /// Persists the configuration. Non-empty `secrets` replace the stored
+    /// ones; keys absent or empty keep what the keyring already holds.
+    fn save(&self, config: DataSourceConfig, secrets: SecretValues) -> BoxFuture<'_, Result<()>>;
     fn remove(&self, id: &DataSourceId) -> BoxFuture<'_, Result<()>>;
-    fn test(&self, config: DataSourceConfig) -> BoxFuture<'_, Result<TestConnectionReport>>;
+    /// Connects with an unsaved configuration. Missing secrets fall back to
+    /// the ones stored for `config.id` (editing an existing source).
+    fn test(
+        &self,
+        config: DataSourceConfig,
+        secrets: SecretValues,
+    ) -> BoxFuture<'_, Result<TestConnectionReport>>;
     fn connect(&self, id: &DataSourceId) -> BoxFuture<'_, Result<()>>;
     fn disconnect(&self, id: &DataSourceId) -> BoxFuture<'_, Result<()>>;
     /// Change notifications for the explorer and status bar.

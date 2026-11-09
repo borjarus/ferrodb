@@ -12,8 +12,8 @@ use std::{
 };
 
 use ferrodb_api::{
-    CancelHandle, DataSourceId, DataSourceInfo, ExecMode, ExecOptions, ExplainSupport, NodeRef,
-    QueryEvent, QueryLanguage, Script, SessionId, TxMode,
+    CancelHandle, DataSourceId, DataSourceInfo, Environment, ExecMode, ExecOptions, ExplainSupport,
+    NodeRef, QueryEvent, QueryLanguage, Risk, RiskKind, Script, SessionId, TxMode,
 };
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -25,8 +25,8 @@ use ferrodb_ui_kit::{
         dock::{BasePanel, Panel, PanelInfo, PanelState},
         h_flex,
         input::{
-            Editor, EditorState, InputEvent, RangeDecoration, RangeDecorationCollection,
-            RangeDecorationStyle,
+            Editor, EditorState, Input, InputEvent, InputState, RangeDecoration,
+            RangeDecorationCollection, RangeDecorationStyle,
         },
         menu::{DropdownMenu as _, PopupMenuItem},
         notification::Notification,
@@ -123,7 +123,21 @@ pub struct ConsolePanel {
     pub cost: Option<u64>,
     statement_highlight: Option<RangeDecorationCollection>,
     analysis: Option<Task<()>>,
+    /// Parameter values of the run being started (`ExecOptions::params`).
+    pending_params: Vec<(String, Option<String>)>,
+    /// Last values typed per parameter name, offered again next time.
+    param_values: HashMap<String, String>,
     _subs: Vec<Subscription>,
+}
+
+fn risk_label(kind: RiskKind) -> String {
+    t(match kind {
+        RiskKind::DeleteAll => "risk-delete-all",
+        RiskKind::UpdateAll => "risk-update-all",
+        RiskKind::Drop => "risk-drop",
+        RiskKind::Truncate => "risk-truncate",
+        RiskKind::Modification => "risk-modification",
+    })
 }
 
 /// Editor language id (tree-sitter grammar) for a query language.
@@ -184,6 +198,8 @@ impl ConsolePanel {
             cost: None,
             statement_highlight: None,
             analysis: None,
+            pending_params: Vec::new(),
+            param_values: HashMap::new(),
             _subs: subs,
         };
         this.set_data_source(data_source, cx);
@@ -385,6 +401,159 @@ impl ConsolePanel {
             "local-history-executed",
             cx,
         );
+        let lang = src.capabilities.language.clone();
+        let production = src.config.environment == Environment::Production;
+        let risks = AppState::backend(cx)
+            .language()
+            .risks(&text, &lang, production);
+        if risks.is_empty() {
+            self.ask_params(text, base, mode, window, cx);
+        } else {
+            self.confirm_risks(risks, production, text, base, mode, window, cx);
+        }
+    }
+
+    /// Plan 2.5: warnings for dangerous operations before they run.
+    #[allow(clippy::too_many_arguments)]
+    fn confirm_risks(
+        &mut self,
+        risks: Vec<Risk>,
+        production: bool,
+        text: String,
+        base: usize,
+        mode: ExecMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let weak = cx.entity().downgrade();
+        let lines: Vec<String> = risks
+            .iter()
+            .map(|r| {
+                let stmt = first_line(text.get(r.range.clone()).unwrap_or_default());
+                format!("{}: {stmt}", risk_label(r.kind))
+            })
+            .collect();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let (weak, text) = (weak.clone(), text.clone());
+            dialog
+                .title(t("risk-title"))
+                .w(px(520.))
+                .child(
+                    v_flex()
+                        .gap_2()
+                        .when(production, |d| d.child(t("risk-production")))
+                        .child(t("risk-description"))
+                        .children(lines.iter().map(|l| div().text_sm().child(l.clone()))),
+                )
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            Button::new("risk-cancel")
+                                .label(t("button-cancel"))
+                                .on_click(|_, w, cx| w.close_dialog(cx)),
+                        )
+                        .child(
+                            Button::new("risk-run")
+                                .danger()
+                                .label(t("risk-run"))
+                                .on_click(move |_, window, cx| {
+                                    window.close_dialog(cx);
+                                    let _ = weak.update(cx, |this, cx| {
+                                        this.ask_params(text.clone(), base, mode, window, cx)
+                                    });
+                                }),
+                        ),
+                )
+        });
+    }
+
+    /// Plan 2.5: script parameters (`:name`, `?`, `$1`) are asked before running.
+    fn ask_params(
+        &mut self,
+        text: String,
+        base: usize,
+        mode: ExecMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.pending_params.clear();
+        let Some(src) = self.source(cx) else { return };
+        let params = AppState::backend(cx)
+            .language()
+            .parameters(&text, &src.capabilities.language);
+        if params.is_empty() {
+            self.launch(text, base, mode, window, cx);
+            return;
+        }
+        let inputs: Vec<(String, Entity<InputState>)> = params
+            .into_iter()
+            .map(|p| {
+                let last = self.param_values.get(&p.name).cloned().unwrap_or_default();
+                let input = cx.new(|cx| {
+                    let mut i = InputState::new(window, cx).placeholder(t("params-null"));
+                    i.set_value(last, window, cx);
+                    i
+                });
+                (p.name, input)
+            })
+            .collect();
+        let weak = cx.entity().downgrade();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let (weak, text, inputs2) = (weak.clone(), text.clone(), inputs.clone());
+            dialog
+                .title(t("params-title"))
+                .w(px(480.))
+                .child(
+                    v_flex()
+                        .gap_2()
+                        .child(div().text_sm().child(t("params-description")))
+                        .children(inputs.iter().map(|(name, input)| {
+                            h_flex()
+                                .gap_2()
+                                .child(div().w(px(120.)).child(name.clone()))
+                                .child(Input::new(input).small())
+                        })),
+                )
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            Button::new("params-cancel")
+                                .label(t("button-cancel"))
+                                .on_click(|_, w, cx| w.close_dialog(cx)),
+                        )
+                        .child(
+                            Button::new("params-run")
+                                .primary()
+                                .label(t("params-run"))
+                                .on_click(move |_, window, cx| {
+                                    let values: Vec<(String, String)> = inputs2
+                                        .iter()
+                                        .map(|(n, i)| (n.clone(), i.read(cx).value().to_string()))
+                                        .collect();
+                                    window.close_dialog(cx);
+                                    let _ = weak.update(cx, |this, cx| {
+                                        this.param_values.extend(values.iter().cloned());
+                                        this.pending_params = values
+                                            .into_iter()
+                                            .map(|(n, v)| (n, (!v.is_empty()).then_some(v)))
+                                            .collect();
+                                        this.launch(text.clone(), base, mode, window, cx);
+                                    });
+                                }),
+                        ),
+                )
+        });
+    }
+
+    fn launch(
+        &mut self,
+        text: String,
+        base: usize,
+        mode: ExecMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(src) = self.source(cx) else { return };
         if src.capabilities.cost_estimate {
             self.estimate_then_run(text, base, mode, window, cx);
         } else {
@@ -528,6 +697,8 @@ impl ConsolePanel {
         let caps = src.capabilities.clone();
         let read_only = src.config.read_only;
         let page_size = 500;
+        let params = std::mem::take(&mut self.pending_params);
+        let schema = self.schema.clone();
         cx.spawn_in(window, async move |this, cx| {
             let started = Instant::now();
             let session = match Self::ensure_session(&this, &ds, cx).await {
@@ -544,10 +715,26 @@ impl ConsolePanel {
             let opts = ExecOptions {
                 mode,
                 page_size,
+                schema,
+                params,
+                // Risks were confirmed in `confirm_risks`.
+                confirmed: true,
                 ..Default::default()
             };
             let handle = backend.queries().execute(session, script, opts);
             let qid = handle.id;
+            // Stop must reach the executor even while no event arrives (a
+            // statement blocked on the server): hand the UI the executor's
+            // own cancel handle.
+            if cancel.is_cancelled() {
+                handle.cancel.cancel();
+            }
+            let cancel = handle.cancel.clone();
+            let _ = this.update(cx, |this, _| {
+                if this.running.is_some() {
+                    this.running = Some(cancel.clone());
+                }
+            });
             let _ = cx.update(|_, cx| {
                 activity::started(
                     RunningQuery {

@@ -521,8 +521,18 @@ async fn production_sources_are_read_only(cx: &mut TestAppContext) {
         grid.update(cx, |g, cx| g.start_edit(0, 1, w, cx))
     });
     cx.update(|cx| assert_eq!(grid.read(cx).table().read(cx).delegate().pending_count(), 0));
-    // A write statement is refused by the backend.
+    // A dangerous statement on a production source asks for confirmation
+    // first (plan 2.5)…
     let console = h.run(cx, "shop-prod", "delete from orders");
+    cx.update(|cx| {
+        assert!(
+            console.read(cx).messages.is_empty(),
+            "not run before confirming"
+        )
+    });
+    h.with(cx, |w, cx| w.click("risk-run", cx));
+    h.frame(cx);
+    // …and is then refused by the backend.
     cx.update(|cx| {
         assert!(
             console

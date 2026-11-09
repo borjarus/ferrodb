@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use ferrodb_api::{
     AuthMethod, DataSourceConfig, DataSourceId, DriverCategory, DriverDescriptor, DriverEvent,
-    DriverId, DriverStatus, Environment, TxMode,
+    DriverId, DriverStatus, Environment, SecretValues, TxMode,
 };
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -367,6 +367,17 @@ impl DataSourceForm {
         })
     }
 
+    /// Secret fields typed into the form (empty ones keep the stored value).
+    pub fn secrets(&self, cx: &App) -> SecretValues {
+        SecretValues(
+            self.visible_fields()
+                .filter(|(p, _)| p.secret)
+                .map(|(p, i)| (p.key.clone(), i.read(cx).value().to_string()))
+                .filter(|(_, v)| !v.is_empty())
+                .collect(),
+        )
+    }
+
     /// Connection URL preview from the driver's template.
     pub fn url_preview(&self, cx: &App) -> Option<String> {
         let mut url = self.descriptor()?.url_template.clone()?;
@@ -384,10 +395,11 @@ impl DataSourceForm {
         };
         self.test = TestState::Running;
         cx.notify();
+        let secrets = self.secrets(cx);
         let backend = AppState::backend(cx);
         let task = cx
             .background_executor()
-            .spawn(async move { backend.data_sources().test(config).await });
+            .spawn(async move { backend.data_sources().test(config, secrets).await });
         cx.spawn(async move |this, cx| {
             let r = task.await;
             let _ = this.update(cx, |this, cx| {
@@ -437,9 +449,10 @@ impl DataSourceForm {
         }
         let backend = AppState::backend(cx);
         let name = config.name.clone();
+        let secrets = self.secrets(cx);
         let task = cx
             .background_executor()
-            .spawn(async move { backend.data_sources().save(config).await });
+            .spawn(async move { backend.data_sources().save(config, secrets).await });
         cx.spawn_in(window, async move |_, cx| {
             let r = task.await;
             let _ = cx.update(|window, cx| match r {

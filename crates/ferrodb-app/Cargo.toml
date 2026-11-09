@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 ferrodb-api.workspace = true
 ferrodb-mock.workspace = true
+ferrodb-core.workspace = true
 ferrodb-ui.workspace = true
 ferrodb-ui-kit.workspace = true
 gpui-kit.workspace = true

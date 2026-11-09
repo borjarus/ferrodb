@@ -57,6 +57,53 @@ jobs:
       - name: Doc tests
         run: cargo test --workspace --doc --locked
 
+  tck:
+    name: driver TCK (PostgreSQL, MySQL, MariaDB, SQLite)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: ferrodb
+        ports: ["55432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ferrodb
+          MYSQL_DATABASE: tck
+        ports: ["53306:3306"]
+        options: --health-cmd "mysqladmin ping -pferrodb" --health-interval 5s --health-retries 30
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ferrodb
+          MARIADB_DATABASE: tck
+        ports: ["53307:3306"]
+        options: --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s --health-retries 30
+    env:
+      FERRODB_TCK_POSTGRES: postgres://postgres:ferrodb@localhost:55432/postgres?ssl.mode=disable
+      FERRODB_TCK_MYSQL: mysql://root:ferrodb@127.0.0.1:53306/tck
+      FERRODB_TCK_MARIADB: mariadb://root:ferrodb@127.0.0.1:53307/tck
+      FERRODB_TEST_POSTGRES: postgres://postgres:ferrodb@localhost:55432/postgres?ssl.mode=disable
+      FERRODB_TEST_MYSQL: mysql://root:ferrodb@127.0.0.1:53306/tck
+      FERRODB_TEST_MARIADB: mariadb://root:ferrodb@127.0.0.1:53307/tck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+      - name: Driver integration tests
+        run: cargo test -p ferrodb-drivers --locked
+      - name: TCK
+        run: cargo test -p ferrodb-driver-tck --locked -- --nocapture --test-threads=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tck-reports
+          path: target/tck/*.md
+
   package:
     name: package hello (${{ matrix.os }})
     needs: test

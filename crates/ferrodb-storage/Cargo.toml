@@ -1,0 +1,19 @@
+[package]
+name = "ferrodb-storage"
+description = "Application SQLite storage: query history and query log"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+ferrodb-api.workspace = true
+rusqlite.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

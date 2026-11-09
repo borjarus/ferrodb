@@ -1,7 +1,11 @@
 //! FerroDb application entry point: startup, window, menus, keymap.
 //!
-//! Usage: `ferrodb [PROJECT_DIR]`. Without an argument the last project (or
-//! the default project in the data directory) is opened.
+//! Usage: `ferrodb [--mock] [PROJECT_DIR]`. Without a directory the last
+//! project (or the default project in the data directory) is opened.
+//!
+//! The backend is `ferrodb-core` (real databases). `--mock` or
+//! `FERRODB_BACKEND=mock` starts the mock backend with its developer
+//! scenarios instead (demos, UI work without databases).
 
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
@@ -9,6 +13,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context as _;
 use ferrodb_api::Backend;
+use ferrodb_core::{CoreBackend, CoreOptions};
 use ferrodb_mock::{MockBackend, Scenario};
 use ferrodb_ui::{
     AppPaths, AppState, ScenarioControl, Workspace, actions, i18n::t, keymap, output, project,
@@ -74,8 +79,13 @@ fn install_keymap(paths: &AppPaths, cx: &mut App) {
     }
 }
 
+fn use_mock() -> bool {
+    std::env::args().any(|a| a == "--mock")
+        || std::env::var("FERRODB_BACKEND").is_ok_and(|v| v.eq_ignore_ascii_case("mock"))
+}
+
 fn project_root(paths: &AppPaths, cx: &App) -> PathBuf {
-    if let Some(arg) = std::env::args_os().nth(1) {
+    if let Some(arg) = std::env::args_os().skip(1).find(|a| a != "--mock") {
         return PathBuf::from(arg);
     }
     SettingsStore::get(cx)
@@ -116,22 +126,38 @@ fn open_main_window(root: PathBuf, cx: &mut App) -> anyhow::Result<()> {
 fn main() -> anyhow::Result<()> {
     init_tracing();
     let paths = app_paths()?;
-    let mock = MockBackend::new();
-    let scenarios: Arc<dyn ScenarioControl> = Arc::new(MockScenarios(mock.clone()));
-    let backend: Arc<dyn Backend> = Arc::new(mock);
-    tracing::info!(config = %paths.config_dir.display(), data = %paths.data_dir.display(), "starting FerroDb");
+    let (backend, scenarios): (Arc<dyn Backend>, Option<Arc<dyn ScenarioControl>>) = if use_mock() {
+        let mock = MockBackend::new();
+        let scenarios: Arc<dyn ScenarioControl> = Arc::new(MockScenarios(mock.clone()));
+        (Arc::new(mock), Some(scenarios))
+    } else {
+        let core = CoreBackend::new(CoreOptions::system(
+            paths.config_dir.clone(),
+            paths.data_dir.clone(),
+        ))
+        .context("start the core")?;
+        (Arc::new(core), None)
+    };
+    tracing::info!(
+        backend = backend.name(),
+        config = %paths.config_dir.display(),
+        data = %paths.data_dir.display(),
+        "starting FerroDb"
+    );
 
     ferrodb_ui_kit::application().run(move |cx: &mut App| {
         ferrodb_ui::init(
             AppState {
                 backend,
-                scenarios: Some(scenarios.clone()),
+                scenarios: scenarios.clone(),
                 paths: Some(paths.clone()),
             },
             cx,
         );
-        let saved_scenario = SettingsStore::get(cx).dev_scenario.clone();
-        scenarios.set(&saved_scenario);
+        if let Some(scenarios) = &scenarios {
+            let saved_scenario = SettingsStore::get(cx).dev_scenario.clone();
+            scenarios.set(&saved_scenario);
+        }
         install_keymap(&paths, cx);
 
         cx.on_action(|_: &actions::Quit, cx: &mut App| {

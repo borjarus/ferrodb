@@ -1,0 +1,18 @@
+[package]
+name = "ferrodb-lang"
+description = "Query language support: SQL statement splitting, parameters, statement analysis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+ferrodb-api.workspace = true
+sqlparser.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

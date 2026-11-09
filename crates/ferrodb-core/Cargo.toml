@@ -1,0 +1,32 @@
+[package]
+name = "ferrodb-core"
+description = "Real backend: data sources, sessions, execution, transactions, history"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+ferrodb-api.workspace = true
+ferrodb-lang.workspace = true
+ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql"] }
+ferrodb-secrets.workspace = true
+ferrodb-net.workspace = true
+ferrodb-storage.workspace = true
+futures.workspace = true
+async-channel.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+serde.workspace = true
+toml.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+futures = { workspace = true, features = ["executor"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

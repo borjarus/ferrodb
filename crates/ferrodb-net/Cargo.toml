@@ -1,0 +1,23 @@
+[package]
+name = "ferrodb-net"
+description = "Network helpers: TLS configuration and SSH tunnels"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+tokio.workspace = true
+rustls.workspace = true
+rustls-platform-verifier.workspace = true
+russh.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

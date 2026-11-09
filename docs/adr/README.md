@@ -13,5 +13,7 @@ Status values: *Proposed*, *Accepted*, *Superseded by ADR-xxx*.
 | [ADR-006](ADR-006-jdbc-bridge.md) | JDBC bridge: separate process, JSON-RPC + Arrow IPC | Proposed (Java-side measurement pending) |
 | [ADR-007](ADR-007-driver-manager.md) | Driver manager: sources, verification, licenses, offline | Accepted |
 | [ADR-008](ADR-008-driver-families.md) | Driver families and database variants | Accepted |
+| [ADR-012](ADR-012-driver-tck-and-test-matrix.md) | Driver compatibility test suite (TCK) and test matrix | Accepted |
+| [ADR-013](ADR-013-configuration-and-secrets.md) | Data source configuration and secret storage | Accepted |
 
-ADR-009…015 (plan, Appendix C) are written when their phases start.
+ADR-009…011 and ADR-014…015 (plan, Appendix C) are written when their phases start.

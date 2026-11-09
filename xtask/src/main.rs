@@ -7,6 +7,10 @@
 //! - `test`     — workspace tests (nextest when installed, otherwise `cargo test`)
 //! - `package`  — build the release binary and package it with `cargo-packager`
 //! - `spike <name> [args]` — run a phase 0 spike (`gui`, `adbc`, `jdbc-reader`)
+//! - `db-up` / `db-down` — start / remove the TCK database containers
+//! - `tck`      — run the driver TCK against those containers
+
+mod db;
 
 use std::{
     env,
@@ -28,6 +32,9 @@ fn main() -> ExitCode {
         "test" => test(),
         "package" => package(),
         "spike" => spike(rest),
+        "db-up" => db::up(),
+        "db-down" => db::down(),
+        "tck" => db::tck(),
         "help" | "-h" | "--help" => {
             print_help();
             Ok(())
@@ -44,7 +51,9 @@ fn main() -> ExitCode {
 }
 
 fn print_help() {
-    eprintln!("usage: cargo xtask <ci|fmt|lint|test|package|spike <gui|adbc|jdbc-reader> [args]>");
+    eprintln!(
+        "usage: cargo xtask <ci|fmt|lint|test|package|db-up|db-down|tck|spike <gui|adbc|jdbc-reader> [args]>"
+    );
 }
 
 fn root() -> PathBuf {

@@ -417,7 +417,7 @@ impl DataSourceService for MockBackend {
         self.shared.source(id).ok()
     }
 
-    fn save(&self, config: DataSourceConfig) -> BoxFuture<'_, Result<()>> {
+    fn save(&self, config: DataSourceConfig, _secrets: SecretValues) -> BoxFuture<'_, Result<()>> {
         async move {
             let id = config.id.clone();
             let existed = {
@@ -454,7 +454,11 @@ impl DataSourceService for MockBackend {
         .boxed()
     }
 
-    fn test(&self, config: DataSourceConfig) -> BoxFuture<'_, Result<TestConnectionReport>> {
+    fn test(
+        &self,
+        config: DataSourceConfig,
+        _secrets: SecretValues,
+    ) -> BoxFuture<'_, Result<TestConnectionReport>> {
         async move {
             let scenario = self.shared.scenario();
             self.shared.delay(scenario.latency() * 3).await;
@@ -629,6 +633,8 @@ impl QueryService for MockBackend {
                     data_source: ds,
                     opened_at: SystemTime::now(),
                     in_transaction: src.config.tx_mode == TxMode::Manual,
+                    schema: None,
+                    busy: false,
                 },
             );
             Ok(id)
@@ -1416,6 +1422,14 @@ impl LanguageService for MockBackend {
 
     fn statements(&self, doc: &DocSnapshot) -> Vec<StatementSpan> {
         split_statements(&doc.text)
+    }
+
+    fn parameters(&self, text: &str, lang: &QueryLanguage) -> Vec<Parameter> {
+        ferrodb_lang::BasicLanguageService.parameters(text, lang)
+    }
+
+    fn risks(&self, text: &str, lang: &QueryLanguage, all_modifications: bool) -> Vec<Risk> {
+        ferrodb_lang::BasicLanguageService.risks(text, lang, all_modifications)
     }
 
     fn format(&self, text: &str, _lang: &QueryLanguage, style: &FormatStyle) -> Result<String> {

@@ -6,12 +6,13 @@ use std::time::Duration;
 use ferrodb_api::{
     KeyType,
     arrow_array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Date32Array, Float32Array, Float64Array,
-        Int8Array, Int16Array, Int32Array, Int64Array, LargeStringArray, StringArray,
-        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
+        Array, ArrayRef, BinaryArray, BooleanArray, Date32Array, Decimal128Array, Float32Array,
+        Float64Array, Int8Array, Int16Array, Int32Array, Int64Array, LargeBinaryArray,
+        LargeStringArray, StringArray, Time64MicrosecondArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt8Array,
+        UInt16Array, UInt32Array, UInt64Array,
     },
-    arrow_schema::{DataType, TimeUnit},
+    arrow_schema::{self, DataType, TimeUnit},
     bson::{Bson, Document, RawDocumentBuf},
 };
 
@@ -45,6 +46,19 @@ pub fn value_kind(dt: &DataType) -> ValueKind {
     }
 }
 
+/// Field metadata key with the database type name (set by real drivers,
+/// `ferrodb_drivers::columns::DB_TYPE_KEY`).
+pub const DB_TYPE_KEY: &str = "ferrodb.db_type";
+
+/// Column header type: the database's own type name when the driver
+/// reported it (`varchar(20)`, `jsonb`), otherwise derived from Arrow.
+pub fn field_type_label(f: &arrow_schema::Field) -> String {
+    match f.metadata().get(DB_TYPE_KEY) {
+        Some(t) if !t.is_empty() => t.clone(),
+        _ => type_label(f.data_type()),
+    }
+}
+
 /// Short SQL-ish type name for column headers (`int8`, `text`, `timestamp`…).
 pub fn type_label(dt: &DataType) -> String {
     use DataType::*;
@@ -62,6 +76,7 @@ pub fn type_label(dt: &DataType) -> String {
         Timestamp(_, None) => "timestamp".into(),
         Timestamp(_, Some(_)) => "timestamptz".into(),
         Date32 | Date64 => "date".into(),
+        Time32(_) | Time64(_) => "time".into(),
         Binary | LargeBinary | BinaryView | FixedSizeBinary(_) => "bytea".into(),
         other => other.to_string().to_lowercase(),
     }
@@ -146,6 +161,20 @@ pub fn arrow_cell(a: &ArrayRef, i: usize) -> Option<String> {
             let b = downcast!(a, BinaryArray).value(i);
             format!("0x{}", hex(&b[..b.len().min(32)]))
         }
+        LargeBinary => {
+            let b = downcast!(a, LargeBinaryArray).value(i);
+            format!("0x{}", hex(&b[..b.len().min(32)]))
+        }
+        Decimal128(_, scale) => decimal(downcast!(a, Decimal128Array).value(i), *scale),
+        Time64(TimeUnit::Microsecond) => {
+            let us = downcast!(a, Time64MicrosecondArray).value(i);
+            chrono::NaiveTime::from_num_seconds_from_midnight_opt(
+                (us / 1_000_000) as u32,
+                ((us % 1_000_000) * 1000) as u32,
+            )
+            .map(|t| t.format("%H:%M:%S%.f").to_string())
+            .unwrap_or_else(|| us.to_string())
+        }
         other => format!("<{other}>"),
     })
 }
@@ -167,8 +196,23 @@ pub fn arrow_number(a: &ArrayRef, i: usize) -> Option<f64> {
         UInt64 => downcast!(a, UInt64Array).value(i) as f64,
         Float32 => downcast!(a, Float32Array).value(i) as f64,
         Float64 => downcast!(a, Float64Array).value(i),
+        Decimal128(_, scale) => {
+            downcast!(a, Decimal128Array).value(i) as f64 / 10f64.powi(*scale as i32)
+        }
         _ => return None,
     })
+}
+
+/// Exact text of an unscaled decimal (`12345`, scale 2 → `123.45`).
+pub fn decimal(v: i128, scale: i8) -> String {
+    if scale <= 0 {
+        return (v * 10i128.pow((-scale) as u32)).to_string();
+    }
+    let s = v.unsigned_abs().to_string();
+    let scale = scale as usize;
+    let s = format!("{s:0>width$}", width = scale + 1);
+    let (int, frac) = s.split_at(s.len() - scale);
+    format!("{}{int}.{frac}", if v < 0 { "-" } else { "" })
 }
 
 fn hex(b: &[u8]) -> String {

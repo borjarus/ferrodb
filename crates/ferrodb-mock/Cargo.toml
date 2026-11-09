@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 ferrodb-api.workspace = true
+ferrodb-lang.workspace = true
 futures.workspace = true
 async-channel.workspace = true
 arrow-array.workspace = true
