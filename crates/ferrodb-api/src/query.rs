@@ -134,6 +134,9 @@ pub enum ResultShape {
     /// Collection / DynamoDB table / Couchbase keyspace.
     Documents {
         container: Option<String>,
+        /// The container in the explorer tree (database → collection),
+        /// when known: schema inference, indexes and editing use it.
+        node: Option<crate::NodeRef>,
     },
     Keys {
         pattern: String,

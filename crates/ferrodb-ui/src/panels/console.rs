@@ -148,6 +148,28 @@ pub fn editor_language(lang: Option<&QueryLanguage>) -> &'static str {
     }
 }
 
+/// The qualified name under the cursor (`sales.orders` → `["sales",
+/// "orders"]`), with quotes removed; parts after the cursor are dropped.
+pub fn identifier_at(text: &str, cursor: usize) -> Vec<String> {
+    let cursor = cursor.min(text.len());
+    let word = |c: char| c.is_alphanumeric() || matches!(c, '_' | '$' | '.' | '"' | '`');
+    let start = text[..cursor]
+        .char_indices()
+        .rev()
+        .take_while(|(_, c)| word(*c))
+        .last()
+        .map_or(cursor, |(i, _)| i);
+    let end = text[cursor..]
+        .char_indices()
+        .find(|(_, c)| !word(*c) || *c == '.')
+        .map_or(text.len(), |(i, _)| cursor + i);
+    text[start..end]
+        .split('.')
+        .map(|p| p.trim_matches(|c| c == '"' || c == '`').to_owned())
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
 /// The statement containing `cursor` (or the last one before it).
 pub fn statement_at(spans: &[Range<usize>], cursor: usize) -> Option<Range<usize>> {
     spans
@@ -1026,6 +1048,45 @@ impl ConsolePanel {
         }
     }
 
+    /// "Go to declaration" (reveal in the explorer) or "Quick documentation"
+    /// of the name under the cursor, resolved against cached metadata.
+    fn declaration(&mut self, doc: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(src) = self.source(cx) else { return };
+        let (text, cursor) = {
+            let e = self.editor.read(cx);
+            (e.value().to_string(), e.cursor())
+        };
+        let mut parts = identifier_at(&text, cursor);
+        if src.capabilities.language == ferrodb_api::QueryLanguage::Mql
+            && parts.first().is_some_and(|p| p == "db")
+        {
+            parts.remove(0);
+            // `db.coll.find` → the collection.
+            parts.truncate(1);
+        }
+        if parts.is_empty() {
+            return;
+        }
+        let hits = AppState::backend(cx)
+            .metadata()
+            .resolve(&src.config.id, &parts);
+        let Some(hit) = hits.into_iter().next() else {
+            window.push_notification(
+                Notification::info(t_args(
+                    "goto-not-found",
+                    &[("name", parts.join(".").into())],
+                )),
+                cx,
+            );
+            return;
+        };
+        if doc {
+            crate::workspace::show_documentation(hit.node, cx);
+        } else {
+            crate::workspace::reveal_in_explorer(hit.node, cx);
+        }
+    }
+
     fn not_yet(&mut self, phase: u8, window: &mut Window, cx: &mut Context<Self>) {
         window.push_notification(
             Notification::info(t_args("not-implemented-phase", &[("phase", phase.into())])),
@@ -1270,15 +1331,15 @@ impl Render for ConsolePanel {
             .on_action(cx.listener(|this, _: &actions::ExplainPlan, w, cx| this.explain(w, cx)))
             .on_action(cx.listener(|this, _: &actions::FormatCode, w, cx| this.format_code(w, cx)))
             .on_action(cx.listener(|this, _: &actions::Rename, w, cx| this.not_yet(5, w, cx)))
-            .on_action(
-                cx.listener(|this, _: &actions::GoToDeclaration, w, cx| this.not_yet(4, w, cx)),
-            )
+            .on_action(cx.listener(|this, _: &actions::GoToDeclaration, w, cx| {
+                this.declaration(false, w, cx)
+            }))
             .on_action(
                 cx.listener(|this, _: &actions::LiveTemplates, w, cx| this.not_yet(5, w, cx)),
             )
-            .on_action(
-                cx.listener(|this, _: &actions::QuickDocumentation, w, cx| this.not_yet(4, w, cx)),
-            )
+            .on_action(cx.listener(|this, _: &actions::QuickDocumentation, w, cx| {
+                this.declaration(true, w, cx)
+            }))
             .child(self.render_header(cx))
             .child(
                 div().flex_1().min_h_0().child(
@@ -1299,6 +1360,16 @@ impl Render for ConsolePanel {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[::core::prelude::v1::test]
+    fn names_under_the_cursor() {
+        let s = "select * from sales.\"Orders\" o where o.id = 1";
+        assert_eq!(identifier_at(s, 16), vec!["sales"]);
+        assert_eq!(identifier_at(s, 23), vec!["sales", "Orders"]);
+        assert_eq!(identifier_at(s, 40), vec!["o", "id"]);
+        assert_eq!(identifier_at("db.orders.find({})", 5), vec!["db", "orders"]);
+        assert!(identifier_at("a  b", 2).is_empty());
+    }
 
     #[::core::prelude::v1::test]
     fn statement_under_cursor() {

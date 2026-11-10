@@ -571,8 +571,11 @@ impl DocumentView {
     /// Samples the container and fills the schema panel (plan 5.7).
     pub fn infer_schema(&mut self, cx: &mut Context<Self>) {
         let m = self.model.read(cx);
-        let node =
-            NodeRef::root(m.data_source.clone()).child(ObjectKind::Collection, self.container(cx));
+        let node = match &m.data {
+            ResultData::Documents { node: Some(n), .. } => n.clone(),
+            _ => NodeRef::root(m.data_source.clone())
+                .child(ObjectKind::Collection, self.container(cx)),
+        };
         let backend = AppState::backend(cx);
         self.schema_panel = true;
         self.schema_loading = true;

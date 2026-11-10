@@ -1009,6 +1009,7 @@ impl MockBackend {
                     CursorKind::Documents,
                     ResultShape::Documents {
                         container: Some(container.clone()),
+                        node: None,
                     },
                     scenario.documents(),
                 ),
@@ -1269,7 +1270,12 @@ impl MetadataService for MockBackend {
 
     fn children(&self, node: NodeRef) -> BoxFuture<'_, Result<Vec<DbObject>>> {
         async move {
-            let src = self.shared.source(&node.data_source)?;
+            let mut src = self.shared.source(&node.data_source)?;
+            // Like the real backend: listing a source connects it.
+            if src.state != ConnectionState::Connected {
+                self.connect(&node.data_source).await?;
+                src = self.shared.source(&node.data_source)?;
+            }
             let scenario = self.shared.scenario();
             self.shared.delay(scenario.latency()).await;
             if scenario == Scenario::ConnectionError {

@@ -1,6 +1,6 @@
 [package]
 name = "ferrodb-drivers"
-description = "Driver, Connection and FamilyVariant traits, registry, native driver families"
+description = "Driver, Connection and FamilyVariant traits, registry, native driver families (SQLite, PostgreSQL, MySQL, MongoDB)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,14 +8,17 @@ rust-version.workspace = true
 publish = false
 
 [features]
-default = ["sqlite", "pgwire", "mysql"]
+default = ["sqlite", "pgwire", "mysql", "mongodb"]
 sqlite = ["dep:rusqlite"]
 pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls"]
 mysql = ["dep:mysql_async"]
+mongodb = ["dep:mongodb"]
 
 [dependencies]
 ferrodb-api.workspace = true
 ferrodb-net.workspace = true
+ferrodb-lang.workspace = true
+bson.workspace = true
 futures.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
@@ -28,6 +31,7 @@ rusqlite = { workspace = true, optional = true }
 tokio-postgres = { workspace = true, optional = true }
 tokio-postgres-rustls = { workspace = true, optional = true }
 mysql_async = { workspace = true, optional = true }
+mongodb = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

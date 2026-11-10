@@ -225,6 +225,24 @@ impl DataSourceService for Inner {
             let existed = {
                 let mut st = me.state();
                 let existed = st.sources.contains_key(&id);
+                // Another server or database: the cached metadata is stale.
+                let connection = |c: &DataSourceConfig| {
+                    let mut p: Vec<_> = c
+                        .properties
+                        .iter()
+                        .filter(|(k, _)| k != "schema.filter")
+                        .cloned()
+                        .collect();
+                    p.sort();
+                    (c.driver.clone(), p)
+                };
+                if st
+                    .sources
+                    .get(&id)
+                    .is_some_and(|e| connection(&e.config) != connection(&config))
+                {
+                    me.catalogs.remove(&id);
+                }
                 let state = st
                     .sources
                     .get(&id)
@@ -251,6 +269,7 @@ impl DataSourceService for Inner {
         self.spawn(async move {
             me.close_all(&id).await;
             let removed = me.state().sources.remove(&id);
+            me.catalogs.remove(&id);
             let Some(entry) = removed else {
                 return Err(Error::NotFound(format!("data source {id}")));
             };

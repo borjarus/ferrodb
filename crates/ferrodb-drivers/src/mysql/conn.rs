@@ -397,7 +397,7 @@ impl Connection for MySqlConnection {
         cancel: CancellationToken,
     ) -> BoxFuture<'a, Result<ExecSummary>> {
         Box::pin(async move {
-            let Request::Text { text } = req;
+            let text = req.into_text()?;
             let killer = self.killer.clone();
             let r = {
                 let fut = run(&mut self.conn, &text, &sink, &cancel, &killer);

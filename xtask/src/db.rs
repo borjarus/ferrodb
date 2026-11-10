@@ -4,25 +4,44 @@
 
 use std::process::Command;
 
-/// (container, image, port mapping, env)
-const CONTAINERS: &[(&str, &str, &str, &[&str])] = &[
+/// (container, image, port mapping, env, command arguments)
+type Container = (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+);
+
+const CONTAINERS: &[Container] = &[
     (
         "ferrodb-tck-pg",
         "postgres:18",
         "55432:5432",
         &["POSTGRES_PASSWORD=ferrodb"],
+        &[],
     ),
     (
         "ferrodb-tck-mysql",
         "mysql:8.4",
         "53306:3306",
         &["MYSQL_ROOT_PASSWORD=ferrodb", "MYSQL_DATABASE=tck"],
+        &[],
     ),
     (
         "ferrodb-tck-mariadb",
         "mariadb:11.4",
         "53307:3306",
         &["MARIADB_ROOT_PASSWORD=ferrodb", "MARIADB_DATABASE=tck"],
+        &[],
+    ),
+    // A one-member replica set: transactions need one (phase 4b).
+    (
+        "ferrodb-tck-mongo",
+        "mongo:8.0",
+        "57017:27017",
+        &[],
+        &["--replSet", "rs0", "--bind_ip_all"],
     ),
     (
         "ferrodb-tck-ssh",
@@ -36,6 +55,7 @@ const CONTAINERS: &[(&str, &str, &str, &[&str])] = &[
             "PASSWORD_ACCESS=true",
             "DOCKER_MODS=linuxserver/mods:openssh-server-ssh-tunnel",
         ],
+        &[],
     ),
 ];
 
@@ -75,7 +95,7 @@ fn host() -> String {
 
 pub fn up() -> Result<(), String> {
     let _ = docker().args(["network", "create", NETWORK]).output();
-    for (name, image, ports, env) in CONTAINERS {
+    for (name, image, ports, env, args) in CONTAINERS {
         let running = docker()
             .args(["ps", "-q", "-f", &format!("name=^{name}$")])
             .output()
@@ -101,10 +121,38 @@ pub fn up() -> Result<(), String> {
             c.args(["-e", e]);
         }
         c.arg(image);
+        c.args(*args);
         crate::run(&mut c)?;
     }
+    init_mongo_replica_set();
     env_hint();
     Ok(())
+}
+
+/// `rs.initiate()` once mongod accepts connections (up to ~60 s).
+#[allow(clippy::disallowed_methods)] // a command-line tool, not the UI thread
+fn init_mongo_replica_set() {
+    let script = "try { rs.status().ok } catch (e) {                   rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]}).ok }";
+    for _ in 0..30 {
+        let ok = docker()
+            .args([
+                "exec",
+                "ferrodb-tck-mongo",
+                "mongosh",
+                "--quiet",
+                "--eval",
+                script,
+            ])
+            .output()
+            .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).contains('1'))
+            .unwrap_or(false);
+        if ok {
+            eprintln!("ferrodb-tck-mongo: replica set rs0 ready");
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+    eprintln!("ferrodb-tck-mongo: replica set not initiated (is the container running?)");
 }
 
 pub fn down() -> Result<(), String> {
@@ -131,6 +179,10 @@ pub fn env_vars() -> Vec<(String, String)> {
             format!("mariadb://root:ferrodb@{h}:53307/tck"),
         ),
         (
+            "FERRODB_TCK_MONGODB".into(),
+            format!("mongodb://{h}:57017/tck?directConnection=true"),
+        ),
+        (
             "FERRODB_TEST_SSH".into(),
             format!("ssh://ferrodb:ferrodb@{h}:52222"),
         ),
@@ -149,19 +201,22 @@ fn env_hint() {
     eprintln!("Run `cargo xtask tck` to run the suite against them.");
 }
 
-/// Runs the TCK with the container URLs.
+/// Runs the TCK and the metadata round trips with the container URLs.
 pub fn tck() -> Result<(), String> {
-    let mut c = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-    c.args([
-        "test",
-        "-p",
-        "ferrodb-driver-tck",
-        "--",
-        "--nocapture",
-        "--test-threads=1",
-    ]);
-    for (k, v) in env_vars() {
-        c.env(k, v);
+    for package in ["ferrodb-driver-tck", "ferrodb-meta"] {
+        let mut c = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
+        c.args([
+            "test",
+            "-p",
+            package,
+            "--",
+            "--nocapture",
+            "--test-threads=1",
+        ]);
+        for (k, v) in env_vars() {
+            c.env(k, v);
+        }
+        crate::run(&mut c)?;
     }
-    crate::run(&mut c)
+    Ok(())
 }

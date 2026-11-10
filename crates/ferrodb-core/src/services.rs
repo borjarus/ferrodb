@@ -97,8 +97,9 @@ impl HistoryService for Inner {
 
 impl SearchIndexService for Inner {
     fn entries(&self) -> Vec<SearchEntry> {
-        let st = self.state();
-        st.sources
+        let mut out: Vec<SearchEntry> = self
+            .state()
+            .sources
             .values()
             .map(|e| SearchEntry {
                 label: e.config.name.clone(),
@@ -106,7 +107,9 @@ impl SearchIndexService for Inner {
                 kind: None,
                 target: SearchTarget::DataSource(e.config.id.clone()),
             })
-            .chain(st.seen.iter().cloned())
-            .collect()
+            .collect();
+        // Tables, views, routines, collections of every cached catalog.
+        out.extend(self.catalog_entries());
+        out
     }
 }

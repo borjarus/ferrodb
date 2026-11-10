@@ -143,21 +143,83 @@ pub struct InferredSchema {
     pub fields: Vec<FieldStats>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DdlOptions {
     pub include_indexes: bool,
     pub include_comments: bool,
 }
 
+impl Default for DdlOptions {
+    fn default() -> Self {
+        Self {
+            include_indexes: true,
+            include_comments: true,
+        }
+    }
+}
+
+/// Scripts generated for an object ("Generate" in the explorer).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ScriptKind {
+    /// `SELECT` listing every column / `db.c.find({})`.
+    Select,
+    /// `INSERT` with a parameter per column / `insertOne`.
+    Insert,
+    /// `UPDATE … WHERE <key>` / `updateOne`.
+    Update,
+    /// `DELETE … WHERE <key>` / `deleteOne`.
+    Delete,
+    /// Procedure / function call with a parameter per argument.
+    Call,
+    /// `DROP …` of the object.
+    Drop,
+}
+
+/// Quick documentation of an object (Ctrl+Q), shown in the inspector.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ObjectDoc {
+    pub title: String,
+    /// Kind and location, e.g. `table in public`.
+    pub subtitle: String,
+    /// Columns, arguments, keys… as (name, description).
+    pub fields: Vec<(String, String)>,
+    /// Comment or definition.
+    pub body: Option<String>,
+}
+
 pub trait MetadataService: Send + Sync {
     fn hierarchy(&self, ds: &DataSourceId) -> Arc<HierarchySpec>;
     fn children(&self, node: NodeRef) -> BoxFuture<'_, Result<Vec<DbObject>>>;
+    /// Every cached object of the source (completion, search); no I/O.
     fn snapshot(&self, ds: &DataSourceId) -> Option<Arc<SchemaSnapshot>>;
+    /// Drops cached metadata in `scope` and introspects it again.
     fn refresh(&self, ds: &DataSourceId, scope: RefreshScope) -> BoxFuture<'_, Result<()>>;
     fn infer_schema(
         &self,
         container: NodeRef,
         sample: SampleOptions,
     ) -> BoxFuture<'_, Result<InferredSchema>>;
+    /// DDL of the objects (server-side definition or generated from the
+    /// metadata model); several tables come in dependency order.
     fn definition(&self, objects: Vec<NodeRef>, opts: DdlOptions) -> BoxFuture<'_, Result<String>>;
+
+    /// A script for the object: snippets, procedure calls, `DROP`.
+    fn script(&self, object: NodeRef, kind: ScriptKind) -> BoxFuture<'_, Result<String>> {
+        let _ = (object, kind);
+        Box::pin(async { Err(crate::Error::Unsupported("object scripts".into())) })
+    }
+
+    /// Objects named by `parts` (`["orders"]`, `["sales", "orders"]`,
+    /// `["orders", "id"]`), resolved against cached metadata only (no I/O).
+    /// Used by "Go to declaration". Best matches first.
+    fn resolve(&self, ds: &DataSourceId, parts: &[String]) -> Vec<DbObject> {
+        let _ = (ds, parts);
+        Vec::new()
+    }
+
+    /// Quick documentation of the object.
+    fn documentation(&self, object: NodeRef) -> BoxFuture<'_, Result<ObjectDoc>> {
+        let _ = object;
+        Box::pin(async { Err(crate::Error::Unsupported("quick documentation".into())) })
+    }
 }

@@ -12,6 +12,7 @@ members = [
   "crates/ferrodb-secrets",
   "crates/ferrodb-net",
   "crates/ferrodb-storage",
+  "crates/ferrodb-meta",
   "crates/ferrodb-core",
   "apps/ferrodb-gallery",
   "xtask",
@@ -41,6 +42,7 @@ ferrodb-secrets = { path = "crates/ferrodb-secrets" }
 ferrodb-net = { path = "crates/ferrodb-net" }
 ferrodb-storage = { path = "crates/ferrodb-storage" }
 ferrodb-core = { path = "crates/ferrodb-core" }
+ferrodb-meta = { path = "crates/ferrodb-meta" }
 
 # GUI — exactly pinned (pins the gpui-pre 0.3.10 snapshot); see ADR-001
 gpui-kit = { version = "=0.8.1" }
@@ -62,6 +64,7 @@ chrono = "0.4.45"
 tokio-postgres = "0.7.18"
 tokio-postgres-rustls = { version = "0.14.0", default-features = false, features = ["ring"] }
 mysql_async = { version = "0.37.1", default-features = false, features = ["minimal-rust", "derive", "rustls-tls", "tls12", "ring"] }
+mongodb = { version = "3.10.0", default-features = false, features = ["compat-3-3-0", "bson-3", "rustls-tls", "dns-resolver"] }
 rusqlite = { version = "0.41.1", features = ["bundled", "column_decltype"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 rustls-platform-verifier = "0.7.1"

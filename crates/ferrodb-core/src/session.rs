@@ -24,14 +24,18 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
+use bson::Bson;
 use ferrodb_api::{
     ApplyReport, BoxFuture, CancelHandle, ChangeSet, DataSourceConfig, DataSourceId, Error,
-    ExecOptions, HistoryEntry, KeyValue, NoticeLevel, PlanNode, QueryError, QueryEvent,
-    QueryHandle, QueryId, QueryService, Result, ResultChunk, ResultId, ResultShape, Script,
-    ServerNotice, SessionId, SessionInfo, TxMode,
+    ExecOptions, HistoryEntry, KeyValue, NodeRef, NoticeLevel, ObjectKind, PlanNode, QueryError,
+    QueryEvent, QueryHandle, QueryId, QueryService, Result, ResultChunk, ResultId, ResultShape,
+    Script, ServerNotice, SessionId, SessionInfo, TxMode,
 };
 use ferrodb_drivers::{CancellationToken, Connection, Request, ResultSink, SinkEvent};
-use ferrodb_lang::sql::{self, Flavor, StatementClass, TxCommand};
+use ferrodb_lang::{
+    mql,
+    sql::{self, Flavor, StatementClass, TxCommand},
+};
 use ferrodb_storage::{LogEntry, LogSource};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -92,6 +96,8 @@ struct Job {
 #[derive(Clone)]
 struct Ctx {
     dialect: String,
+    /// MongoDB shell statements instead of SQL.
+    mql: bool,
     read_only: bool,
     manual_tx: bool,
     timeout: Option<Duration>,
@@ -108,6 +114,7 @@ impl Ctx {
             .map(Duration::from_secs);
         Self {
             dialect: ferrodb_lang::service::dialect_of(&caps.language).to_owned(),
+            mql: caps.language == ferrodb_api::QueryLanguage::Mql,
             read_only: cfg.read_only,
             manual_tx: cfg.tx_mode == TxMode::Manual && caps.supports_transactions(),
             timeout,
@@ -365,6 +372,9 @@ impl Actor {
         token: &CancellationToken,
         start_gen: u64,
     ) -> bool {
+        if self.ctx.mql {
+            return self.run_mql(job, ev, token, start_gen).await;
+        }
         let text = &job.script.text;
         let base = job.script.base_offset;
         let flavor = Flavor::for_dialect(&self.ctx.dialect);
@@ -438,7 +448,7 @@ impl Actor {
             let r = self
                 .run_statement(
                     StatementRun {
-                        sql: sql.clone(),
+                        request: Request::Text { text: sql.clone() },
                         title: st.title.clone(),
                         index,
                         last: index + 1 == count,
@@ -516,6 +526,164 @@ impl Actor {
         false
     }
 
+    /// A MongoDB console script: shell statements, read-only and manual
+    /// transactions as for SQL; results are documents.
+    async fn run_mql(
+        &mut self,
+        job: &Job,
+        ev: &Events,
+        token: &CancellationToken,
+        start_gen: u64,
+    ) -> bool {
+        let text = &job.script.text;
+        let base = job.script.base_offset;
+        if let Some(db) = job.opts.schema.clone().filter(|s| !s.is_empty()) {
+            let current = self.session.status().schema.clone();
+            if current.as_deref() != Some(db.as_str()) {
+                match self.internal(Op::SetSchema(&db)).await {
+                    Ok(()) => self.session.status().schema = Some(db),
+                    Err(e) => {
+                        ev.error(e.to_string(), None, None).await;
+                        return false;
+                    }
+                }
+            }
+        }
+        if let Err(e) = self.connection(Some(ev)).await {
+            ev.error(e.to_string(), None, None).await;
+            return false;
+        }
+        let statements = mql::split(text);
+        let count = statements.len();
+        for (index, st) in statements.into_iter().enumerate() {
+            if token.is_cancelled() || ev.closed() {
+                ev.error("cancelled", Some("FERRODB-CANCELLED"), None).await;
+                return false;
+            }
+            let body = st.text(text);
+            let abs = base + st.range.start..base + st.range.end;
+            ev.send(QueryEvent::StatementStarted {
+                index,
+                range: abs.clone(),
+            })
+            .await;
+            let cmd = match mql::parse(body) {
+                Ok(c) => c,
+                Err(e) => {
+                    ev.error(
+                        e.message,
+                        Some("FERRODB-MQL"),
+                        Some(
+                            abs.start + e.range.start
+                                ..abs.start + e.range.end.max(e.range.start + 1),
+                        ),
+                    )
+                    .await;
+                    self.record_history(body, Duration::ZERO, false);
+                    return false;
+                }
+            };
+            let write = cmd.is_write();
+            if self.ctx.read_only && write {
+                ev.error(
+                    "the data source is read-only: this statement would modify data or schema",
+                    Some("FERRODB-READ-ONLY"),
+                    Some(abs),
+                )
+                .await;
+                self.record_history(body, Duration::ZERO, false);
+                return false;
+            }
+            let is_use = matches!(cmd.op, mql::Op::Use(_));
+            if self.ctx.manual_tx && !self.session.status().in_tx && !is_use {
+                match self.internal(Op::Begin).await {
+                    Ok(()) => self.session.status().in_tx = true,
+                    Err(Error::Unsupported(why)) => {
+                        // Standalone server: continue in auto-commit mode.
+                        self.ctx.manual_tx = false;
+                        ev.send(QueryEvent::Notice(ServerNotice {
+                            level: NoticeLevel::Warning,
+                            message: format!("Manual transaction mode is off: {why}"),
+                        }))
+                        .await;
+                    }
+                    Err(e) => {
+                        ev.error(e.to_string(), None, Some(abs)).await;
+                        return false;
+                    }
+                }
+            }
+            let started = (SystemTime::now(), Instant::now());
+            let r = self
+                .run_statement(
+                    StatementRun {
+                        request: Request::Mql(cmd),
+                        title: st.title.clone(),
+                        index,
+                        last: index + 1 == count,
+                        page_size: job.opts.page_size.max(1),
+                        timeout: job.opts.timeout.or(self.ctx.timeout),
+                        started: started.1,
+                        start_gen,
+                    },
+                    ev,
+                    token,
+                )
+                .await;
+            match r {
+                Ok(out) => {
+                    if is_use
+                        && let Ok(conn) = self.connection(None).await
+                        && let Ok(s) = conn.current_schema().await
+                    {
+                        self.session.status().schema = s;
+                    }
+                    let elapsed = out.elapsed.unwrap_or_else(|| started.1.elapsed());
+                    if !out.finished_sent {
+                        ev.send(QueryEvent::StatementFinished {
+                            index,
+                            affected: out.affected,
+                            elapsed,
+                        })
+                        .await;
+                    }
+                    self.record_history(body, elapsed, true);
+                    self.log(
+                        LogSource::User,
+                        body,
+                        started,
+                        out.affected.or(Some(out.rows)),
+                        None,
+                    );
+                    if out.finished_sent {
+                        return true;
+                    }
+                }
+                Err(e) => {
+                    let mut q = to_query_error(&e, job.opts.timeout.or(self.ctx.timeout));
+                    q.range = Some(match q.range.take() {
+                        Some(r) => {
+                            abs.start + r.start.min(body.len())
+                                ..abs.start + r.end.min(body.len()).max(r.start + 1)
+                        }
+                        None => abs.clone(),
+                    });
+                    self.record_history(body, started.1.elapsed(), false);
+                    self.log(
+                        LogSource::User,
+                        body,
+                        started,
+                        None,
+                        Some(q.message.clone()),
+                    );
+                    ev.send(QueryEvent::Error(q)).await;
+                    return false;
+                }
+            }
+        }
+        false
+    }
+
     async fn run_statement(
         &mut self,
         run: StatementRun,
@@ -529,13 +697,7 @@ impl Actor {
         let timed_out = Arc::new(AtomicBool::new(false));
         let (sink, rx) = ResultSink::channel(4, ResultSink::BATCH_ROWS);
         let conn = self.connection(Some(ev)).await?;
-        let exec = conn.execute(
-            Request::Text {
-                text: run.sql.clone(),
-            },
-            sink,
-            stmt_token.clone(),
-        );
+        let exec = conn.execute(run.request.clone(), sink, stmt_token.clone());
         let fwd = forward(&core, &session, rx, ev, &run, &stmt_token, &finished);
         let both = async { futures::join!(exec, fwd) };
         tokio::pin!(both);
@@ -591,7 +753,7 @@ enum Op<'a> {
 }
 
 struct StatementRun {
-    sql: String,
+    request: Request,
     title: Option<String>,
     index: usize,
     last: bool,
@@ -616,6 +778,52 @@ struct ForwardOut {
     elapsed: Option<Duration>,
 }
 
+/// Rows or documents of one sink event, sliceable by page credits.
+enum Items {
+    Rows(arrow_array::RecordBatch),
+    Docs(Vec<bson::RawDocumentBuf>),
+}
+
+impl Items {
+    fn len(&self) -> usize {
+        match self {
+            Self::Rows(b) => b.num_rows(),
+            Self::Docs(d) => d.len(),
+        }
+    }
+
+    /// The first `n` items and the rest.
+    fn split(self, n: usize) -> (Items, Option<Items>) {
+        if n >= self.len() {
+            return (self, None);
+        }
+        match self {
+            Self::Rows(b) => (
+                Self::Rows(b.slice(0, n)),
+                Some(Self::Rows(b.slice(n, b.num_rows() - n))),
+            ),
+            Self::Docs(mut d) => {
+                let rest = d.split_off(n);
+                (Self::Docs(d), Some(Self::Docs(rest)))
+            }
+        }
+    }
+
+    fn event(self) -> SinkEvent {
+        match self {
+            Self::Rows(b) => SinkEvent::Batch(b),
+            Self::Docs(d) => SinkEvent::Documents(d),
+        }
+    }
+
+    fn chunk(self) -> ResultChunk {
+        match self {
+            Self::Rows(b) => ResultChunk::Rows(Arc::new(b)),
+            Self::Docs(d) => ResultChunk::Documents(Arc::new(d)),
+        }
+    }
+}
+
 /// Moves sink events to the UI, applying page credits.
 async fn forward(
     core: &Inner,
@@ -631,6 +839,8 @@ async fn forward(
     let mut credits = 0usize;
     let mut results = 0usize;
     let mut pending: Option<SinkEvent> = None;
+    // Editable document result: `_id`s are recorded as documents pass.
+    let mut doc_result: Option<ResultId> = None;
 
     let unregister = |rid: ResultId| {
         core.state().results.remove(&rid);
@@ -645,121 +855,30 @@ async fn forward(
             break;
         }
         let Some(event) = next else { break };
-        match event {
-            SinkEvent::Begin { schema } => {
-                if let Some((rid, _)) = current.take() {
-                    unregister(rid);
-                    ev.send(QueryEvent::ResultPaused {
-                        result: rid,
-                        has_more: false,
-                    })
-                    .await;
-                }
-                results += 1;
-                let rid = ResultId(core.next_id());
-                let (ctx, crx) = mpsc::unbounded_channel();
-                core.state().results.insert(rid, ctx);
-                current = Some((rid, crx));
-                credits = run.page_size;
-                let title = match (&run.title, results) {
-                    (Some(t), 1) => Some(t.clone()),
-                    (Some(t), n) => Some(format!("{t} ({n})")),
-                    (None, _) => None,
+        let (shape, items) = match event {
+            SinkEvent::Begin { schema } => (Some(ResultShape::Table(schema)), None),
+            SinkEvent::BeginDocuments {
+                database,
+                collection,
+            } => {
+                let node = match (&database, &collection) {
+                    (Some(db), Some(c)) => Some(
+                        NodeRef::root(session.data_source.clone())
+                            .child(ObjectKind::Database, db)
+                            .child(ObjectKind::Collection, c),
+                    ),
+                    _ => None,
                 };
-                ev.send(QueryEvent::ResultStarted {
-                    result: rid,
-                    shape: ResultShape::Table(schema),
-                    title,
-                })
-                .await;
+                (
+                    Some(ResultShape::Documents {
+                        container: collection.clone(),
+                        node,
+                    }),
+                    None,
+                )
             }
-            SinkEvent::Batch(batch) => {
-                let Some((rid, _)) = &current else { continue };
-                let rid = *rid;
-                if credits == 0 {
-                    // Page full and more rows exist: pause.
-                    if !run.last {
-                        ev.send(QueryEvent::ResultPaused {
-                            result: rid,
-                            has_more: false,
-                        })
-                        .await;
-                        ev.send(QueryEvent::Notice(ServerNotice {
-                            level: NoticeLevel::Info,
-                            message: format!(
-                                "Result truncated to {} rows; run the statement on its own to page through it",
-                                out.rows
-                            ),
-                        }))
-                        .await;
-                        unregister(rid);
-                        return out;
-                    }
-                    ev.send(QueryEvent::ResultPaused {
-                        result: rid,
-                        has_more: true,
-                    })
-                    .await;
-                    if !out.finished_sent {
-                        let elapsed = run.started.elapsed();
-                        out.elapsed = Some(elapsed);
-                        out.finished_sent = true;
-                        finished.store(true, Ordering::SeqCst);
-                        ev.send(QueryEvent::StatementFinished {
-                            index: run.index,
-                            affected: None,
-                            elapsed,
-                        })
-                        .await;
-                        ev.send(QueryEvent::Finished).await;
-                        session.status().busy = false;
-                    }
-                    let mut pre = session.preempt.subscribe();
-                    let preempted = *pre.borrow_and_update() != run.start_gen;
-                    let granted = if preempted {
-                        None
-                    } else {
-                        let crx = &mut current.as_mut().expect("current result").1;
-                        tokio::select! {
-                            n = crx.recv() => n,
-                            _ = pre.changed() => None,
-                            _ = token.cancelled() => None,
-                        }
-                    };
-                    match granted {
-                        Some(n) => {
-                            credits += n.max(1);
-                            pending = Some(SinkEvent::Batch(batch));
-                            continue;
-                        }
-                        None => {
-                            ev.send(QueryEvent::ResultPaused {
-                                result: rid,
-                                has_more: false,
-                            })
-                            .await;
-                            unregister(rid);
-                            return out;
-                        }
-                    }
-                }
-                let take = credits.min(batch.num_rows());
-                let chunk = if take == batch.num_rows() {
-                    batch.clone()
-                } else {
-                    batch.slice(0, take)
-                };
-                credits -= take;
-                out.rows += take as u64;
-                ev.send(QueryEvent::Data {
-                    result: rid,
-                    chunk: ResultChunk::Rows(Arc::new(chunk)),
-                })
-                .await;
-                if take < batch.num_rows() {
-                    pending = Some(SinkEvent::Batch(batch.slice(take, batch.num_rows() - take)));
-                }
-            }
+            SinkEvent::Batch(b) => (None, Some(Items::Rows(b))),
+            SinkEvent::Documents(d) => (None, Some(Items::Docs(d))),
             SinkEvent::End => {
                 if let Some((rid, _)) = current.take() {
                     unregister(rid);
@@ -769,8 +888,151 @@ async fn forward(
                     })
                     .await;
                 }
+                continue;
             }
-            SinkEvent::Notice(n) => ev.send(QueryEvent::Notice(n)).await,
+            SinkEvent::Notice(n) => {
+                ev.send(QueryEvent::Notice(n)).await;
+                continue;
+            }
+        };
+        if let Some(shape) = shape {
+            if let Some((rid, _)) = current.take() {
+                unregister(rid);
+                ev.send(QueryEvent::ResultPaused {
+                    result: rid,
+                    has_more: false,
+                })
+                .await;
+            }
+            results += 1;
+            let rid = ResultId(core.next_id());
+            let (ctx, crx) = mpsc::unbounded_channel();
+            core.state().results.insert(rid, ctx);
+            doc_result = None;
+            if let ResultShape::Documents {
+                node: Some(node), ..
+            } = &shape
+            {
+                core.state().documents.insert(
+                    rid,
+                    crate::documents::DocResult {
+                        session: session.id,
+                        database: node.path[0].1.clone(),
+                        collection: node.path[1].1.clone(),
+                        ids: Vec::new(),
+                    },
+                );
+                doc_result = Some(rid);
+            }
+            current = Some((rid, crx));
+            credits = run.page_size;
+            let title = match (&run.title, results) {
+                (Some(t), 1) => Some(t.clone()),
+                (Some(t), n) => Some(format!("{t} ({n})")),
+                (None, _) => None,
+            };
+            ev.send(QueryEvent::ResultStarted {
+                result: rid,
+                shape,
+                title,
+            })
+            .await;
+            continue;
+        }
+        let Some(items) = items else { continue };
+        let Some((rid, _)) = &current else { continue };
+        let rid = *rid;
+        if credits == 0 {
+            // Page full and more items exist: pause.
+            if !run.last {
+                ev.send(QueryEvent::ResultPaused {
+                    result: rid,
+                    has_more: false,
+                })
+                .await;
+                ev.send(QueryEvent::Notice(ServerNotice {
+                    level: NoticeLevel::Info,
+                    message: format!(
+                        "Result truncated to {} items; run the statement on its own to page through it",
+                        out.rows
+                    ),
+                }))
+                .await;
+                unregister(rid);
+                return out;
+            }
+            ev.send(QueryEvent::ResultPaused {
+                result: rid,
+                has_more: true,
+            })
+            .await;
+            if !out.finished_sent {
+                let elapsed = run.started.elapsed();
+                out.elapsed = Some(elapsed);
+                out.finished_sent = true;
+                finished.store(true, Ordering::SeqCst);
+                ev.send(QueryEvent::StatementFinished {
+                    index: run.index,
+                    affected: None,
+                    elapsed,
+                })
+                .await;
+                ev.send(QueryEvent::Finished).await;
+                session.status().busy = false;
+            }
+            let mut pre = session.preempt.subscribe();
+            let preempted = *pre.borrow_and_update() != run.start_gen;
+            let granted = if preempted {
+                None
+            } else {
+                let crx = &mut current.as_mut().expect("current result").1;
+                tokio::select! {
+                    n = crx.recv() => n,
+                    _ = pre.changed() => None,
+                    _ = token.cancelled() => None,
+                }
+            };
+            match granted {
+                Some(n) => {
+                    credits += n.max(1);
+                    pending = Some(items.event());
+                    continue;
+                }
+                None => {
+                    ev.send(QueryEvent::ResultPaused {
+                        result: rid,
+                        has_more: false,
+                    })
+                    .await;
+                    unregister(rid);
+                    return out;
+                }
+            }
+        }
+        let (page, rest) = items.split(credits);
+        let take = page.len();
+        credits -= take;
+        out.rows += take as u64;
+        if let (Some(dr), Items::Docs(docs)) = (doc_result, &page) {
+            let mut st = core.state();
+            if let Some(r) = st.documents.get_mut(&dr)
+                && r.ids.len() + docs.len() <= crate::documents::MAX_IDS
+            {
+                r.ids.extend(docs.iter().map(|d| {
+                    d.get("_id")
+                        .ok()
+                        .flatten()
+                        .and_then(|v| Bson::try_from(v).ok())
+                }));
+            }
+        }
+        ev.send(QueryEvent::Data {
+            result: rid,
+            chunk: page.chunk(),
+        })
+        .await;
+        if let Some(rest) = rest {
+            pending = Some(rest.event());
         }
     }
     if let Some((rid, _)) = current.take() {
@@ -788,7 +1050,11 @@ async fn forward(
 
 impl Inner {
     pub(crate) async fn close_session_now(&self, id: SessionId) {
-        let s = self.state().sessions.remove(&id);
+        let s = {
+            let mut st = self.state();
+            st.documents.retain(|_, d| d.session != id);
+            st.sessions.remove(&id)
+        };
         if let Some(s) = s {
             let (tx, rx) = oneshot::channel();
             if s.send(Cmd::Close { reply: tx }) {
@@ -948,18 +1214,20 @@ impl QueryService for Inner {
 
     fn preview_changes(
         &self,
-        _result: ResultId,
-        _changes: ChangeSet,
+        result: ResultId,
+        changes: ChangeSet,
     ) -> BoxFuture<'_, Result<Vec<String>>> {
-        Box::pin(async { Err(Error::Unsupported("editing results (phase 6)".into())) })
+        let r = self.preview_documents(result, &changes);
+        Box::pin(async move { r })
     }
 
     fn apply_changes(
         &self,
-        _result: ResultId,
-        _changes: ChangeSet,
+        result: ResultId,
+        changes: ChangeSet,
     ) -> BoxFuture<'_, Result<ApplyReport>> {
-        Box::pin(async { Err(Error::Unsupported("editing results (phase 6)".into())) })
+        let me = self.arc();
+        self.spawn(async move { me.apply_documents(result, changes).await })
     }
 
     fn commit(&self, session: SessionId) -> BoxFuture<'_, Result<()>> {

@@ -12,7 +12,7 @@ use std::{
 
 use ferrodb_api::{
     Capabilities, ConnectionState, DataModel, DataSourceId, DataSourceInfo, DbObject, Environment,
-    ExplainSupport, NodeRef, ObjectKind, SchemaKind,
+    ExplainSupport, NodeRef, ObjectKind, RefreshScope, SchemaKind, ScriptKind,
 };
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -87,6 +87,8 @@ pub struct ExplorerPanel {
     /// Folders and kind groups start expanded; these were collapsed.
     collapsed: HashSet<SharedString>,
     sources: Vec<DataSourceInfo>,
+    /// Node being revealed ("Go to declaration"): parents load first.
+    reveal: Option<NodeRef>,
     _subs: Vec<Subscription>,
     _events: Task<()>,
 }
@@ -145,6 +147,7 @@ impl ExplorerPanel {
             expanded: HashSet::new(),
             collapsed: HashSet::new(),
             sources: Vec::new(),
+            reveal: None,
             _subs: subs,
             _events: events,
         };
@@ -208,15 +211,12 @@ impl ExplorerPanel {
         self.children.insert(node.clone(), Children::Loading);
         self.rebuild(cx);
         let backend = AppState::backend(cx);
-        let connect = source.filter(|s| s.state != ConnectionState::Connected);
+        // The backend connects when it needs to: children of a cached
+        // catalog need no connection (phase 4).
+        let _ = source;
         let task = cx.background_executor().spawn({
             let node = node.clone();
-            async move {
-                if let Some(s) = connect {
-                    backend.data_sources().connect(&s.config.id).await?;
-                }
-                backend.metadata().children(node).await
-            }
+            async move { backend.metadata().children(node).await }
         });
         cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -234,13 +234,99 @@ impl ExplorerPanel {
                 };
                 this.children.insert(node, state);
                 this.rebuild(cx);
+                this.advance_reveal(cx);
+            });
+        })
+        .detach();
+    }
+
+    /// Expands the parents of `node`, loading them as needed, then selects it.
+    pub fn reveal(&mut self, node: NodeRef, cx: &mut Context<Self>) {
+        self.reveal = Some(node);
+        self.advance_reveal(cx);
+    }
+
+    fn advance_reveal(&mut self, cx: &mut Context<Self>) {
+        let Some(target) = self.reveal.clone() else {
+            return;
+        };
+        for depth in 0..target.path.len() {
+            let parent = NodeRef {
+                data_source: target.data_source.clone(),
+                path: target.path[..depth].to_vec(),
+            };
+            let id = if depth == 0 {
+                source_id(&parent.data_source)
+            } else {
+                node_id(&parent)
+            };
+            self.expanded.insert(id);
+            match self.children.get(&parent) {
+                Some(Children::Loaded(_)) => {}
+                Some(Children::Loading) => return,
+                Some(Children::Failed(_)) => {
+                    self.reveal = None;
+                    return;
+                }
+                None => {
+                    self.load(parent, None, cx);
+                    return;
+                }
+            }
+        }
+        self.reveal = None;
+        self.rebuild(cx);
+        let id = node_id(&target);
+        self.tree.update(cx, |tree, cx| {
+            if let Some(ix) = tree.index_of(&id) {
+                tree.set_selected_index(Some(ix), cx);
+                tree.scroll_to_item(ix, ScrollStrategy::Center);
+            }
+        });
+        self.inspect(&id, cx);
+    }
+
+    /// Re-reads metadata of a node (or of every loaded source) in the
+    /// backend, then reloads the expanded part of the tree.
+    pub fn refresh(&mut self, node: Option<NodeRef>, cx: &mut Context<Self>) {
+        let targets: Vec<(DataSourceId, RefreshScope)> = match &node {
+            Some(n) if n.path.is_empty() => vec![(n.data_source.clone(), RefreshScope::All)],
+            Some(n) => vec![(n.data_source.clone(), RefreshScope::Node(n.clone()))],
+            None => {
+                let mut ids: Vec<DataSourceId> = self
+                    .children
+                    .keys()
+                    .map(|n| n.data_source.clone())
+                    .collect();
+                ids.sort();
+                ids.dedup();
+                ids.into_iter().map(|d| (d, RefreshScope::All)).collect()
+            }
+        };
+        let backend = AppState::backend(cx);
+        let task = cx.background_executor().spawn(async move {
+            let mut errors = Vec::new();
+            for (ds, scope) in targets {
+                if let Err(e) = backend.metadata().refresh(&ds, scope).await {
+                    errors.push(format!("{ds}: {e}"));
+                }
+            }
+            errors
+        });
+        cx.spawn(async move |this, cx| {
+            let errors = task.await;
+            let _ = this.update(cx, |this, cx| {
+                for e in errors {
+                    output::log(output::Level::Error, e, cx);
+                }
+                this.reload_children(node, cx);
             });
         })
         .detach();
     }
 
     /// Drops loaded children of a source (or node) and reloads expanded ones.
-    pub fn refresh(&mut self, node: Option<NodeRef>, cx: &mut Context<Self>) {
+    fn reload_children(&mut self, node: Option<NodeRef>, cx: &mut Context<Self>) {
         match &node {
             Some(n) => self
                 .children
@@ -545,11 +631,71 @@ fn object_menu(
             }),
         )
         .separator();
-    if model == Some(DataModel::Tabular) && kind.is_container() {
+    let has_definition = match model {
+        Some(DataModel::Tabular) => true,
+        Some(DataModel::Document) => matches!(
+            kind,
+            ObjectKind::Database | ObjectKind::Collection | ObjectKind::View | ObjectKind::Index
+        ),
+        _ => false,
+    };
+    if has_definition {
         let o = o.clone();
         menu = menu.item(
-            PopupMenuItem::new(t("menu-copy-ddl"))
-                .on_click(move |_, w, cx| workspace::show_ddl(o.node.clone(), w, cx)),
+            PopupMenuItem::new(t(if model == Some(DataModel::Document) {
+                "menu-copy-script"
+            } else {
+                "menu-copy-ddl"
+            }))
+            .on_click(move |_, w, cx| workspace::show_ddl(o.node.clone(), w, cx)),
+        );
+    }
+    let scripts: &[(ScriptKind, &str)] = match (model, kind) {
+        (Some(DataModel::Tabular), ObjectKind::Table) => &[
+            (ScriptKind::Select, "menu-generate-select"),
+            (ScriptKind::Insert, "menu-generate-insert"),
+            (ScriptKind::Update, "menu-generate-update"),
+            (ScriptKind::Delete, "menu-generate-delete"),
+            (ScriptKind::Drop, "menu-generate-drop"),
+        ],
+        (Some(DataModel::Tabular), ObjectKind::View | ObjectKind::MaterializedView) => &[
+            (ScriptKind::Select, "menu-generate-select"),
+            (ScriptKind::Drop, "menu-generate-drop"),
+        ],
+        (Some(DataModel::Tabular), ObjectKind::Procedure | ObjectKind::Function) => &[
+            (ScriptKind::Call, "menu-generate-call"),
+            (ScriptKind::Drop, "menu-generate-drop"),
+        ],
+        (
+            Some(DataModel::Tabular),
+            ObjectKind::Column
+            | ObjectKind::Index
+            | ObjectKind::ForeignKey
+            | ObjectKind::PrimaryKey
+            | ObjectKind::Trigger
+            | ObjectKind::Sequence,
+        ) => &[(ScriptKind::Drop, "menu-generate-drop")],
+        (Some(DataModel::Document), ObjectKind::Collection) => &[
+            (ScriptKind::Select, "menu-generate-find"),
+            (ScriptKind::Insert, "menu-generate-insert"),
+            (ScriptKind::Update, "menu-generate-update"),
+            (ScriptKind::Delete, "menu-generate-delete"),
+            (ScriptKind::Drop, "menu-generate-drop"),
+        ],
+        _ => &[],
+    };
+    for (script, label) in scripts {
+        let (o, script) = (o.clone(), *script);
+        menu = menu.item(
+            PopupMenuItem::new(t(label))
+                .on_click(move |_, w, cx| workspace::show_script(o.node.clone(), script, w, cx)),
+        );
+    }
+    if model.is_some() && !matches!(kind, ObjectKind::Folder) {
+        let o = o.clone();
+        menu = menu.item(
+            PopupMenuItem::new(t("action-quick-doc"))
+                .on_click(move |_, _, cx| workspace::show_documentation(o.node.clone(), cx)),
         );
     }
     if tabular_table {

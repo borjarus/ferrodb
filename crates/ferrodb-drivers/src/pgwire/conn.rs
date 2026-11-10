@@ -420,8 +420,8 @@ impl Connection for PgConnection {
         sink: ResultSink,
         cancel: CancellationToken,
     ) -> BoxFuture<'a, Result<ExecSummary>> {
-        let Request::Text { text } = req;
         Box::pin(async move {
+            let text = req.into_text()?;
             // Notices left over from session commands belong to no statement.
             forward_notices(&mut self.notices);
             let canceller = self.cancel.clone();

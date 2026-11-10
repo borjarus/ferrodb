@@ -481,6 +481,141 @@ fn explorer_lists_schemas_tables_and_columns() {
     assert!(f.core.queries().sessions().is_empty());
 }
 
+/// Phase 4: cached catalog, incremental refresh, DDL and scripts, name
+/// resolution, quick documentation, schema filter, start from the disk
+/// cache without connecting.
+#[test]
+fn live_explorer_cache_refresh_and_ddl() {
+    let dir = tempfile::tempdir().unwrap();
+    let opts = || CoreOptions {
+        config_dir: Some(dir.path().join("config")),
+        data_dir: Some(dir.path().join("data")),
+        ..CoreOptions::in_memory()
+    };
+    let core = CoreBackend::new(opts()).unwrap();
+    let ds: DataSourceId = "lite".into();
+    let cfg = DataSourceConfig {
+        id: ds.clone(),
+        name: "Lite".into(),
+        driver: "sqlite".into(),
+        folder: vec![],
+        environment: Environment::None,
+        read_only: false,
+        tx_mode: TxMode::Auto,
+        properties: vec![(
+            "file".into(),
+            dir.path().join("db.sqlite").to_string_lossy().into_owned(),
+        )],
+        secret_ref: None,
+    };
+    block_on(core.data_sources().save(cfg.clone(), SecretValues::new())).unwrap();
+    let q = core.queries();
+    let s = block_on(q.open_session(&ds)).unwrap();
+    let run = |text: &str| {
+        let h = q.execute(s, Script::new(text), ExecOptions::default());
+        block_on(async {
+            while let Ok(ev) = h.events.recv().await {
+                if let QueryEvent::Error(e) = &ev {
+                    panic!("{text}: {e}");
+                }
+                if matches!(ev, QueryEvent::Finished) {
+                    break;
+                }
+            }
+        });
+    };
+    run("create table customers (id integer primary key, email text not null unique)");
+    run(
+        "create table orders (id integer primary key, customer_id integer references customers(id), total real)",
+    );
+    let md = core.metadata();
+    let main = NodeRef::root(ds.clone()).child(ObjectKind::Schema, "main");
+    let objs = block_on(md.children(main.clone())).unwrap();
+    assert_eq!(objs.len(), 2);
+    let orders = main.child(ObjectKind::Table, "orders");
+    let kids = block_on(md.children(orders.clone())).unwrap();
+    assert!(kids.iter().any(|k| k.kind == ObjectKind::ForeignKey));
+
+    // The cache answers until a refresh; a table refresh is incremental.
+    run("alter table orders add column paid integer");
+    let cols = |md: &dyn MetadataService| {
+        block_on(md.children(orders.clone()))
+            .unwrap()
+            .into_iter()
+            .filter(|o| o.kind == ObjectKind::Column)
+            .count()
+    };
+    assert_eq!(cols(md), 3);
+    block_on(md.refresh(&ds, RefreshScope::Node(orders.clone()))).unwrap();
+    assert_eq!(cols(md), 4);
+    run("create table extra (x integer)");
+    block_on(md.refresh(&ds, RefreshScope::All)).unwrap();
+    assert_eq!(block_on(md.children(main.clone())).unwrap().len(), 3);
+
+    // Bulk DDL in dependency order, scripts, resolution, documentation.
+    let ddl = block_on(md.definition(
+        vec![orders.clone(), main.child(ObjectKind::Table, "customers")],
+        DdlOptions::default(),
+    ))
+    .unwrap();
+    assert!(
+        ddl.find("CREATE TABLE customers").unwrap() < ddl.find("CREATE TABLE orders").unwrap(),
+        "{ddl}"
+    );
+    let ins = block_on(md.script(orders.clone(), ScriptKind::Insert)).unwrap();
+    assert!(
+        ins.starts_with("INSERT INTO main.orders (id, customer_id, total, paid)"),
+        "{ins}"
+    );
+    let hits = md.resolve(&ds, &["orders".into(), "total".into()]);
+    assert_eq!(hits[0].node, orders.child(ObjectKind::Column, "total"));
+    let doc = block_on(md.documentation(orders.clone())).unwrap();
+    assert!(
+        doc.fields
+            .iter()
+            .any(|(n, d)| n == "customer_id" && d.contains("customers"))
+    );
+    assert!(
+        md.snapshot(&ds)
+            .unwrap()
+            .objects
+            .iter()
+            .any(|o| o.name == "email")
+    );
+    block_on(q.close_session(s)).unwrap();
+    drop(core);
+
+    // A new start shows the tree from the disk cache, without connecting.
+    let core = CoreBackend::new(opts()).unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    let started = Instant::now();
+    let objs = block_on(core.metadata().children(main.clone())).unwrap();
+    assert_eq!(objs.len(), 3);
+    assert!(started.elapsed() < Duration::from_millis(300));
+    assert_eq!(
+        core.data_sources().get(&ds).unwrap().state,
+        ConnectionState::Disconnected
+    );
+    assert!(core.search().entries().iter().any(|e| e.label == "extra"));
+
+    // The schema filter hides containers.
+    let filtered = DataSourceConfig {
+        properties: [
+            cfg.properties.clone(),
+            vec![("schema.filter".into(), "!main".into())],
+        ]
+        .concat(),
+        ..cfg
+    };
+    block_on(core.data_sources().save(filtered, SecretValues::new())).unwrap();
+    assert!(
+        block_on(core.metadata().children(NodeRef::root(ds.clone())))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(!core.search().entries().iter().any(|e| e.label == "extra"));
+}
+
 #[test]
 fn schema_switch_and_unknown_drivers() {
     let f = fixture(|_| {});
@@ -510,10 +645,10 @@ fn schema_switch_and_unknown_drivers() {
         !errors(&evs).is_empty(),
         "SQLite cannot switch the default schema"
     );
-    let mongo = DataSourceConfig {
+    let couch = DataSourceConfig {
         id: "m".into(),
-        name: "Mongo".into(),
-        driver: "mongodb".into(),
+        name: "Couchbase".into(),
+        driver: "couchbase".into(),
         folder: vec![],
         environment: Environment::None,
         read_only: false,
@@ -521,7 +656,7 @@ fn schema_switch_and_unknown_drivers() {
         properties: vec![],
         secret_ref: None,
     };
-    block_on(f.core.data_sources().save(mongo, SecretValues::new())).unwrap();
+    block_on(f.core.data_sources().save(couch, SecretValues::new())).unwrap();
     let err = block_on(f.core.queries().open_session(&"m".into())).unwrap_err();
     assert!(matches!(err, Error::Unsupported(_)), "{err:?}");
 }

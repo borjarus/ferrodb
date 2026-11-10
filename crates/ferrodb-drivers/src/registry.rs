@@ -30,6 +30,8 @@ impl Registry {
         r.drivers.extend(crate::mysql::drivers());
         #[cfg(feature = "sqlite")]
         r.drivers.extend(crate::sqlite::drivers());
+        #[cfg(feature = "mongodb")]
+        r.drivers.extend(crate::mongodb::drivers());
         r
     }
 

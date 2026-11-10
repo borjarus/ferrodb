@@ -799,6 +799,63 @@ pub fn show_ddl(node: NodeRef, window: &mut Window, cx: &mut App) {
         .detach();
 }
 
+/// Opens a generated script (snippet, call, `DROP`) in a new console.
+pub fn show_script(
+    node: NodeRef,
+    kind: ferrodb_api::ScriptKind,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let backend = AppState::backend(cx);
+    let ds = node.data_source.clone();
+    let task = cx
+        .background_executor()
+        .spawn(async move { backend.metadata().script(node, kind).await });
+    window
+        .spawn(cx, async move |cx| {
+            let script = task.await;
+            let _ = cx.update(|window, cx| match script {
+                Ok(s) => open_console(Some(ds), s, window, cx),
+                Err(e) => window.push_notification(Notification::error(e.to_string()), cx),
+            });
+        })
+        .detach();
+}
+
+/// Shows the quick documentation of an object in the inspector.
+pub fn show_documentation(node: NodeRef, cx: &mut App) {
+    let backend = AppState::backend(cx);
+    let task = cx
+        .background_executor()
+        .spawn(async move { backend.metadata().documentation(node).await });
+    cx.spawn(async move |cx| {
+        let doc = task.await;
+        cx.update(|cx| match doc {
+            Ok(d) => crate::inspector::show(
+                crate::inspector::Inspection {
+                    title: d.title,
+                    subtitle: d.subtitle,
+                    value: d.body,
+                    fields: d.fields,
+                },
+                cx,
+            ),
+            Err(e) => crate::output::log(crate::output::Level::Error, e.to_string(), cx),
+        });
+    })
+    .detach();
+}
+
+/// Selects `node` in the explorer, loading its parents.
+pub fn reveal_in_explorer(node: NodeRef, cx: &mut App) {
+    if let Some(e) = cx
+        .try_global::<ActiveExplorer>()
+        .and_then(|e| e.0.upgrade())
+    {
+        e.update(cx, |e, cx| e.reveal(node, cx));
+    }
+}
+
 pub fn open_table_editor(node: Option<NodeRef>, window: &mut Window, cx: &mut App) {
     views::table_editor::open(node, window, cx);
 }

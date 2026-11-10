@@ -77,6 +77,8 @@ pub enum ResultData {
     Table(TableData),
     Documents {
         container: Option<String>,
+        /// The container in the explorer tree, when the source knows it.
+        node: Option<ferrodb_api::NodeRef>,
         docs: Vec<RawDocumentBuf>,
     },
     Keys {
@@ -89,8 +91,9 @@ impl ResultData {
     pub fn from_shape(shape: &ResultShape) -> Self {
         match shape {
             ResultShape::Table(s) => Self::Table(TableData::new(s.clone())),
-            ResultShape::Documents { container } => Self::Documents {
+            ResultShape::Documents { container, node } => Self::Documents {
                 container: container.clone(),
+                node: node.clone(),
                 docs: Vec::new(),
             },
             ResultShape::Keys { pattern } => Self::Keys {

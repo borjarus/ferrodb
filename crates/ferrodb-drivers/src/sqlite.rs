@@ -391,7 +391,10 @@ impl Connection for SqliteConnection {
         sink: ResultSink,
         cancel: CancellationToken,
     ) -> BoxFuture<'a, Result<ExecSummary>> {
-        let Request::Text { text } = req;
+        let text = match req.into_text() {
+            Ok(t) => t,
+            Err(e) => return Box::pin(async move { Err(e) }),
+        };
         let interrupt = self.interrupt.clone();
         let token = cancel.clone();
         let job = self.run(move |c| execute_blocking(c, &text, &sink, &token));

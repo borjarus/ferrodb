@@ -3,7 +3,8 @@
 //! The real [`Backend`]: data sources from `data-sources.toml` with secrets
 //! in the keyring, sessions on native drivers, script execution with
 //! streaming and paging, transactions, read-only enforcement, timeouts,
-//! query history and the query log.
+//! query history and the query log; the live explorer on cached metadata
+//! (`ferrodb-meta`), MongoDB consoles with document editing.
 //!
 //! Concurrency (ADR-002): the core owns a multi-threaded tokio runtime.
 //! Every future handed to the UI only awaits a tokio `JoinHandle` or a
@@ -11,6 +12,8 @@
 //! actor task owning its connection; commands are processed in order.
 
 mod config;
+mod documents;
+mod language;
 mod metadata;
 mod services;
 mod session;
@@ -29,10 +32,11 @@ use std::{
 use ferrodb_api::{
     Backend, BoxFuture, ConnectionState, DataSourceConfig, DataSourceEvent, DataSourceId,
     DataSourceService, DriverCatalogService, DriverEvent, Error, HistoryService, LanguageService,
-    MetadataService, QueryService, Result, ResultId, SearchEntry, SearchIndexService, SessionId,
+    MetadataService, QueryService, Result, ResultId, SearchIndexService, SessionId,
 };
 use ferrodb_drivers::{Connection, Registry};
 use ferrodb_lang::BasicLanguageService;
+use ferrodb_meta::Catalogs;
 use ferrodb_secrets::SecretStore;
 use ferrodb_storage::Storage;
 use tokio::runtime::Runtime;
@@ -95,6 +99,9 @@ impl CoreBackend {
             Some(p) => config::load(p)?,
             None => Vec::new(),
         };
+        let catalogs = Arc::new(Catalogs::new(
+            opts.data_dir.as_ref().map(|d| d.join("metadata")),
+        ));
         let storage = match &opts.data_dir {
             Some(d) => Storage::open(&d.join("app.db")),
             None => Storage::in_memory(),
@@ -109,6 +116,8 @@ impl CoreBackend {
             storage: Arc::new(storage),
             config_path,
             language: BasicLanguageService,
+            catalogs: catalogs.clone(),
+            fields: Mutex::default(),
             state: Mutex::new(State {
                 sources: sources
                     .into_iter()
@@ -128,6 +137,9 @@ impl CoreBackend {
             driver_subs: Mutex::new(Vec::new()),
             next_id: AtomicU64::new(1),
         });
+        // The explorer starts from the metadata cache: read it off the UI path.
+        let ids: Vec<DataSourceId> = inner.state().sources.keys().cloned().collect();
+        inner.handle.spawn_blocking(move || catalogs.preload(&ids));
         Ok(Self { inner })
     }
 
@@ -154,7 +166,7 @@ impl Backend for CoreBackend {
         &*self.inner
     }
     fn language(&self) -> &dyn LanguageService {
-        &self.inner.language
+        &*self.inner
     }
     fn history(&self) -> &dyn HistoryService {
         &*self.inner
@@ -179,8 +191,8 @@ pub(crate) struct State {
     pub meta: HashMap<DataSourceId, Arc<tokio::sync::Mutex<Box<dyn Connection>>>>,
     /// Idle connections kept for reuse by new sessions.
     pub pool: HashMap<DataSourceId, Vec<Box<dyn Connection>>>,
-    /// Objects seen in the explorer, for Search Everywhere.
-    pub seen: Vec<SearchEntry>,
+    /// Document results that can be edited: result → container and `_id`s.
+    pub documents: HashMap<ResultId, documents::DocResult>,
 }
 
 pub(crate) struct Inner {
@@ -192,6 +204,10 @@ pub(crate) struct Inner {
     pub storage: Arc<Storage>,
     pub config_path: Option<PathBuf>,
     pub language: BasicLanguageService,
+    /// Metadata catalogs (memory + disk cache).
+    pub catalogs: Arc<Catalogs>,
+    /// Field paths of sampled collections (MQL completion).
+    pub fields: Mutex<metadata::FieldCache>,
     state: Mutex<State>,
     ds_subs: Mutex<Vec<async_channel::Sender<DataSourceEvent>>>,
     driver_subs: Mutex<Vec<async_channel::Sender<DriverEvent>>>,
@@ -291,3 +307,5 @@ impl Inner {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_mongo;

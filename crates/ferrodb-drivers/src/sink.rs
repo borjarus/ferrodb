@@ -6,6 +6,7 @@
 
 use arrow_array::RecordBatch;
 use arrow_schema::SchemaRef;
+use bson::RawDocumentBuf;
 use ferrodb_api::{NoticeLevel, Result, ServerNotice};
 use tokio::sync::mpsc;
 
@@ -18,6 +19,14 @@ pub enum SinkEvent {
         schema: SchemaRef,
     },
     Batch(RecordBatch),
+    /// A document result starts (MongoDB). `collection` names the
+    /// container the documents come from, when there is one.
+    BeginDocuments {
+        database: Option<String>,
+        collection: Option<String>,
+    },
+    /// Documents of the current document result.
+    Documents(Vec<RawDocumentBuf>),
     /// The current result set is complete.
     End,
     Notice(ServerNotice),
@@ -95,6 +104,8 @@ impl Collected {
 pub struct CollectedOutput {
     pub summary: ExecSummary,
     pub results: Vec<Collected>,
+    /// Documents of every document result, in order.
+    pub documents: Vec<RawDocumentBuf>,
     pub notices: Vec<ServerNotice>,
 }
 
@@ -105,10 +116,20 @@ pub async fn collect(
     text: impl Into<String>,
     cancel: CancellationToken,
 ) -> Result<CollectedOutput> {
+    collect_request(conn, Request::Text { text: text.into() }, cancel).await
+}
+
+/// [`collect`] for any request.
+pub async fn collect_request(
+    conn: &mut dyn Connection,
+    req: Request,
+    cancel: CancellationToken,
+) -> Result<CollectedOutput> {
     let (sink, mut rx) = ResultSink::channel(16, ResultSink::BATCH_ROWS);
-    let exec = conn.execute(Request::Text { text: text.into() }, sink, cancel);
+    let exec = conn.execute(req, sink, cancel);
     let drain = async move {
         let mut results: Vec<Collected> = Vec::new();
+        let mut documents = Vec::new();
         let mut notices = Vec::new();
         while let Some(ev) = rx.recv().await {
             match ev {
@@ -121,16 +142,18 @@ pub async fn collect(
                         r.batches.push(b);
                     }
                 }
-                SinkEvent::End => {}
+                SinkEvent::BeginDocuments { .. } | SinkEvent::End => {}
+                SinkEvent::Documents(mut d) => documents.append(&mut d),
                 SinkEvent::Notice(n) => notices.push(n),
             }
         }
-        (results, notices)
+        (results, documents, notices)
     };
-    let (summary, (results, notices)) = futures::join!(exec, drain);
+    let (summary, (results, documents, notices)) = futures::join!(exec, drain);
     Ok(CollectedOutput {
         summary: summary?,
         results,
+        documents,
         notices,
     })
 }

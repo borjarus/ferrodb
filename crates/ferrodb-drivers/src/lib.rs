@@ -11,13 +11,15 @@
 //!   quirks, object hierarchy (ADR-008);
 //! - [`Registry`] — the drivers compiled into this build.
 //!
-//! Families are behind feature flags: `sqlite`, `pgwire`, `mysql`.
+//! Families are behind feature flags: `sqlite`, `pgwire`, `mysql`, `mongodb`.
 
 pub mod columns;
 pub mod config;
 pub mod registry;
 pub mod sink;
 
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
 #[cfg(feature = "mysql")]
 pub mod mysql;
 #[cfg(feature = "pgwire")]
@@ -61,10 +63,27 @@ pub trait Driver: Send + Sync {
 
 /// What a connection is asked to run. Parameters are already substituted
 /// (`ferrodb_lang::sql::substitute`), so the text is final.
-#[derive(Clone, Debug, PartialEq, Eq)]
+// A request is built once and moved into the driver: its size is irrelevant.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Request {
-    /// One statement in the source's language (SQL, CQL, SQL++, PartiQL).
+    /// One statement in the source's language (SQL, CQL, SQL++, PartiQL;
+    /// MongoDB parses MQL text itself).
     Text { text: String },
+    /// A parsed MongoDB shell statement.
+    Mql(ferrodb_lang::mql::Command),
+}
+
+impl Request {
+    /// The SQL text of a text request; MQL is not SQL.
+    pub fn into_text(self) -> Result<String> {
+        match self {
+            Self::Text { text } => Ok(text),
+            Self::Mql(_) => Err(Error::Unsupported(
+                "MongoDB commands on an SQL connection".into(),
+            )),
+        }
+    }
 }
 
 /// Outcome of one request.

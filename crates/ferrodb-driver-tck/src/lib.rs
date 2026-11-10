@@ -9,8 +9,14 @@
 //! faithful types, streaming with backpressure, cancellation, errors,
 //! transactions, read-only sessions, schema switching and explorer listings.
 //! Later phases add introspection, editing and export scenarios.
+//!
+//! v2 (phase 4b) adds the document model: [`run_documents`].
+
+mod documents;
 
 use std::time::{Duration, Instant};
+
+pub use documents::run_documents;
 
 use arrow_array::{Array, Int64Array, RecordBatch};
 use arrow_schema::DataType;

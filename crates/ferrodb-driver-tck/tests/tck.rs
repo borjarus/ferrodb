@@ -7,6 +7,7 @@
 //! - `FERRODB_TCK_POSTGRES=postgres://postgres:ferrodb@localhost:55432/postgres?ssl.mode=disable`
 //! - `FERRODB_TCK_MYSQL=mysql://root:ferrodb@localhost:53306/tck`
 //! - `FERRODB_TCK_MARIADB=mariadb://root:ferrodb@localhost:53307/tck`
+//! - `FERRODB_TCK_MONGODB=mongodb://localhost:57017/tck?directConnection=true`
 //!
 //! Each report is also written to `target/tck/<driver>.md`.
 
@@ -51,6 +52,29 @@ fn mysql() {
     if let Some(cfg) = from_env("FERRODB_TCK_MYSQL", "mysql") {
         check("mysql", cfg, profiles::mysql());
     }
+}
+
+/// The document-model TCK: `FERRODB_TCK_MONGODB=mongodb://host:57017/tck?directConnection=true`.
+#[test]
+fn mongodb() {
+    let Ok(url) = std::env::var("FERRODB_TCK_MONGODB") else {
+        return;
+    };
+    let cfg = ResolvedConfig::new("mongodb").with("uri", url);
+    let registry = Registry::builtin();
+    let d = registry.get(&"mongodb".into()).expect("driver is built in");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let report = rt.block_on(ferrodb_driver_tck::run_documents(d.as_ref(), &cfg));
+    let md = report.markdown();
+    println!("{md}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tck");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join("mongodb.md"), &md);
+    assert!(
+        report.passed(),
+        "TCK failed for mongodb:
+{md}"
+    );
 }
 
 #[test]
