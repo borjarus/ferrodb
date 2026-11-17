@@ -506,6 +506,32 @@ impl Connection for PgConnection {
     fn is_alive(&self) -> bool {
         !self.client.is_closed()
     }
+
+    fn bulk_load<'a>(
+        &'a mut self,
+        table: &'a str,
+        columns: &'a [String],
+        data: Vec<u8>,
+    ) -> BoxFuture<'a, Result<u64>> {
+        Box::pin(async move {
+            use futures::SinkExt as _;
+            let sql = format!("COPY {table} ({}) FROM STDIN", columns.join(", "));
+            let sink = self
+                .client
+                .copy_in::<_, bytes::Bytes>(&sql)
+                .await
+                .map_err(|e| map_err(e, &sql))?;
+            futures::pin_mut!(sink);
+            sink.send(bytes::Bytes::from(data))
+                .await
+                .map_err(|e| map_err(e, &sql))?;
+            sink.as_mut().finish().await.map_err(|e| map_err(e, &sql))
+        })
+    }
+
+    fn bulk_load_method(&self) -> Option<&'static str> {
+        Some("COPY")
+    }
 }
 
 #[cfg(test)]

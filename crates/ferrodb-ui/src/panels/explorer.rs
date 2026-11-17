@@ -729,14 +729,25 @@ fn object_menu(
         );
     }
     if opens_data(kind) {
+        use crate::views::wizard::{self, ExportSource, ImportTarget, WizardKind};
+        let (oe, oi) = (o.clone(), o.clone());
         menu = menu
             .item(
-                PopupMenuItem::new(t("action-export-data"))
-                    .on_click(|_, w, cx| w.dispatch_action(Box::new(actions::ExportData), cx)),
+                PopupMenuItem::new(t("action-export-data")).on_click(move |_, w, cx| {
+                    let src = ExportSource::Object(oe.node.clone());
+                    wizard::open_with(WizardKind::Export, Some(src), None, w, cx)
+                }),
             )
             .item(
-                PopupMenuItem::new(t("action-import-data"))
-                    .on_click(|_, w, cx| w.dispatch_action(Box::new(actions::ImportData), cx)),
+                PopupMenuItem::new(t("action-import-data")).on_click(move |_, w, cx| {
+                    let n = &oi.node;
+                    let target = ImportTarget {
+                        data_source: n.data_source.clone(),
+                        container: n.path.first().map(|(_, c)| c.clone()),
+                        table: n.name().map(str::to_owned),
+                    };
+                    wizard::open_with(WizardKind::Import, None, Some(target), w, cx)
+                }),
             );
     }
     if caps

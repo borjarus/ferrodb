@@ -887,8 +887,20 @@ pub fn active_console_text(cx: &App) -> Option<String> {
     Some(c.read(cx).editor().read(cx).value().to_string())
 }
 
+/// The result shown in the most recently used console.
+pub fn active_result(cx: &App) -> Option<Entity<crate::results::ResultModel>> {
+    let c = cx.try_global::<LastConsole>()?.0.upgrade()?;
+    c.read(cx).active_result(cx)
+}
+
+/// The data source of the most recently used console.
+pub fn active_console_source(cx: &App) -> Option<DataSourceId> {
+    let c = cx.try_global::<LastConsole>()?.0.upgrade()?;
+    c.read(cx).data_source().cloned()
+}
+
 /// The explorer's selected object or source as a node.
-fn explorer_selection(cx: &App) -> Option<NodeRef> {
+pub fn explorer_selection(cx: &App) -> Option<NodeRef> {
     let e = cx.try_global::<ActiveExplorer>()?.0.upgrade()?;
     let e = e.read(cx);
     e.selected_object(cx)

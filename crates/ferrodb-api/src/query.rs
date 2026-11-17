@@ -223,6 +223,21 @@ pub enum Change {
         path: String,
         value: String,
     },
+    /// Document: remove the field at path (`$unset`).
+    UnsetField {
+        document: usize,
+        path: String,
+    },
+    /// Document: insert a new document (Extended JSON object).
+    InsertDocument {
+        json: String,
+    },
+    /// Document: replace a whole document (Extended JSON object; its `_id`
+    /// is kept).
+    ReplaceDocument {
+        document: usize,
+        json: String,
+    },
     DeleteDocument {
         document: usize,
     },
@@ -253,6 +268,48 @@ pub struct ApplyReport {
     pub applied: usize,
     /// Generated statements/commands shown in the operation preview.
     pub statements: Vec<String>,
+    /// The changes run inside the session's open (manual) transaction: they
+    /// become permanent with [`QueryService::commit`].
+    pub pending_commit: bool,
+}
+
+/// How rows of a tabular result are identified when edited.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RowIdentity {
+    /// Primary or unique key columns (names in the table).
+    Key(Vec<String>),
+    /// No usable key: rows are matched by all their column values and every
+    /// statement must change exactly one row.
+    AllColumns,
+}
+
+/// What can be edited in a result (`QueryService::edit_info`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct EditInfo {
+    /// The table (or collection) the result comes from.
+    pub object: crate::NodeRef,
+    /// Per result column: the table column it shows (`None` = computed,
+    /// not editable).
+    pub columns: Vec<Option<String>>,
+    pub identity: RowIdentity,
+    /// Shown above the operation preview (e.g. no key).
+    pub warning: Option<String>,
+}
+
+/// A foreign key leaving or entering the result's table, for "related rows".
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Navigation {
+    /// e.g. `orders.customer_id → customers.id` or `order_items → orders`.
+    pub label: String,
+    /// The related table.
+    pub object: crate::NodeRef,
+    /// Result columns whose values select the related rows.
+    pub columns: Vec<usize>,
+    /// Columns of the related table compared with those values.
+    pub related_columns: Vec<String>,
+    /// `true`: rows of the related table that this row references;
+    /// `false`: rows of the related table referencing this row.
+    pub outgoing: bool,
 }
 
 /// Value of one key (Redis), loaded on demand by the key browser.
@@ -366,4 +423,52 @@ pub trait QueryService: Send + Sync {
     ) -> BoxFuture<'_, Result<ApplyReport>>;
     fn commit(&self, session: SessionId) -> BoxFuture<'_, Result<()>>;
     fn rollback(&self, session: SessionId) -> BoxFuture<'_, Result<()>>;
+
+    /// The table / collection behind a result and how its rows are
+    /// identified; `Err` explains why the result cannot be edited (a join,
+    /// an aggregate, an unknown table…).
+    fn edit_info(&self, result: ResultId) -> BoxFuture<'_, Result<EditInfo>> {
+        let _ = result;
+        Box::pin(async { Err(crate::Error::Unsupported("editing this result".into())) })
+    }
+
+    /// Foreign keys of the result's table usable from its rows.
+    fn navigations(&self, result: ResultId) -> BoxFuture<'_, Result<Vec<Navigation>>> {
+        let _ = result;
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    /// Query listing the rows related to one row: `values` are the cells of
+    /// `nav.columns` encoded as for [`Change::SetCell`].
+    fn related_script(
+        &self,
+        result: ResultId,
+        nav: Navigation,
+        values: Vec<String>,
+    ) -> BoxFuture<'_, Result<Script>> {
+        let _ = (result, nav, values);
+        Box::pin(async { Err(crate::Error::Unsupported("related rows".into())) })
+    }
+
+    /// A filter selecting rows whose `column` equals `value` (encoded as for
+    /// [`Change::SetCell`]) in the result's language: `"city" = 'Kraków'`,
+    /// `"note" IS NULL`, `{ "city": "Kraków" }`.
+    fn value_filter(&self, result: ResultId, column: String, value: String) -> Result<String> {
+        let _ = result;
+        let v: Option<&str> = (value != "null").then_some(value.as_str());
+        Ok(match v {
+            None => format!("{column} IS NULL"),
+            Some(v) if v.starts_with('"') => {
+                let inner = v.trim_matches('"').replace('\'', "''");
+                format!("{column} = '{inner}'")
+            }
+            Some(v) => format!("{column} = {v}"),
+        })
+    }
+
+    /// The UI no longer shows the result: the backend may drop what it kept
+    /// for editing it.
+    fn release_result(&self, result: ResultId) {
+        let _ = result;
+    }
 }

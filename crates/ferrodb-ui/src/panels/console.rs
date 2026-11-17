@@ -703,7 +703,12 @@ impl ConsolePanel {
         let backend = AppState::backend(cx);
         let cancel = CancelHandle::new();
         self.running = Some(cancel.clone());
-        self.tabs.clear();
+        // The backend keeps rows of shown results for editing: let it go.
+        for tab in self.tabs.drain(..) {
+            if let ConsoleTab::Result { view, .. } = tab {
+                backend.queries().release_result(view.model(cx).read(cx).id);
+            }
+        }
         self.active_tab = 0;
         self.push_message(
             MessageLevel::Info,
@@ -944,6 +949,18 @@ impl ConsolePanel {
                 cx.notify();
             }
         }
+    }
+
+    /// The result shown, else the last one (export and other actions).
+    pub fn active_result(&self, cx: &App) -> Option<Entity<ResultModel>> {
+        self.result_view(self.active_tab)
+            .or_else(|| {
+                self.tabs.iter().rev().find_map(|t| match t {
+                    ConsoleTab::Result { view, .. } => Some(view),
+                    ConsoleTab::Plan { .. } => None,
+                })
+            })
+            .map(|v| v.model(cx))
     }
 
     /// The result view in tab `n` (1-based), for tests and actions.

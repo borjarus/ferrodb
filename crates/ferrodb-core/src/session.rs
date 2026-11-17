@@ -83,6 +83,11 @@ enum Cmd {
     Close {
         reply: oneshot::Sender<()>,
     },
+    /// Result edits inside the session's manual transaction.
+    Apply {
+        planned: Vec<ferrodb_data::edit::Planned>,
+        reply: oneshot::Sender<Result<usize>>,
+    },
 }
 
 struct Job {
@@ -203,6 +208,10 @@ impl Actor {
                     let _ = reply.send(());
                     return;
                 }
+                Cmd::Apply { planned, reply } => {
+                    let r = self.apply(&planned).await;
+                    let _ = reply.send(r);
+                }
             }
         }
         self.close().await;
@@ -313,6 +322,32 @@ impl Actor {
             &label,
             started,
             None,
+            r.as_ref().err().map(|e| e.to_string()),
+        );
+        r
+    }
+
+    /// Edits of a result in manual-commit mode: the transaction is opened
+    /// when needed and left open for the user's commit / rollback; a
+    /// savepoint undoes a failed batch.
+    async fn apply(&mut self, planned: &[ferrodb_data::edit::Planned]) -> Result<usize> {
+        if !self.session.status().in_tx {
+            self.internal(Op::Begin).await?;
+            self.session.status().in_tx = true;
+        }
+        let started = (SystemTime::now(), Instant::now());
+        let conn = self.connection(None).await?;
+        let r = crate::tables::run_with_savepoint(conn.as_mut(), planned).await;
+        let text = planned
+            .iter()
+            .map(|p| p.sql.as_str())
+            .collect::<Vec<_>>()
+            .join(";\n");
+        self.log(
+            LogSource::Internal,
+            &text,
+            started,
+            r.as_ref().ok().map(|n| *n as u64),
             r.as_ref().err().map(|e| e.to_string()),
         );
         r
@@ -449,6 +484,13 @@ impl Actor {
                 .run_statement(
                     StatementRun {
                         request: Request::Text { text: sql.clone() },
+                        edit: (class == StatementClass::Read).then(|| {
+                            (
+                                self.ctx.dialect.clone(),
+                                sql.clone(),
+                                self.session.status().schema.clone(),
+                            )
+                        }),
                         title: st.title.clone(),
                         index,
                         last: index + 1 == count,
@@ -618,6 +660,7 @@ impl Actor {
                 .run_statement(
                     StatementRun {
                         request: Request::Mql(cmd),
+                        edit: None,
                         title: st.title.clone(),
                         index,
                         last: index + 1 == count,
@@ -754,6 +797,9 @@ enum Op<'a> {
 
 struct StatementRun {
     request: Request,
+    /// Tabular results of this statement can be edited: (dialect,
+    /// statement text, session schema).
+    edit: Option<(String, String, Option<String>)>,
     title: Option<String>,
     index: usize,
     last: bool,
@@ -924,6 +970,22 @@ async fn forward(
                 );
                 doc_result = Some(rid);
             }
+            if let (ResultShape::Table(arrow), Some((dialect, text, schema))) = (&shape, &run.edit)
+            {
+                core.register_table(
+                    rid,
+                    crate::tables::TableResult {
+                        session: session.id,
+                        data_source: session.data_source.clone(),
+                        dialect: dialect.clone(),
+                        statement: text.clone(),
+                        schema: schema.clone(),
+                        arrow: arrow.clone(),
+                        batches: Vec::new(),
+                        rows: 0,
+                    },
+                );
+            }
             current = Some((rid, crx));
             credits = run.page_size;
             let title = match (&run.title, results) {
@@ -1013,6 +1075,9 @@ async fn forward(
         let take = page.len();
         credits -= take;
         out.rows += take as u64;
+        if let Items::Rows(b) = &page {
+            core.record_rows(rid, b);
+        }
         if let (Some(dr), Items::Docs(docs)) = (doc_result, &page) {
             let mut st = core.state();
             if let Some(r) = st.documents.get_mut(&dr)
@@ -1053,6 +1118,7 @@ impl Inner {
         let s = {
             let mut st = self.state();
             st.documents.retain(|_, d| d.session != id);
+            st.tables.retain(|_, t| t.session != id);
             st.sessions.remove(&id)
         };
         if let Some(s) = s {
@@ -1069,6 +1135,19 @@ impl Inner {
             .get(&id)
             .cloned()
             .ok_or_else(|| Error::NotFound(format!("session {id}")))
+    }
+
+    pub(crate) async fn apply_in_session(
+        &self,
+        id: SessionId,
+        planned: Vec<ferrodb_data::edit::Planned>,
+    ) -> Result<usize> {
+        let s = self.session(id)?;
+        let (tx, rx) = oneshot::channel();
+        if !s.send(Cmd::Apply { planned, reply: tx }) {
+            return Err(Error::ConnectionLost);
+        }
+        rx.await.map_err(|_| Error::ConnectionLost)?
     }
 
     fn tx_command(&self, id: SessionId, commit: bool) -> BoxFuture<'_, Result<()>> {
@@ -1217,6 +1296,10 @@ impl QueryService for Inner {
         result: ResultId,
         changes: ChangeSet,
     ) -> BoxFuture<'_, Result<Vec<String>>> {
+        if self.is_table_result(result) {
+            let me = self.arc();
+            return self.spawn(async move { me.preview_table(result, &changes).await });
+        }
         let r = self.preview_documents(result, &changes);
         Box::pin(async move { r })
     }
@@ -1227,7 +1310,50 @@ impl QueryService for Inner {
         changes: ChangeSet,
     ) -> BoxFuture<'_, Result<ApplyReport>> {
         let me = self.arc();
+        if self.is_table_result(result) {
+            return self.spawn(async move { me.apply_table(result, changes).await });
+        }
         self.spawn(async move { me.apply_documents(result, changes).await })
+    }
+
+    fn edit_info(&self, result: ResultId) -> BoxFuture<'_, Result<ferrodb_api::EditInfo>> {
+        let me = self.arc();
+        if self.is_table_result(result) {
+            return self.spawn(async move { me.table_edit_info(result).await });
+        }
+        let r = self.document_edit_info(result);
+        Box::pin(async move { r })
+    }
+
+    fn navigations(&self, result: ResultId) -> BoxFuture<'_, Result<Vec<ferrodb_api::Navigation>>> {
+        let me = self.arc();
+        self.spawn(async move { me.table_navigations(result).await })
+    }
+
+    fn related_script(
+        &self,
+        result: ResultId,
+        nav: ferrodb_api::Navigation,
+        values: Vec<String>,
+    ) -> BoxFuture<'_, Result<Script>> {
+        let r = self.table_related_script(result, &nav, &values);
+        Box::pin(async move { r })
+    }
+
+    fn value_filter(&self, result: ResultId, column: String, value: String) -> Result<String> {
+        if let Some(r) = self.table_value_filter(result, &column, &value) {
+            return r;
+        }
+        if let Some(r) = self.document_value_filter(result, &column, &value) {
+            return r;
+        }
+        Err(Error::NotFound(format!("result {result}")))
+    }
+
+    fn release_result(&self, result: ResultId) {
+        let mut st = self.state();
+        st.tables.remove(&result);
+        st.documents.remove(&result);
     }
 
     fn commit(&self, session: SessionId) -> BoxFuture<'_, Result<()>> {

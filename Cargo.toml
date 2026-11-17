@@ -14,6 +14,7 @@ members = [
   "crates/ferrodb-storage",
   "crates/ferrodb-meta",
   "crates/ferrodb-core",
+  "crates/ferrodb-data",
   "apps/ferrodb-gallery",
   "xtask",
   "spikes/gui",
@@ -43,6 +44,7 @@ ferrodb-net = { path = "crates/ferrodb-net" }
 ferrodb-storage = { path = "crates/ferrodb-storage" }
 ferrodb-core = { path = "crates/ferrodb-core" }
 ferrodb-meta = { path = "crates/ferrodb-meta" }
+ferrodb-data = { path = "crates/ferrodb-data" }
 
 # GUI — exactly pinned (pins the gpui-pre 0.3.10 snapshot); see ADR-001
 gpui-kit = { version = "=0.8.1" }
@@ -52,6 +54,7 @@ futures = "0.3.34"
 async-channel = "2.5.0"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
 tokio-util = "0.7.20"
+bytes = "1.12.1"
 
 # data
 arrow-array = "60.1.0"
@@ -73,6 +76,13 @@ russh = { version = "0.65.1", default-features = false, features = ["flate2", "r
 
 # languages
 sqlparser = "0.63.0"
+
+# export / import (phase 6)
+csv = "1.4.0"
+rust_xlsxwriter = { version = "0.102.0", features = ["constant_memory"] }
+calamine = "0.38.0"
+# Pure-Rust codecs only (no C toolchain): snappy.
+parquet = { version = "60.1.0", default-features = false, features = ["arrow", "snap"] }
 
 # secrets / storage
 keyring = "4.2.0"

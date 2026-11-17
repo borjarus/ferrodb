@@ -102,7 +102,12 @@ fn open_dialog(
                                 for s in &r.statements {
                                     output::info(s.clone(), cx);
                                 }
-                                let msg = t_args("changes-applied", &[("count", r.applied.into())]);
+                                let key = if r.pending_commit {
+                                    "changes-applied-pending"
+                                } else {
+                                    "changes-applied"
+                                };
+                                let msg = t_args(key, &[("count", r.applied.into())]);
                                 window.push_notification(Notification::success(msg), cx);
                                 on_applied(window, cx);
                             }

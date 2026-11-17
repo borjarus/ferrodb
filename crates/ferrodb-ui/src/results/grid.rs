@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ferrodb_api::{Change, ChangeSet, QueryLanguage};
+use ferrodb_api::{Change, ChangeSet, Navigation, QueryLanguage};
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
     icons,
@@ -28,7 +28,7 @@ use super::{
     format::{self, NULL, ValueKind},
 };
 use crate::{
-    actions,
+    AppState, actions,
     i18n::{t, t_args},
     inspector::{self, Inspection},
 };
@@ -48,6 +48,8 @@ pub struct GridDelegate {
     pub inserted: Vec<Vec<Option<String>>>,
     /// Cell being edited inline.
     editing: Option<((usize, usize), Entity<InputState>)>,
+    /// Foreign keys usable from the rows ("related rows").
+    pub navigations: Vec<Navigation>,
 }
 
 impl GridDelegate {
@@ -62,6 +64,7 @@ impl GridDelegate {
             deleted: BTreeSet::new(),
             inserted: Vec::new(),
             editing: None,
+            navigations: Vec::new(),
         };
         this.rebuild_columns(cx);
         this
@@ -319,7 +322,8 @@ impl TableDelegate for GridDelegate {
                     let _ = view.update(cx, |v, cx| f(v, row, window, cx));
                 })
             };
-        menu.item(item("grid-copy-cell", |v, _, _, cx| v.copy_cell(cx)))
+        let mut menu = menu
+            .item(item("grid-copy-cell", |v, _, _, cx| v.copy_cell(cx)))
             .item(item("grid-copy-row", |v, r, _, cx| {
                 v.copy_rows(&[r], CopyFormat::Tsv, cx)
             }))
@@ -336,10 +340,25 @@ impl TableDelegate for GridDelegate {
             )
             .item(item("grid-delete-row", |v, r, _, cx| v.toggle_delete(r, cx)).disabled(!editable))
             .separator()
+            .item(item("grid-filter-value", |v, r, w, cx| {
+                v.filter_by_value(r, w, cx)
+            }))
             .item(item("grid-record-view", |v, _, _, cx| {
                 v.record_view = !v.record_view;
                 cx.notify();
-            }))
+            }));
+        if !self.navigations.is_empty() {
+            menu = menu.separator();
+        }
+        for nav in self.navigations.clone() {
+            let view = view.clone();
+            let label = t_args("grid-related", &[("label", nav.label.clone().into())]);
+            menu = menu.item(PopupMenuItem::new(label).on_click(move |_, window, cx| {
+                let nav = nav.clone();
+                let _ = view.update(cx, |v, cx| v.open_related(row, nav, window, cx));
+            }));
+        }
+        menu
     }
 
     fn has_more(&self, cx: &App) -> bool {
@@ -416,6 +435,23 @@ impl GridView {
                 }
             }),
         ];
+        // Related-rows navigation along foreign keys (off the UI thread).
+        let backend = AppState::backend(cx);
+        let rid = model.read(cx).id;
+        let task = cx
+            .background_executor()
+            .spawn(async move { backend.queries().navigations(rid).await });
+        cx.spawn(async move |this, cx| {
+            if let Ok(navs) = task.await
+                && !navs.is_empty()
+            {
+                let _ = this.update(cx, |v, cx| {
+                    v.table
+                        .update(cx, |t, _| t.delegate_mut().navigations = navs);
+                });
+            }
+        })
+        .detach();
         Self {
             model,
             table,
@@ -428,6 +464,66 @@ impl GridView {
             focus: cx.focus_handle(),
             _subs: subs,
         }
+    }
+
+    /// A cell encoded as for `Change::SetCell` (`null`, a number, a string).
+    fn encoded_cell(&self, row: usize, col: usize, cx: &App) -> String {
+        let d = self.delegate(cx);
+        let kind = d.kinds.get(col).copied().unwrap_or(ValueKind::Other);
+        let text = d.cell_text(row, col, cx);
+        format::encode_cell(kind, text.as_deref())
+            .or_else(|_| format::encode_cell(ValueKind::Other, text.as_deref()))
+            .unwrap_or_else(|_| "null".into())
+    }
+
+    /// Re-runs the statement filtered to rows whose selected column equals
+    /// this row's value (server side).
+    pub fn filter_by_value(&mut self, row: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let col = self.selected.map_or(0, |s| s.1);
+        let value = self.encoded_cell(row, col, cx);
+        let column = self.column_name(col, cx);
+        let id = self.model.read(cx).id;
+        match AppState::backend(cx)
+            .queries()
+            .value_filter(id, column, value)
+        {
+            Ok(cond) => {
+                self.filter
+                    .update(cx, |i, cx| i.set_value(cond.clone(), window, cx));
+                let order = self.order_by.read(cx).value().trim().to_string();
+                let stmt = self.model.read(cx).statement.clone();
+                cx.emit(ResultViewEvent::Rerun(wrap_query(&stmt, &cond, &order)));
+            }
+            Err(e) => window.push_notification(Notification::error(e.to_string()), cx),
+        }
+    }
+
+    /// Runs the query listing the rows related to `row` through `nav`.
+    pub fn open_related(
+        &mut self,
+        row: usize,
+        nav: Navigation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let values: Vec<String> = nav
+            .columns
+            .iter()
+            .map(|&c| self.encoded_cell(row, c, cx))
+            .collect();
+        let backend = AppState::backend(cx);
+        let id = self.model.read(cx).id;
+        let task = cx
+            .background_executor()
+            .spawn(async move { backend.queries().related_script(id, nav, values).await });
+        cx.spawn_in(window, async move |this, cx| {
+            let r = task.await;
+            let _ = this.update_in(cx, |_, window, cx| match r {
+                Ok(script) => cx.emit(ResultViewEvent::Rerun(script.text)),
+                Err(e) => window.push_notification(Notification::error(e.to_string()), cx),
+            });
+        })
+        .detach();
     }
 
     pub fn model(&self) -> &Entity<ResultModel> {

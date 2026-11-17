@@ -38,6 +38,7 @@ pub fn snapshot(text: &str, language: &QueryLanguage, ds: Option<&DataSourceId>)
         text: text.into(),
         language: language.clone(),
         data_source: ds.cloned(),
+        schema: None,
         version: 0,
     }
 }

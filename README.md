@@ -32,6 +32,7 @@ Environment variables:
 | `crates/ferrodb-drivers` | `Driver` / `Connection` / `FamilyVariant`, Arrow mapping; families `pgwire` (PostgreSQL), `mysql` (MySQL, MariaDB), `sqlite` |
 | `crates/ferrodb-driver-tck` | Driver compatibility suite run against every database (ADR-012) |
 | `crates/ferrodb-lang` | SQL statement splitting, parameters, statement analysis (read-only, warnings) |
+| `crates/ferrodb-data` | Result data (phase 6): typed values, edit generators, export / import formats, row ↔ document conversion, result comparison, charts. See [`docs/phase-6.md`](docs/phase-6.md) |
 | `crates/ferrodb-net` | TLS (rustls) and SSH tunnels (russh) |
 | `crates/ferrodb-secrets` | System keyring (ADR-013) |
 | `crates/ferrodb-storage` | `app.db`: query history (FTS5) and query log |

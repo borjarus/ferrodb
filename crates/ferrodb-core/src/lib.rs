@@ -18,6 +18,8 @@ mod metadata;
 mod services;
 mod session;
 mod sources;
+mod tables;
+mod transfer;
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -181,6 +183,9 @@ impl Backend for CoreBackend {
     fn search(&self) -> &dyn SearchIndexService {
         &*self.inner
     }
+    fn transfers(&self) -> &dyn ferrodb_api::TransferService {
+        &*self.inner
+    }
 }
 
 pub(crate) struct SourceEntry {
@@ -200,6 +205,8 @@ pub(crate) struct State {
     pub pool: HashMap<DataSourceId, Vec<Box<dyn Connection>>>,
     /// Document results that can be edited: result → container and `_id`s.
     pub documents: HashMap<ResultId, documents::DocResult>,
+    /// Tabular results that can be edited: result → statement and rows.
+    pub tables: HashMap<ResultId, tables::TableResult>,
 }
 
 pub(crate) struct Inner {
@@ -320,3 +327,5 @@ impl Inner {
 mod tests;
 #[cfg(test)]
 mod tests_mongo;
+#[cfg(test)]
+mod tests_phase6;

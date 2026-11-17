@@ -104,7 +104,7 @@ pub fn build_section(ix: usize, window: &mut Window, cx: &mut App) -> AnyView {
                 )
             })
             .into(),
-        _ => cx.new(|cx| Wizard::new(WizardKind::Export, window, cx)).into(),
+        _ => cx.new(|cx| Wizard::new(WizardKind::Export, None, None, window, cx)).into(),
     }
 }
 

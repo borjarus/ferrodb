@@ -20,6 +20,7 @@ ferrodb-net.workspace = true
 ferrodb-lang.workspace = true
 bson.workspace = true
 futures.workspace = true
+bytes.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 arrow-array.workspace = true

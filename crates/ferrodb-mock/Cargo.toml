@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 ferrodb-api.workspace = true
 ferrodb-lang.workspace = true
+ferrodb-data.workspace = true
 futures.workspace = true
 async-channel.workspace = true
 arrow-array.workspace = true
@@ -16,6 +17,7 @@ bson.workspace = true
 
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }
+tempfile.workspace = true
 
 [lints]
 workspace = true

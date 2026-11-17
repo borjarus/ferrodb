@@ -373,6 +373,8 @@ grid-copy-insert = Copy Row as INSERT
 grid-edit-cell = Edit Value
 grid-set-null = Set NULL
 grid-delete-row = Delete Row
+grid-filter-value = Filter by This Value
+grid-related = Related: { $label }
 changes-preview-title = Review { $count ->
         [one] 1 change
        *[other] { $count } changes
@@ -383,6 +385,10 @@ changes-applied = { $count ->
        *[other] { $count } changes applied
     }
 changes-applied-short = Changes applied
+changes-applied-pending = { $count ->
+        [one] 1 change applied in the open transaction; commit to keep it
+       *[other] { $count } changes applied in the open transaction; commit to keep them
+    }
 
 ## Document browser
 docs-mode-tree = Tree
@@ -469,8 +475,18 @@ wizard-header-row = Header row
 wizard-back = Back
 wizard-next = Next
 wizard-finish = Finish
-wizard-export-done = Export to { $format } prepared: { $path } (data transfer arrives in phase 6)
-wizard-import-done = Import of { $path } into { $target } prepared (data transfer arrives in phase 6)
+wizard-export-done = Exported { $items } items to { $path } ({ $method }, { $elapsed })
+wizard-import-done = Imported { $items } items into { $target } ({ $method }, { $elapsed })
+wizard-failed = Transfer failed: { $error }
+wizard-running = Transferring…
+wizard-source = Source
+wizard-no-source = Run a query or select a table or collection first
+wizard-no-target = Select a data source, schema or table in the explorer first
+wizard-create-table = Create the table when it does not exist
+wizard-truncate = Remove existing rows first
+wizard-mapping-auto = Columns are matched by name:
+wizard-mapping-new = (new column)
+wizard-mapping-skipped = (not imported)
 gallery-grid = Result grid
 gallery-documents = Document browser
 gallery-keys = Key browser

@@ -1,6 +1,6 @@
 use crate::{
     DataSourceService, DriverCatalogService, HistoryService, LanguageService, MetadataService,
-    QueryService, SearchIndexService,
+    QueryService, SearchIndexService, TransferService,
 };
 
 /// The only point where the UI meets the logic.
@@ -18,6 +18,10 @@ pub trait Backend: Send + Sync + 'static {
     fn language(&self) -> &dyn LanguageService;
     fn history(&self) -> &dyn HistoryService;
     fn search(&self) -> &dyn SearchIndexService;
+    /// Export, import and copying (phase 6).
+    fn transfers(&self) -> &dyn TransferService {
+        &crate::NoTransfers
+    }
 }
 
 #[cfg(test)]

@@ -1,11 +1,16 @@
 //! Editing document results (plan, section 5.6): `SetField` becomes
-//! `updateOne({ _id }, { $set: { path: value } })`, `DeleteDocument`
-//! becomes `deleteOne({ _id })`. The `_id`s of streamed documents are kept
-//! per result. Changes run in one transaction when the server supports
-//! transactions, otherwise one by one.
+//! `updateOne({ _id }, { $set: { path: value } })`, `UnsetField`
+//! `updateOne({ _id }, { $unset: { path: "" } })`, `InsertDocument`
+//! `insertOne(doc)`, `ReplaceDocument` `replaceOne({ _id }, doc)` and
+//! `DeleteDocument` `deleteOne({ _id })`. The `_id`s of streamed documents
+//! are kept per result. Changes run in one transaction when the server
+//! supports transactions, otherwise one by one.
 
 use bson::{Bson, Document, doc};
-use ferrodb_api::{ApplyReport, Change, ChangeSet, Error, Result, ResultId, SessionId};
+use ferrodb_api::{
+    ApplyReport, Change, ChangeSet, EditInfo, Error, NodeRef, ObjectKind, Result, ResultId,
+    RowIdentity, SessionId,
+};
 use ferrodb_drivers::{CancellationToken, Request, sink::collect_request};
 use ferrodb_lang::mql::{Command, Op, print_inline};
 use ferrodb_meta::mongo::collection_ref;
@@ -28,6 +33,14 @@ fn parse_value(json: &str) -> Result<Bson> {
     let v: serde_json::Value =
         serde_json::from_str(json).map_err(|e| Error::Other(format!("value: {e}")))?;
     Bson::try_from(v).map_err(|e| Error::Other(format!("value: {e}")))
+}
+
+/// An Extended JSON object (inserted / replacing document).
+fn parse_document(json: &str) -> Result<Document> {
+    match parse_value(json)? {
+        Bson::Document(d) => Ok(d),
+        _ => Err(Error::Other("a document must be a JSON object".into())),
+    }
 }
 
 fn commands(r: &DocResult, changes: &ChangeSet) -> Result<Vec<Command>> {
@@ -59,6 +72,42 @@ fn commands(r: &DocResult, changes: &ChangeSet) -> Result<Vec<Command>> {
                             doc! { "$set": { path.clone(): parse_value(value)? } },
                         ),
                         many: false,
+                        options: Document::new(),
+                    }
+                }
+                Change::UnsetField { document, path } => {
+                    if path == "_id" || path.starts_with("_id.") {
+                        return Err(Error::Other("_id cannot be removed".into()));
+                    }
+                    Op::Update {
+                        collection: r.collection.clone(),
+                        filter: doc! { "_id": id(*document)? },
+                        update: Bson::Document(doc! { "$unset": { path.clone(): "" } }),
+                        many: false,
+                        options: Document::new(),
+                    }
+                }
+                Change::InsertDocument { json } => Op::Insert {
+                    collection: r.collection.clone(),
+                    documents: vec![parse_document(json)?],
+                    many: false,
+                    ordered: true,
+                },
+                Change::ReplaceDocument { document, json } => {
+                    let id = id(*document)?;
+                    let mut replacement = parse_document(json)?;
+                    match replacement.get("_id") {
+                        Some(other) if other != &id => {
+                            return Err(Error::Other("_id cannot be changed".into()));
+                        }
+                        _ => {
+                            replacement.remove("_id");
+                        }
+                    }
+                    Op::Replace {
+                        collection: r.collection.clone(),
+                        filter: doc! { "_id": id },
+                        replacement,
                         options: Document::new(),
                     }
                 }
@@ -94,6 +143,22 @@ pub(crate) fn preview(cmd: &Command) -> String {
                 print_inline(&Bson::Document(filter.clone()))
             )
         }
+        Op::Insert { documents, .. } => format!(
+            "{r}.insertOne({})",
+            documents
+                .first()
+                .map(|d| print_inline(&Bson::Document(d.clone())))
+                .unwrap_or_default()
+        ),
+        Op::Replace {
+            filter,
+            replacement,
+            ..
+        } => format!(
+            "{r}.replaceOne({}, {})",
+            print_inline(&Bson::Document(filter.clone())),
+            print_inline(&Bson::Document(replacement.clone()))
+        ),
         _ => String::new(),
     }
 }
@@ -102,7 +167,8 @@ impl Inner {
     fn doc_result(&self, result: ResultId) -> Result<DocResult> {
         self.state().documents.get(&result).cloned().ok_or_else(|| {
             Error::Unsupported(
-                "editing this result (only MongoDB documents are editable before phase 6)".into(),
+                "editing this result (it is not a collection's documents, or no longer kept)"
+                    .into(),
             )
         })
     }
@@ -150,7 +216,36 @@ impl Inner {
         Ok(ApplyReport {
             applied,
             statements,
+            pending_commit: false,
         })
+    }
+
+    pub(crate) fn document_edit_info(&self, result: ResultId) -> Result<EditInfo> {
+        let r = self.doc_result(result)?;
+        let ds = self.session_source(r.session)?;
+        Ok(EditInfo {
+            object: NodeRef::root(ds)
+                .child(ObjectKind::Database, &r.database)
+                .child(ObjectKind::Collection, &r.collection),
+            columns: Vec::new(),
+            identity: RowIdentity::Key(vec!["_id".into()]),
+            warning: None,
+        })
+    }
+
+    /// `{ path: value }` for the quick filter of a document result.
+    pub(crate) fn document_value_filter(
+        &self,
+        result: ResultId,
+        path: &str,
+        value: &str,
+    ) -> Option<Result<String>> {
+        self.state().documents.get(&result)?;
+        Some(parse_value(value).map(|v| {
+            let mut d = Document::new();
+            d.insert(path, v);
+            print_inline(&Bson::Document(d))
+        }))
     }
 
     fn session_source(&self, s: SessionId) -> Result<ferrodb_api::DataSourceId> {
@@ -205,5 +300,36 @@ mod tests {
         assert!(
             preview(&commands(&r, &date).unwrap()[0]).contains("ISODate(\"2024-01-02T00:00:00Z\")")
         );
+        let more = ChangeSet {
+            changes: vec![
+                Change::UnsetField {
+                    document: 0,
+                    path: "tmp".into(),
+                },
+                Change::InsertDocument {
+                    json: r#"{"a": 1}"#.into(),
+                },
+                Change::ReplaceDocument {
+                    document: 0,
+                    json: r#"{"_id": 7, "b": 2}"#.into(),
+                },
+            ],
+        };
+        let p: Vec<String> = commands(&r, &more).unwrap().iter().map(preview).collect();
+        assert_eq!(
+            p,
+            vec![
+                "db.orders.updateOne({ _id: 7 }, { $unset: { tmp: \"\" } })",
+                "db.orders.insertOne({ a: 1 })",
+                "db.orders.replaceOne({ _id: 7 }, { b: 2 })",
+            ]
+        );
+        let bad = ChangeSet {
+            changes: vec![Change::ReplaceDocument {
+                document: 0,
+                json: r#"{"_id": 8}"#.into(),
+            }],
+        };
+        assert!(commands(&r, &bad).is_err());
     }
 }

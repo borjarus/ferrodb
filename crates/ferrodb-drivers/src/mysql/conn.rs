@@ -475,6 +475,47 @@ impl Connection for MySqlConnection {
     fn is_alive(&self) -> bool {
         self.alive
     }
+
+    /// `LOAD DATA LOCAL INFILE` with the rows streamed from memory. The
+    /// server must allow `local_infile` (off by default in MySQL 8);
+    /// otherwise the core falls back to `INSERT`.
+    fn bulk_load<'a>(
+        &'a mut self,
+        table: &'a str,
+        columns: &'a [String],
+        data: Vec<u8>,
+    ) -> BoxFuture<'a, Result<u64>> {
+        Box::pin(async move {
+            let bytes = bytes::Bytes::from(data);
+            self.conn.set_infile_handler(async move {
+                let s: mysql_async::InfileData =
+                    Box::pin(futures::stream::once(async move { Ok(bytes) }));
+                Ok(s)
+            });
+            let sql = format!(
+                "LOAD DATA LOCAL INFILE 'ferrodb-import' INTO TABLE {table} \
+                 CHARACTER SET utf8mb4 ({})",
+                columns.join(", ")
+            );
+            let r = match self.conn.query_drop(&sql).await {
+                Ok(()) => Ok(self.conn.affected_rows()),
+                // 1148 / 3948 / 2068: local infile disabled or refused.
+                Err(mysql_async::Error::Server(s)) if matches!(s.code, 1148 | 3948 | 2068) => {
+                    return Err(Error::Unsupported(format!(
+                        "LOAD DATA LOCAL INFILE: {}",
+                        s.message
+                    )));
+                }
+                Err(e) => Err(query_error(e, &sql)),
+            };
+            self.note(&r);
+            r
+        })
+    }
+
+    fn bulk_load_method(&self) -> Option<&'static str> {
+        Some("LOAD DATA")
+    }
 }
 
 #[cfg(test)]

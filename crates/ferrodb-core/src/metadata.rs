@@ -84,7 +84,7 @@ impl Inner {
     }
 
     /// The cached catalog (memory or disk), or an empty one.
-    fn catalog(&self, ds: &DataSourceId) -> Arc<Catalog> {
+    pub(crate) fn catalog(&self, ds: &DataSourceId) -> Arc<Catalog> {
         self.catalogs
             .get(ds)
             .unwrap_or_else(|| Arc::new(Catalog::new()))
@@ -193,7 +193,7 @@ impl Inner {
     }
 
     /// The catalog with `container` loaded.
-    async fn ensure_content(
+    pub(crate) async fn ensure_content(
         &self,
         ds: &DataSourceId,
         d: Dialect,
@@ -273,7 +273,7 @@ impl Inner {
         Ok(out)
     }
 
-    async fn refresh_scope(&self, ds: &DataSourceId, scope: RefreshScope) -> Result<()> {
+    pub(crate) async fn refresh_scope(&self, ds: &DataSourceId, scope: RefreshScope) -> Result<()> {
         let (_, d) = self.source_dialect(ds)?;
         let Some(d) = d else { return Ok(()) };
         let path = match &scope {

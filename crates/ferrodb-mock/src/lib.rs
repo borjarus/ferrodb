@@ -404,6 +404,9 @@ impl Backend for MockBackend {
     fn search(&self) -> &dyn SearchIndexService {
         self
     }
+    fn transfers(&self) -> &dyn TransferService {
+        self
+    }
 }
 
 // ---------------------------------------------------------------- data sources
@@ -802,9 +805,58 @@ impl QueryService for MockBackend {
             Ok(ApplyReport {
                 applied: changes.changes.len(),
                 statements,
+                pending_commit: false,
             })
         }
         .boxed()
+    }
+
+    fn edit_info(&self, result: ResultId) -> BoxFuture<'_, Result<EditInfo>> {
+        let meta = self.shared.lock().results.get(&result).cloned();
+        async move {
+            let meta = meta.ok_or_else(|| Error::NotFound(result.to_string()))?;
+            let object = NodeRef::root(DataSourceId::new("mock"))
+                .child(ObjectKind::Schema, "public")
+                .child(ObjectKind::Table, meta.container.clone());
+            match &meta.kind {
+                CursorKind::Rows(schema) => Ok(EditInfo {
+                    object,
+                    columns: schema
+                        .fields()
+                        .iter()
+                        .map(|f| Some(f.name().clone()))
+                        .collect(),
+                    identity: RowIdentity::Key(vec!["id".into()]),
+                    warning: None,
+                }),
+                CursorKind::Documents => Ok(EditInfo {
+                    object,
+                    columns: Vec::new(),
+                    identity: RowIdentity::Key(vec!["_id".into()]),
+                    warning: None,
+                }),
+                CursorKind::Keys(_) => Err(Error::Unsupported("keys are edited by name".into())),
+            }
+        }
+        .boxed()
+    }
+
+    fn value_filter(&self, result: ResultId, column: String, value: String) -> Result<String> {
+        let lang = self
+            .shared
+            .lock()
+            .results
+            .get(&result)
+            .map(|m| m.language.clone())
+            .ok_or_else(|| Error::NotFound(result.to_string()))?;
+        Ok(match lang {
+            QueryLanguage::Mql => format!("{{ \"{column}\": {value} }}"),
+            _ => {
+                let v = ferrodb_data::Value::from_cell_json(&value, ferrodb_data::ValueType::Any)
+                    .map_err(Error::Other)?;
+                ferrodb_data::sql::Sql::new("postgresql").condition(&column, &v)
+            }
+        })
     }
 
     fn commit(&self, _session: SessionId) -> BoxFuture<'_, Result<()>> {
@@ -1254,6 +1306,161 @@ fn change_statement(meta: &ResultMeta, change: &Change) -> String {
             _,
         ) => format!("PERSIST {key}"),
         (Change::DeleteKey { key }, _) => format!("DEL {key}"),
+        (Change::UnsetField { document, path }, _) => format!(
+            "db.{c}.updateOne({{ _id: \"{}\" }}, {{ $unset: {{ \"{path}\": \"\" }} }})",
+            doc_id(*document)
+        ),
+        (Change::InsertDocument { json }, _) => format!("db.{c}.insertOne({json})"),
+        (Change::ReplaceDocument { document, json }, _) => format!(
+            "db.{c}.replaceOne({{ _id: \"{}\" }}, {json})",
+            doc_id(*document)
+        ),
+    }
+}
+
+// ---------------------------------------------------------------- transfers
+
+/// Rows a mock export writes.
+const MOCK_EXPORT_ROWS: u64 = 100;
+
+impl MockBackend {
+    /// Runs a transfer synchronously: exports write a real file of
+    /// generated rows / documents; imports read the real file and count
+    /// what would be inserted.
+    fn run_transfer(&self, req: TransferRequest, cancel: &CancelHandle) -> Result<TransferReport> {
+        let started = Instant::now();
+        let docs = match &req.source {
+            TransferSource::Query { data_source, .. } => self.is_documents(data_source),
+            TransferSource::Object(n) => self.is_documents(&n.data_source),
+            TransferSource::File { .. } => false,
+        };
+        let mut report = match (&req.source, &req.target) {
+            (
+                TransferSource::File {
+                    path,
+                    format,
+                    options,
+                },
+                TransferTarget::Object { name, create, .. },
+            ) => {
+                let mut rd = ferrodb_data::import::open(path, *format, options)?;
+                let mut items = 0u64;
+                loop {
+                    if cancel.is_cancelled() {
+                        return Err(Error::Cancelled);
+                    }
+                    let rows = rd.next_rows(1000)?;
+                    if rows.is_empty() {
+                        break;
+                    }
+                    items += rows.len() as u64;
+                }
+                TransferReport {
+                    items,
+                    method: "INSERT".into(),
+                    statements: if *create {
+                        vec![format!("CREATE TABLE {name} (…);")]
+                    } else {
+                        Vec::new()
+                    },
+                    ..Default::default()
+                }
+            }
+            (
+                _,
+                TransferTarget::File {
+                    path,
+                    format,
+                    options,
+                },
+            ) => {
+                let mut ex =
+                    ferrodb_data::export::Exporter::create(path, *format, options, "postgresql")?;
+                if docs {
+                    let d: Vec<bson::RawDocumentBuf> =
+                        (0..MOCK_EXPORT_ROWS).map(data::document).collect();
+                    ex.write_documents(&d)?;
+                } else {
+                    let schema = data::table_schema(5);
+                    ex.begin_table(&schema)?;
+                    ex.write_batch(&data::table_batch(&schema, 0, MOCK_EXPORT_ROWS as usize))?;
+                }
+                let stats = ex.finish()?;
+                TransferReport {
+                    items: stats.items,
+                    bytes: stats.bytes,
+                    method: format!("{} file", format.label()),
+                    warnings: stats.warnings,
+                    ..Default::default()
+                }
+            }
+            (_, TransferTarget::Object { .. }) => TransferReport {
+                items: MOCK_EXPORT_ROWS,
+                method: if docs { "insertMany" } else { "INSERT" }.into(),
+                ..Default::default()
+            },
+        };
+        report.elapsed = started.elapsed();
+        Ok(report)
+    }
+
+    fn is_documents(&self, ds: &DataSourceId) -> bool {
+        self.shared
+            .lock()
+            .sources
+            .iter()
+            .find(|s| &s.config.id == ds)
+            .is_some_and(|s| s.capabilities.data_model == DataModel::Document)
+    }
+}
+
+impl TransferService for MockBackend {
+    fn start(&self, request: TransferRequest) -> TransferHandle {
+        let (tx, rx) = async_channel::unbounded();
+        let cancel = CancelHandle::new();
+        let this = self.clone();
+        let flag = cancel.clone();
+        let job = move || {
+            let ev = match this.run_transfer(request, &flag) {
+                Ok(r) => {
+                    let _ = tx.try_send(TransferEvent::Progress { items: r.items });
+                    TransferEvent::Finished(r)
+                }
+                Err(e) => TransferEvent::Failed(e.to_string()),
+            };
+            let _ = tx.try_send(ev);
+        };
+        if self.shared.deterministic {
+            job();
+        } else {
+            thread::spawn(job);
+        }
+        TransferHandle { events: rx, cancel }
+    }
+
+    fn preview_file(
+        &self,
+        path: std::path::PathBuf,
+        format: DataFormat,
+        options: FormatOptions,
+        rows: usize,
+    ) -> BoxFuture<'_, Result<FilePreview>> {
+        let r = ferrodb_data::import::preview(&path, format, &options, rows);
+        async move { r }.boxed()
+    }
+
+    fn target_columns(
+        &self,
+        _data_source: DataSourceId,
+        _container: Option<String>,
+        _name: String,
+    ) -> BoxFuture<'_, Result<Vec<String>>> {
+        let names: Vec<String> = data::table_schema(5)
+            .fields()
+            .iter()
+            .map(|f| f.name().clone())
+            .collect();
+        async move { Ok(names) }.boxed()
     }
 }
 
@@ -1521,13 +1728,14 @@ fn mock_engine() -> ferrodb_lang::Engine<'static> {
             ref_table: t.into(),
             ref_columns: vec!["id".into()],
         };
-        let table = |name: &str, columns: Vec<ColumnInfo>, foreign_keys: Vec<ForeignKeyInfo>| TableInfo {
-            name: name.into(),
-            view: false,
-            columns,
-            foreign_keys,
-            comment: None,
-        };
+        let table =
+            |name: &str, columns: Vec<ColumnInfo>, foreign_keys: Vec<ForeignKeyInfo>| TableInfo {
+                name: name.into(),
+                view: false,
+                columns,
+                foreign_keys,
+                comment: None,
+            };
         SchemaModel::new(
             vec![SchemaInfo {
                 name: "public".into(),
@@ -1535,7 +1743,11 @@ fn mock_engine() -> ferrodb_lang::Engine<'static> {
                 tables: vec![
                     table(
                         "customers",
-                        vec![col("id", "integer", true), col("name", "text", false), col("email", "text", false)],
+                        vec![
+                            col("id", "integer", true),
+                            col("name", "text", false),
+                            col("email", "text", false),
+                        ],
                         vec![],
                     ),
                     table(
@@ -1560,7 +1772,11 @@ fn mock_engine() -> ferrodb_lang::Engine<'static> {
                     ),
                     table(
                         "products",
-                        vec![col("id", "integer", true), col("name", "text", false), col("price", "numeric", false)],
+                        vec![
+                            col("id", "integer", true),
+                            col("name", "text", false),
+                            col("price", "numeric", false),
+                        ],
                         vec![],
                     ),
                 ],

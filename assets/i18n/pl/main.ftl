@@ -378,6 +378,8 @@ grid-copy-insert = Kopiuj wiersz jako INSERT
 grid-edit-cell = Edytuj wartość
 grid-set-null = Ustaw NULL
 grid-delete-row = Usuń wiersz
+grid-filter-value = Filtruj po tej wartości
+grid-related = Powiązane: { $label }
 changes-preview-title = Przegląd { $count ->
         [one] 1 zmiany
        *[other] { $count } zmian
@@ -389,6 +391,11 @@ changes-applied = { $count ->
        *[other] Zastosowano { $count } zmian
     }
 changes-applied-short = Zmiany zastosowano
+changes-applied-pending = { $count ->
+        [one] Zastosowano 1 zmianę w otwartej transakcji; zatwierdź, aby ją zachować
+        [few] Zastosowano { $count } zmiany w otwartej transakcji; zatwierdź, aby je zachować
+       *[other] Zastosowano { $count } zmian w otwartej transakcji; zatwierdź, aby je zachować
+    }
 
 ## Przeglądarka dokumentów
 docs-mode-tree = Drzewo
@@ -479,8 +486,18 @@ wizard-header-row = Wiersz nagłówka
 wizard-back = Wstecz
 wizard-next = Dalej
 wizard-finish = Zakończ
-wizard-export-done = Przygotowano eksport do { $format }: { $path } (transfer danych pojawi się w fazie 6)
-wizard-import-done = Przygotowano import { $path } do { $target } (transfer danych pojawi się w fazie 6)
+wizard-export-done = Wyeksportowano { $items } elementów do { $path } ({ $method }, { $elapsed })
+wizard-import-done = Zaimportowano { $items } elementów do { $target } ({ $method }, { $elapsed })
+wizard-failed = Transfer nie powiódł się: { $error }
+wizard-running = Trwa transfer…
+wizard-source = Źródło
+wizard-no-source = Najpierw uruchom zapytanie albo zaznacz tabelę lub kolekcję
+wizard-no-target = Najpierw zaznacz w eksploratorze źródło danych, schemat albo tabelę
+wizard-create-table = Utwórz tabelę, jeśli nie istnieje
+wizard-truncate = Najpierw usuń istniejące wiersze
+wizard-mapping-auto = Kolumny są dopasowane po nazwie:
+wizard-mapping-new = (nowa kolumna)
+wizard-mapping-skipped = (pominięta)
 gallery-grid = Siatka wyników
 gallery-documents = Przeglądarka dokumentów
 gallery-keys = Przeglądarka kluczy

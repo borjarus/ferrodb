@@ -141,6 +141,27 @@ pub trait Connection: Send {
     fn is_alive(&self) -> bool {
         true
     }
+
+    /// Fast path for imports: loads rows given in the tab-separated text
+    /// format shared by PostgreSQL `COPY … FROM STDIN` and MySQL
+    /// `LOAD DATA LOCAL INFILE` (`\N` = NULL, backslash escapes). `table`
+    /// and `columns` are already quoted. Returns the rows loaded.
+    /// [`Error::Unsupported`] = no fast path here (the core falls back to
+    /// `INSERT`).
+    fn bulk_load<'a>(
+        &'a mut self,
+        table: &'a str,
+        columns: &'a [String],
+        data: Vec<u8>,
+    ) -> BoxFuture<'a, Result<u64>> {
+        let _ = (table, columns, data);
+        Box::pin(async { Err(Error::Unsupported("bulk load".into())) })
+    }
+
+    /// Name of the fast path shown in transfer reports (`COPY`, `LOAD DATA`).
+    fn bulk_load_method(&self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// Differences between databases of one family (ADR-008).
