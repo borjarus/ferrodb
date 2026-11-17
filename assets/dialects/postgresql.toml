@@ -1,0 +1,205 @@
+id = "postgresql"
+name = "PostgreSQL"
+inherits = "sql"
+identifier_quote = '"'
+case_folding = "lower"
+default_schema = "public"
+# sqlparser dialect used for syntax diagnostics ("" = none).
+parser = "postgresql"
+
+keywords = [
+  "analyse", "analyze", "array", "asymmetric", "collate", "concurrently", "current_catalog",
+  "current_role", "current_schema", "deferrable", "do", "freeze", "ilike", "initially",
+  "isnull", "lateral", "limit", "localtime", "localtimestamp", "notnull", "offset",
+  "only", "overlaps", "placing", "returning", "session_user", "similar", "symmetric",
+  "tablesample", "user", "variadic", "verbose", "window",
+]
+
+soft_keywords = [
+  "atomic", "called", "comment", "conflict", "cost", "extension", "immutable", "include",
+  "inherits", "language", "owned", "parallel", "policy", "returns", "security", "setof",
+  "stable", "strict", "unlogged", "vacuum", "volatile",
+]
+
+types = [
+  "bigserial", "bit", "bit varying", "bool", "box", "bytea", "character varying", "cidr",
+  "circle", "daterange", "float4", "float8", "inet", "int2", "int4", "int4range", "int8",
+  "int8range", "interval", "json", "jsonb", "line", "lseg", "macaddr", "money", "numrange",
+  "oid", "path", "point", "polygon", "regclass", "serial", "smallserial", "text",
+  "timestamptz", "timetz", "tsquery", "tsrange", "tstzrange", "tsvector", "uuid", "xml",
+]
+
+[[functions]]
+name = "now"
+signatures = ["now() -> timestamptz"]
+doc = "Start time of the current transaction."
+
+[[functions]]
+name = "date_trunc"
+signatures = ["date_trunc(field text, source timestamp) -> timestamp", "date_trunc(field text, source timestamptz, time_zone text) -> timestamptz"]
+doc = "Truncates to the given precision (`'day'`, `'month'`...)."
+
+[[functions]]
+name = "date_part"
+signatures = ["date_part(field text, source timestamp) -> double precision"]
+doc = "Subfield of a date/time value (same as `EXTRACT`)."
+
+[[functions]]
+name = "age"
+signatures = ["age(timestamp timestamp) -> interval", "age(a timestamp, b timestamp) -> interval"]
+doc = "Symbolic difference between timestamps."
+
+[[functions]]
+name = "to_char"
+signatures = ["to_char(value any, format text) -> text"]
+doc = "Formats a number or date/time as text."
+
+[[functions]]
+name = "to_date"
+signatures = ["to_date(text text, format text) -> date"]
+doc = "Parses a date."
+
+[[functions]]
+name = "to_timestamp"
+signatures = ["to_timestamp(text text, format text) -> timestamptz", "to_timestamp(epoch double precision) -> timestamptz"]
+doc = "Parses a timestamp or converts Unix epoch seconds."
+
+[[functions]]
+name = "length"
+signatures = ["length(string text) -> int"]
+doc = "Number of characters."
+
+[[functions]]
+name = "substring"
+signatures = ["substring(string text, start int) -> text", "substring(string text, start int, count int) -> text"]
+doc = "Extracts a substring (also `substring(s from 2 for 3)`)."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(value any, ...) -> text"]
+doc = "Concatenates the text of all non-null arguments."
+
+[[functions]]
+name = "concat_ws"
+signatures = ["concat_ws(separator text, value any, ...) -> text"]
+doc = "Concatenates non-null arguments with a separator."
+
+[[functions]]
+name = "split_part"
+signatures = ["split_part(string text, delimiter text, n int) -> text"]
+doc = "The n-th field of a delimited string."
+
+[[functions]]
+name = "string_agg"
+signatures = ["string_agg(value text, delimiter text) -> text"]
+doc = "Concatenates input values with a delimiter."
+
+[[functions]]
+name = "array_agg"
+signatures = ["array_agg(value any) -> anyarray"]
+doc = "Input values collected into an array."
+
+[[functions]]
+name = "jsonb_agg"
+signatures = ["jsonb_agg(value any) -> jsonb"]
+doc = "Input values aggregated into a JSON array."
+
+[[functions]]
+name = "json_agg"
+signatures = ["json_agg(value any) -> json"]
+doc = "Input values aggregated into a JSON array."
+
+[[functions]]
+name = "jsonb_build_object"
+signatures = ["jsonb_build_object(key text, value any, ...) -> jsonb"]
+doc = "JSON object from alternating keys and values."
+
+[[functions]]
+name = "jsonb_extract_path_text"
+signatures = ["jsonb_extract_path_text(from_json jsonb, path text, ...) -> text"]
+doc = "JSON sub-object at the path, as text."
+
+[[functions]]
+name = "jsonb_array_elements"
+signatures = ["jsonb_array_elements(from_json jsonb) -> setof jsonb"]
+doc = "Expands a JSON array to a set of values."
+
+[[functions]]
+name = "unnest"
+signatures = ["unnest(array anyarray) -> setof anyelement"]
+doc = "Expands an array to a set of rows."
+
+[[functions]]
+name = "array_length"
+signatures = ["array_length(array anyarray, dimension int) -> int"]
+doc = "Length of the requested array dimension."
+
+[[functions]]
+name = "generate_series"
+signatures = ["generate_series(start int, stop int) -> setof int", "generate_series(start int, stop int, step int) -> setof int", "generate_series(start timestamp, stop timestamp, step interval) -> setof timestamp"]
+doc = "Series of values from start to stop."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(value any, ...) -> any"]
+doc = "Largest value of the list."
+
+[[functions]]
+name = "least"
+signatures = ["least(value any, ...) -> any"]
+doc = "Smallest value of the list."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> bigint"]
+doc = "Number of the current row within its partition (window function)."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> bigint"]
+doc = "Rank of the current row with gaps (window function)."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> bigint"]
+doc = "Rank of the current row without gaps (window function)."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(value any) -> any", "lag(value any, offset int) -> any", "lag(value any, offset int, default any) -> any"]
+doc = "Value of a preceding row (window function)."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(value any) -> any", "lead(value any, offset int) -> any", "lead(value any, offset int, default any) -> any"]
+doc = "Value of a following row (window function)."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(source text, pattern text, replacement text) -> text", "regexp_replace(source text, pattern text, replacement text, flags text) -> text"]
+doc = "Replaces substrings matching a POSIX regular expression."
+
+[[functions]]
+name = "gen_random_uuid"
+signatures = ["gen_random_uuid() -> uuid"]
+doc = "Random version 4 UUID."
+
+[[functions]]
+name = "nextval"
+signatures = ["nextval(sequence regclass) -> bigint"]
+doc = "Advances the sequence and returns the new value."
+
+[[functions]]
+name = "currval"
+signatures = ["currval(sequence regclass) -> bigint"]
+doc = "Last value obtained by `nextval` in this session."
+
+[[functions]]
+name = "pg_size_pretty"
+signatures = ["pg_size_pretty(size bigint) -> text"]
+doc = "Size in bytes as human-readable text."
+
+[[functions]]
+name = "pg_total_relation_size"
+signatures = ["pg_total_relation_size(relation regclass) -> bigint"]
+doc = "Disk space of a table including indexes and TOAST."

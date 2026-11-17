@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 279343e56a1827eee204bce228d0a4388b29fcc099ca3af7f379ebc21c3cb3b6 # shrinks to parts = ["-", ">="], dialect = "postgresql"
+cc 217c44f52f134f0f46b39736b0e8631a7fc766d620af8d68be760cd817c5fca6 # shrinks to parts = ["-- note\n", ";", "select"], dialect = "postgresql"

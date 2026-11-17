@@ -227,6 +227,7 @@ fn document_flows_on_a_real_server() {
         text: "db.people.find({ ag".into(),
         language: QueryLanguage::Mql,
         data_source: Some(ds.clone()),
+        schema: None,
         version: 1,
     };
     let items = block_on(core.language().complete(doc.clone(), doc.text.len()));

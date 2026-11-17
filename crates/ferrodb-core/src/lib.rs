@@ -94,6 +94,11 @@ impl CoreBackend {
             .enable_all()
             .build()
             .map_err(|e| Error::Other(format!("tokio runtime: {e}")))?;
+        let templates = opts
+            .config_dir
+            .as_ref()
+            .map(|d| language::load_templates(&d.join("templates.toml")))
+            .unwrap_or_default();
         let config_path = opts.config_dir.map(|d| d.join("data-sources.toml"));
         let sources = match &config_path {
             Some(p) => config::load(p)?,
@@ -116,6 +121,8 @@ impl CoreBackend {
             storage: Arc::new(storage),
             config_path,
             language: BasicLanguageService,
+            templates,
+            sql_models: Mutex::default(),
             catalogs: catalogs.clone(),
             fields: Mutex::default(),
             state: Mutex::new(State {
@@ -204,6 +211,10 @@ pub(crate) struct Inner {
     pub storage: Arc<Storage>,
     pub config_path: Option<PathBuf>,
     pub language: BasicLanguageService,
+    /// User live templates (`templates.toml` in the configuration directory).
+    pub templates: Vec<(String, ferrodb_api::LiveTemplate)>,
+    /// SQL schema models built from catalogs, rebuilt when the catalog changes.
+    pub sql_models: Mutex<language::ModelCache>,
     /// Metadata catalogs (memory + disk cache).
     pub catalogs: Arc<Catalogs>,
     /// Field paths of sampled collections (MQL completion).

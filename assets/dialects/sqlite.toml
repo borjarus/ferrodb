@@ -1,0 +1,103 @@
+id = "sqlite"
+name = "SQLite"
+inherits = "sql"
+identifier_quote = '"'
+case_folding = "none"
+default_schema = "main"
+parser = "sqlite"
+
+keywords = [
+  "abort", "autoincrement", "collate", "conflict", "deferrable", "escape", "except",
+  "exclusive", "fail", "glob", "ignore", "immediate", "indexed", "initially", "instead",
+  "isnull", "limit", "notnull", "offset", "pragma", "raise", "regexp", "replace",
+  "returning", "vacuum", "virtual",
+]
+
+soft_keywords = ["attach", "detach", "reindex", "rowid", "strict", "without"]
+
+types = ["blob", "text"]
+
+[[functions]]
+name = "length"
+signatures = ["length(x any) -> integer"]
+doc = "Number of characters (bytes for blobs)."
+
+[[functions]]
+name = "substr"
+signatures = ["substr(x text, start integer) -> text", "substr(x text, start integer, length integer) -> text"]
+doc = "Substring (1-based start)."
+
+[[functions]]
+name = "ifnull"
+signatures = ["ifnull(x any, y any) -> any"]
+doc = "The first non-NULL argument."
+
+[[functions]]
+name = "iif"
+signatures = ["iif(condition any, then any, else any) -> any"]
+doc = "Conditional value."
+
+[[functions]]
+name = "instr"
+signatures = ["instr(x text, y text) -> integer"]
+doc = "Position of the first occurrence of `y` in `x`."
+
+[[functions]]
+name = "printf"
+signatures = ["printf(format text, value any, ...) -> text"]
+doc = "Formatted string (also `format`)."
+
+[[functions]]
+name = "date"
+signatures = ["date(time_value text, modifier text, ...) -> text"]
+doc = "Date as `YYYY-MM-DD`."
+
+[[functions]]
+name = "datetime"
+signatures = ["datetime(time_value text, modifier text, ...) -> text"]
+doc = "Date and time as `YYYY-MM-DD HH:MM:SS`."
+
+[[functions]]
+name = "strftime"
+signatures = ["strftime(format text, time_value text, modifier text, ...) -> text"]
+doc = "Formatted date/time."
+
+[[functions]]
+name = "julianday"
+signatures = ["julianday(time_value text, modifier text, ...) -> real"]
+doc = "Julian day number."
+
+[[functions]]
+name = "group_concat"
+signatures = ["group_concat(x any) -> text", "group_concat(x any, separator text) -> text"]
+doc = "Concatenated values of a group."
+
+[[functions]]
+name = "json_extract"
+signatures = ["json_extract(json text, path text, ...) -> any"]
+doc = "Values at the JSON paths."
+
+[[functions]]
+name = "json_object"
+signatures = ["json_object(label text, value any, ...) -> text"]
+doc = "JSON object from label/value pairs."
+
+[[functions]]
+name = "last_insert_rowid"
+signatures = ["last_insert_rowid() -> integer"]
+doc = "ROWID of the last inserted row."
+
+[[functions]]
+name = "random"
+signatures = ["random() -> integer"]
+doc = "Pseudo-random 64-bit integer."
+
+[[functions]]
+name = "typeof"
+signatures = ["typeof(x any) -> text"]
+doc = "Storage class of the value."
+
+[[functions]]
+name = "changes"
+signatures = ["changes() -> integer"]
+doc = "Rows changed by the last statement."

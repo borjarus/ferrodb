@@ -1,4 +1,4 @@
-//! # ferrodb-api v3
+//! # ferrodb-api v4
 //!
 //! Contracts between the GUI and the logic. The GUI talks to the rest of the
 //! application **exclusively** through [`Backend`]; in phases 1–2 it is
@@ -42,4 +42,4 @@ pub use bson;
 pub use futures::future::BoxFuture;
 
 /// Version of the contract. Bumped on every breaking change of this crate.
-pub const API_VERSION: u32 = 3;
+pub const API_VERSION: u32 = 4;

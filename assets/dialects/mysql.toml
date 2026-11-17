@@ -1,0 +1,171 @@
+id = "mysql"
+name = "MySQL"
+inherits = "sql"
+identifier_quote = '`'
+# Table names are case-sensitive on most Linux servers: lookups try the
+# exact spelling first, then case-insensitively.
+case_folding = "none"
+parser = "mysql"
+
+keywords = [
+  "accessible", "analyze", "before", "bigint", "binary", "blob", "call", "cascade", "change",
+  "char", "character", "collate", "condition", "continue", "convert", "database",
+  "databases", "day_hour", "dec", "decimal", "declare", "delayed", "describe", "div",
+  "double", "dual", "each", "elseif", "enclosed", "escaped", "exit", "explain", "float",
+  "force", "fulltext", "generated", "if", "ignore", "index", "infile", "int", "integer",
+  "interval", "iterate", "keys", "key", "kill", "leave", "limit", "lines", "load", "lock",
+  "long", "loop", "low_priority", "match", "mediumint", "mod", "modifies", "numeric",
+  "optimize", "option", "optionally", "outfile", "precision", "procedure", "purge",
+  "range", "read", "real", "regexp", "release", "rename", "repeat", "replace", "require",
+  "resignal", "restrict", "return", "revoke", "rlike", "schema", "schemas", "separator",
+  "show", "signal", "smallint", "spatial", "sql", "sqlexception", "sqlstate", "starting",
+  "straight_join", "terminated", "tinyint", "trigger", "undo", "unlock", "unsigned",
+  "usage", "use", "utc_date", "utc_timestamp", "varbinary", "varchar", "varying",
+  "virtual", "while", "write", "xor", "year_month", "zerofill",
+]
+
+soft_keywords = [
+  "algorithm", "auto_increment", "charset", "comment", "definer", "delimiter", "duplicate",
+  "engine", "event", "invoker", "modify", "status", "tables", "temporary", "variables",
+]
+
+types = [
+  "bit", "blob", "bool", "datetime", "enum", "json", "longblob", "longtext", "mediumblob",
+  "mediumint", "mediumtext", "text", "tinyblob", "tinyint", "tinytext", "varbinary",
+  "year",
+]
+
+[[functions]]
+name = "now"
+signatures = ["now() -> datetime", "now(fsp int) -> datetime"]
+doc = "Current date and time."
+
+[[functions]]
+name = "curdate"
+signatures = ["curdate() -> date"]
+doc = "Current date."
+
+[[functions]]
+name = "date_format"
+signatures = ["date_format(date datetime, format text) -> text"]
+doc = "Formats a date (`'%Y-%m-%d'`)."
+
+[[functions]]
+name = "date_add"
+signatures = ["date_add(date datetime, interval expr unit) -> datetime"]
+doc = "Adds an interval: `date_add(d, interval 1 day)`."
+
+[[functions]]
+name = "date_sub"
+signatures = ["date_sub(date datetime, interval expr unit) -> datetime"]
+doc = "Subtracts an interval."
+
+[[functions]]
+name = "datediff"
+signatures = ["datediff(expr1 date, expr2 date) -> int"]
+doc = "Days between two dates."
+
+[[functions]]
+name = "timestampdiff"
+signatures = ["timestampdiff(unit keyword, from datetime, to datetime) -> bigint"]
+doc = "Difference in the given unit."
+
+[[functions]]
+name = "str_to_date"
+signatures = ["str_to_date(str text, format text) -> datetime"]
+doc = "Parses a date with a format."
+
+[[functions]]
+name = "unix_timestamp"
+signatures = ["unix_timestamp() -> bigint", "unix_timestamp(date datetime) -> bigint"]
+doc = "Unix epoch seconds."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(str text, ...) -> text"]
+doc = "Concatenates the arguments (NULL if any is NULL)."
+
+[[functions]]
+name = "concat_ws"
+signatures = ["concat_ws(separator text, str text, ...) -> text"]
+doc = "Concatenates with a separator, skipping NULLs."
+
+[[functions]]
+name = "group_concat"
+signatures = ["group_concat(expr any) -> text"]
+doc = "Concatenated values of a group (`ORDER BY` and `SEPARATOR` allowed inside)."
+
+[[functions]]
+name = "ifnull"
+signatures = ["ifnull(expr1 any, expr2 any) -> any"]
+doc = "`expr2` when `expr1` is NULL."
+
+[[functions]]
+name = "if"
+signatures = ["if(condition bool, then any, else any) -> any"]
+doc = "Conditional value."
+
+[[functions]]
+name = "length"
+signatures = ["length(str text) -> int"]
+doc = "Length in bytes."
+
+[[functions]]
+name = "char_length"
+signatures = ["char_length(str text) -> int"]
+doc = "Length in characters."
+
+[[functions]]
+name = "substring"
+signatures = ["substring(str text, pos int) -> text", "substring(str text, pos int, len int) -> text"]
+doc = "Substring from a position."
+
+[[functions]]
+name = "substring_index"
+signatures = ["substring_index(str text, delim text, count int) -> text"]
+doc = "Substring before `count` occurrences of the delimiter."
+
+[[functions]]
+name = "locate"
+signatures = ["locate(substr text, str text) -> int", "locate(substr text, str text, pos int) -> int"]
+doc = "Position of the first occurrence."
+
+[[functions]]
+name = "json_extract"
+signatures = ["json_extract(json_doc json, path text, ...) -> json"]
+doc = "Data at the JSON paths (`'$.a.b'`)."
+
+[[functions]]
+name = "json_object"
+signatures = ["json_object(key text, val any, ...) -> json"]
+doc = "JSON object from key/value pairs."
+
+[[functions]]
+name = "json_arrayagg"
+signatures = ["json_arrayagg(value any) -> json"]
+doc = "Values of a group as a JSON array."
+
+[[functions]]
+name = "last_insert_id"
+signatures = ["last_insert_id() -> bigint"]
+doc = "Last `AUTO_INCREMENT` value generated in this session."
+
+[[functions]]
+name = "uuid"
+signatures = ["uuid() -> text"]
+doc = "A version 1 UUID as text."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> bigint"]
+doc = "Number of the current row within its partition (window function)."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(value any, value any, ...) -> any"]
+doc = "Largest argument."
+
+[[functions]]
+name = "least"
+signatures = ["least(value any, value any, ...) -> any"]
+doc = "Smallest argument."

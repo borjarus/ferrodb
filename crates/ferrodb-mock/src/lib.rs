@@ -929,6 +929,7 @@ impl MockBackend {
             text: script.text.as_str().into(),
             language: caps.language.clone(),
             data_source: Some(src.config.id.clone()),
+            schema: None,
             version: 0,
         };
         let statements = self.statements(&doc);
@@ -1454,6 +1455,121 @@ impl LanguageService for MockBackend {
             .collect::<Vec<_>>()
             .join(" "))
     }
+
+    // Phase 5 features run the real SQL engine on a small shop schema.
+
+    fn code_actions(&self, doc: DocSnapshot, range: Range<usize>) -> Vec<CodeAction> {
+        mock_engine().code_actions(&doc, range)
+    }
+
+    fn signature_help(&self, doc: DocSnapshot, offset: usize) -> Option<SignatureHelp> {
+        mock_engine().signature_help(&doc, offset)
+    }
+
+    fn hover(&self, doc: DocSnapshot, offset: usize) -> Option<Hover> {
+        mock_engine().hover(&doc, offset)
+    }
+
+    fn structure(&self, doc: &DocSnapshot) -> Vec<StructureItem> {
+        mock_engine().structure(doc)
+    }
+
+    fn declaration(&self, doc: DocSnapshot, offset: usize) -> Option<Declaration> {
+        mock_engine().declaration(&doc, offset)
+    }
+
+    fn prepare_rename(&self, doc: DocSnapshot, offset: usize) -> Option<(Range<usize>, String)> {
+        mock_engine().prepare_rename(&doc, offset)
+    }
+
+    fn rename(&self, doc: DocSnapshot, offset: usize, new_name: &str) -> Result<Vec<TextEdit>> {
+        mock_engine().rename(&doc, offset, new_name)
+    }
+
+    fn templates(&self, lang: &QueryLanguage) -> Vec<LiveTemplate> {
+        mock_engine().templates(lang)
+    }
+
+    fn expand_template(
+        &self,
+        doc: DocSnapshot,
+        offset: usize,
+        selection: Option<Range<usize>>,
+    ) -> Option<TemplateExpansion> {
+        mock_engine().expand_template(&doc, offset, selection)
+    }
+}
+
+/// The SQL engine over the mock's `public` shop schema.
+fn mock_engine() -> ferrodb_lang::Engine<'static> {
+    use ferrodb_lang::sql::schema::{
+        ColumnInfo, ForeignKeyInfo, SchemaInfo, SchemaModel, TableInfo,
+    };
+    static MODEL: std::sync::OnceLock<SchemaModel> = std::sync::OnceLock::new();
+    let model = MODEL.get_or_init(|| {
+        let col = |name: &str, ty: &str, pk: bool| ColumnInfo {
+            name: name.into(),
+            data_type: ty.into(),
+            nullable: !pk,
+            primary_key: pk,
+            generated: pk,
+            comment: None,
+        };
+        let fk = |c: &str, t: &str| ForeignKeyInfo {
+            columns: vec![c.into()],
+            ref_schema: None,
+            ref_table: t.into(),
+            ref_columns: vec!["id".into()],
+        };
+        let table = |name: &str, columns: Vec<ColumnInfo>, foreign_keys: Vec<ForeignKeyInfo>| TableInfo {
+            name: name.into(),
+            view: false,
+            columns,
+            foreign_keys,
+            comment: None,
+        };
+        SchemaModel::new(
+            vec![SchemaInfo {
+                name: "public".into(),
+                loaded: true,
+                tables: vec![
+                    table(
+                        "customers",
+                        vec![col("id", "integer", true), col("name", "text", false), col("email", "text", false)],
+                        vec![],
+                    ),
+                    table(
+                        "orders",
+                        vec![
+                            col("id", "integer", true),
+                            col("customer_id", "integer", false),
+                            col("total", "numeric", false),
+                            col("created_at", "timestamp", false),
+                        ],
+                        vec![fk("customer_id", "customers")],
+                    ),
+                    table(
+                        "order_items",
+                        vec![
+                            col("id", "integer", true),
+                            col("order_id", "integer", false),
+                            col("product_id", "integer", false),
+                            col("quantity", "integer", false),
+                        ],
+                        vec![fk("order_id", "orders"), fk("product_id", "products")],
+                    ),
+                    table(
+                        "products",
+                        vec![col("id", "integer", true), col("name", "text", false), col("price", "numeric", false)],
+                        vec![],
+                    ),
+                ],
+                routines: vec![],
+            }],
+            vec!["public".into()],
+        )
+    });
+    ferrodb_lang::Engine::new(model, &[])
 }
 
 /// Splits on `;` outside single/double quotes; trims whitespace from spans and

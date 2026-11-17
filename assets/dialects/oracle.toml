@@ -1,0 +1,45 @@
+# Skeleton (phase 5); completed with the Oracle driver in phase 8.
+id = "oracle"
+name = "Oracle SQL"
+inherits = "sql"
+identifier_quote = '"'
+case_folding = "upper"
+parser = ""
+
+keywords = [
+  "access", "audit", "cluster", "comment", "compress", "connect", "exclusive", "file",
+  "identified", "immediate", "increment", "initial", "level", "lock", "long", "maxextents",
+  "minus", "mode", "modify", "noaudit", "nocompress", "nowait", "number", "offline",
+  "online", "pctfree", "prior", "raw", "rename", "resource", "row", "rowid", "rownum",
+  "rows", "session", "share", "size", "start", "successful", "synonym", "sysdate",
+  "uid", "user", "validate", "varchar2", "view", "whenever",
+]
+
+soft_keywords = ["begin", "declare", "exception", "loop", "package", "body", "pragma"]
+
+types = ["binary_double", "binary_float", "blob", "clob", "nclob", "nvarchar2", "number", "raw", "varchar2"]
+
+[[functions]]
+name = "nvl"
+signatures = ["nvl(expr1 any, expr2 any) -> any"]
+doc = "`expr2` when `expr1` is null."
+
+[[functions]]
+name = "to_char"
+signatures = ["to_char(value any) -> varchar2", "to_char(value any, format varchar2) -> varchar2"]
+doc = "Converts to text."
+
+[[functions]]
+name = "to_date"
+signatures = ["to_date(char varchar2, format varchar2) -> date"]
+doc = "Parses a date."
+
+[[functions]]
+name = "decode"
+signatures = ["decode(expr any, search any, result any, ...) -> any"]
+doc = "Compares `expr` to each search value."
+
+[[functions]]
+name = "sysdate"
+signatures = ["sysdate() -> date"]
+doc = "Current date and time of the database server."

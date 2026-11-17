@@ -1,13 +1,17 @@
 //! # ferrodb-lang
 //!
-//! Query language support. Phase 3 provides what execution needs: statement
-//! splitting with result titles, parameters and statement analysis (read-only
-//! enforcement, transaction tracking, warnings). Completion, diagnostics and
-//! formatting arrive with the intelligent editor (phase 5).
-//! The MongoDB console language ([`mql`]) arrives with phase 4b.
+//! Query language support.
+//! - [`sql`]: statement splitting, parameters and statement analysis
+//!   (phase 3); the intelligent editor of phase 5 — dialects as data,
+//!   structural parser, name resolution, completion, inspections with quick
+//!   fixes, formatter, rename, structure view, parameter info, live
+//!   templates;
+//! - [`mql`]: the MongoDB console language (phase 4b);
+//! - [`service`]: the [`LanguageService`](ferrodb_api::LanguageService)
+//!   implementations on top of both.
 
 pub mod mql;
 pub mod service;
 pub mod sql;
 
-pub use service::BasicLanguageService;
+pub use service::{BasicLanguageService, Engine};

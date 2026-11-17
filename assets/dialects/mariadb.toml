@@ -1,0 +1,18 @@
+id = "mariadb"
+name = "MariaDB"
+inherits = "mysql"
+parser = "mysql"
+
+soft_keywords = ["returning", "sequence", "system_time", "versioning"]
+
+types = ["inet4", "inet6", "uuid"]
+
+[[functions]]
+name = "json_detailed"
+signatures = ["json_detailed(json_doc json) -> text"]
+doc = "Pretty-printed JSON document."
+
+[[functions]]
+name = "nextval"
+signatures = ["nextval(sequence_name name) -> bigint"]
+doc = "Next value of a sequence."

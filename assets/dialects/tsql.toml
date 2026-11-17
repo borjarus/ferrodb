@@ -1,0 +1,63 @@
+# Skeleton (phase 5); completed with the SQL Server driver in phase 8.
+id = "tsql"
+name = "Transact-SQL"
+inherits = "sql"
+identifier_quote = '['
+case_folding = "none"
+default_schema = "dbo"
+parser = "mssql"
+
+keywords = [
+  "backup", "begin", "break", "browse", "bulk", "checkpoint", "clustered", "compute",
+  "contains", "containstable", "continue", "deallocate", "declare", "deny", "disk", "dump",
+  "exec", "execute", "file", "fillfactor", "freetext", "goto", "holdlock", "identity",
+  "identity_insert", "if", "index", "kill", "merge", "nocheck", "nonclustered", "nullif",
+  "off", "offsets", "open", "openquery", "option", "over", "percent", "pivot", "plan",
+  "print", "proc", "procedure", "raiserror", "readtext", "reconfigure", "replication",
+  "restore", "return", "revert", "revoke", "rowcount", "rowguidcol", "rule", "save",
+  "schema", "setuser", "shutdown", "statistics", "top", "tran", "transaction", "trigger",
+  "truncate", "try_convert", "unpivot", "use", "view", "waitfor", "while", "writetext",
+]
+
+soft_keywords = ["go", "nocount", "output", "try", "catch"]
+
+types = [
+  "bit", "datetime", "datetime2", "datetimeoffset", "image", "money", "nchar", "ntext",
+  "nvarchar", "smalldatetime", "smallmoney", "sql_variant", "text", "tinyint",
+  "uniqueidentifier", "varbinary", "xml",
+]
+
+[[functions]]
+name = "getdate"
+signatures = ["getdate() -> datetime"]
+doc = "Current date and time."
+
+[[functions]]
+name = "isnull"
+signatures = ["isnull(check_expression any, replacement_value any) -> any"]
+doc = "Replacement value for NULL."
+
+[[functions]]
+name = "len"
+signatures = ["len(string_expression nvarchar) -> int"]
+doc = "Number of characters (trailing spaces excluded)."
+
+[[functions]]
+name = "dateadd"
+signatures = ["dateadd(datepart keyword, number int, date datetime) -> datetime"]
+doc = "Adds a number of date parts."
+
+[[functions]]
+name = "datediff"
+signatures = ["datediff(datepart keyword, startdate datetime, enddate datetime) -> int"]
+doc = "Number of date-part boundaries crossed."
+
+[[functions]]
+name = "convert"
+signatures = ["convert(data_type type, expression any) -> any", "convert(data_type type, expression any, style int) -> any"]
+doc = "Converts with an optional style."
+
+[[functions]]
+name = "newid"
+signatures = ["newid() -> uniqueidentifier"]
+doc = "New unique identifier."

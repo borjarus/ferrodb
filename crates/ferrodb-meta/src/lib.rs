@@ -28,6 +28,7 @@ pub mod mongo;
 mod mysql;
 mod pg;
 pub mod rows;
+pub mod sql_model;
 mod sqlite;
 pub mod tree;
 

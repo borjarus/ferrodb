@@ -1,0 +1,106 @@
+# Base SQL dialect: every other dialect inherits from it (directly or not).
+# Format (ADR-009):
+#   keywords       reserved words: never bare identifiers, upper-cased by the formatter
+#   soft_keywords  suggested as keywords, but valid as identifiers (left as typed)
+#   types          data type names (completion in DDL and casts)
+#   [[functions]]  built-in functions; each signature is `name(arg type, ...) -> type`,
+#                  `...` marks a variadic tail. Overloads are separate signatures.
+# A derived dialect (`inherits`) adds to these lists and overrides scalar fields.
+id = "sql"
+name = "SQL"
+identifier_quote = '"'
+# How unquoted identifiers are stored: "lower", "upper" or "none"
+# (case-insensitive lookup, spelling kept).
+case_folding = "none"
+
+keywords = [
+  "all", "alter", "and", "any", "as", "asc", "between", "both", "by", "case", "cast",
+  "check", "column", "constraint", "create", "cross", "current_date", "current_time",
+  "current_timestamp", "current_user", "default", "delete", "desc", "distinct", "drop",
+  "else", "end", "except", "exists", "false", "fetch", "for", "foreign", "from", "full",
+  "grant", "group", "having", "in", "inner", "insert", "intersect", "into", "is", "join",
+  "leading", "left", "like", "natural", "not", "null", "on", "or", "order", "outer",
+  "primary", "references", "right", "select", "set", "some", "table", "then", "to",
+  "trailing", "true", "union", "unique", "update", "using", "values", "when", "where",
+  "with",
+]
+
+soft_keywords = [
+  "add", "after", "before", "begin", "cascade", "commit", "conflict", "data", "database",
+  "deferrable", "do", "each", "escape", "explain", "first", "following", "function",
+  "if", "index", "initially", "key", "last", "limit", "materialized", "no", "nothing",
+  "nulls", "of", "offset", "only", "over", "partition", "preceding", "procedure", "range",
+  "recursive", "rename", "replace", "restrict", "returning", "rollback", "row", "rows",
+  "savepoint", "schema", "sequence", "temp", "temporary", "transaction", "trigger",
+  "truncate", "unbounded", "view", "window", "without", "work",
+]
+
+types = [
+  "bigint", "boolean", "char", "character", "date", "decimal", "double precision", "float",
+  "int", "integer", "numeric", "real", "smallint", "time", "timestamp", "varchar",
+]
+
+[[functions]]
+name = "count"
+signatures = ["count(expression any) -> bigint", "count(*) -> bigint"]
+doc = "Number of input rows (non-null values of the expression)."
+
+[[functions]]
+name = "sum"
+signatures = ["sum(expression numeric) -> numeric"]
+doc = "Sum of non-null input values."
+
+[[functions]]
+name = "avg"
+signatures = ["avg(expression numeric) -> numeric"]
+doc = "Average of non-null input values."
+
+[[functions]]
+name = "min"
+signatures = ["min(expression any) -> any"]
+doc = "Smallest non-null input value."
+
+[[functions]]
+name = "max"
+signatures = ["max(expression any) -> any"]
+doc = "Largest non-null input value."
+
+[[functions]]
+name = "coalesce"
+signatures = ["coalesce(value any, ...) -> any"]
+doc = "The first argument that is not null."
+
+[[functions]]
+name = "nullif"
+signatures = ["nullif(value1 any, value2 any) -> any"]
+doc = "Null when the arguments are equal, otherwise the first one."
+
+[[functions]]
+name = "upper"
+signatures = ["upper(string text) -> text"]
+doc = "String converted to upper case."
+
+[[functions]]
+name = "lower"
+signatures = ["lower(string text) -> text"]
+doc = "String converted to lower case."
+
+[[functions]]
+name = "abs"
+signatures = ["abs(x numeric) -> numeric"]
+doc = "Absolute value."
+
+[[functions]]
+name = "round"
+signatures = ["round(x numeric) -> numeric", "round(x numeric, digits int) -> numeric"]
+doc = "Rounds to the nearest integer or to `digits` decimal places."
+
+[[functions]]
+name = "trim"
+signatures = ["trim(string text) -> text"]
+doc = "Removes leading and trailing spaces."
+
+[[functions]]
+name = "replace"
+signatures = ["replace(string text, from text, to text) -> text"]
+doc = "Replaces every occurrence of `from` with `to`."
