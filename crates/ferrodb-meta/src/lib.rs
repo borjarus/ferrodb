@@ -14,6 +14,8 @@
 //!   snippets and procedure calls;
 //! - [`tree`] — hierarchy per database, explorer children, name
 //!   resolution, quick documentation, search entries, schema filter;
+//! - [`diff`] — schema comparison, migration scripts, `ALTER TABLE` for
+//!   the table editor, the ER model;
 //! - [`infer`] — schema inference for document collections.
 //!
 //! Introspectors live here, not in the driver crate: they only need a
@@ -22,6 +24,8 @@
 
 pub mod cache;
 pub mod ddl;
+pub mod diff;
+mod duckdb;
 pub mod infer;
 pub mod model;
 pub mod mongo;
@@ -67,6 +71,7 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::MariaDb => &MARIADB,
         Dialect::Sqlite => &sqlite::SqliteIntrospector,
         Dialect::Mongo => &mongo::MongoIntrospector,
+        Dialect::DuckDb => &duckdb::DuckDbIntrospector,
     }
 }
 

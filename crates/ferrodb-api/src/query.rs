@@ -376,17 +376,132 @@ pub struct SessionInfo {
 }
 
 /// One node of an execution plan (sources with `explain != None`).
-#[derive(Clone, Debug, PartialEq)]
+///
+/// One model for every database (plan, phase 7): PostgreSQL, MySQL /
+/// MariaDB, SQLite and MongoDB plans are parsed into it, the views (tree,
+/// table, diagram) only read it. Fields a database does not report stay
+/// at their defaults (`cost` 0, `None`).
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlanNode {
     /// Operation, e.g. `Hash Join`, `Seq Scan`, `COLLSCAN`.
     pub operation: String,
     /// Object or condition, e.g. `orders o`, `o.customer_id = c.id`.
     pub detail: Option<String>,
-    /// Estimated cost in database-specific units.
+    /// Estimated total cost (this node and its inputs) in database-specific
+    /// units; 0 when the database gives none (SQLite, MongoDB).
     pub cost: f64,
     /// Estimated rows / documents.
     pub rows: u64,
+    /// Table, index or collection the node reads.
+    pub object: Option<String>,
+    /// Rows actually produced (per loop), with `analyze`.
+    pub actual_rows: Option<u64>,
+    /// Time spent in the node and its inputs, in milliseconds, with
+    /// `analyze` (all loops).
+    pub actual_ms: Option<f64>,
+    /// Times the node was executed (nested loops), with `analyze`.
+    pub loops: Option<u64>,
+    /// Everything else the database reports (`Filter`, `Index Cond`,
+    /// `access_type`, `keysExamined`…), in its order.
+    pub properties: Vec<(String, String)>,
+    /// Problems worth pointing at: full scans, sorts on disk, estimates far
+    /// off the actual rows.
+    pub warnings: Vec<String>,
     pub children: Vec<PlanNode>,
+}
+
+impl PlanNode {
+    pub fn new(operation: impl Into<String>) -> Self {
+        Self {
+            operation: operation.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Cost of this node without its inputs (never negative).
+    pub fn self_cost(&self) -> f64 {
+        let inputs: f64 = self.children.iter().map(|c| c.cost).sum();
+        (self.cost - inputs).max(0.0)
+    }
+
+    /// Time of this node without its inputs, with `analyze`.
+    pub fn self_ms(&self) -> Option<f64> {
+        let own = self.actual_ms?;
+        let inputs: f64 = self.children.iter().filter_map(|c| c.actual_ms).sum();
+        Some((own - inputs).max(0.0))
+    }
+
+    /// Nodes depth-first with their depth: rows of the table view.
+    pub fn flatten(&self) -> Vec<(usize, &PlanNode)> {
+        fn walk<'a>(n: &'a PlanNode, depth: usize, out: &mut Vec<(usize, &'a PlanNode)>) {
+            out.push((depth, n));
+            for c in &n.children {
+                walk(c, depth + 1, out);
+            }
+        }
+        let mut out = Vec::new();
+        walk(self, 0, &mut out);
+        out
+    }
+
+    /// Value of a property by name.
+    pub fn property(&self, name: &str) -> Option<&str> {
+        self.properties
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    }
+
+    /// Number of nodes in the plan.
+    pub fn len(&self) -> usize {
+        1 + self.children.iter().map(PlanNode::len).sum::<usize>()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+/// What [`QueryService::explain`] should do.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ExplainOptions {
+    /// Run the statement and report actual rows and times (`EXPLAIN
+    /// ANALYZE`, MongoDB `executionStats`). Writes are refused: they would
+    /// be executed.
+    pub analyze: bool,
+    /// Default schema / database for the statement (console schema picker).
+    pub schema: Option<String>,
+}
+
+/// An execution plan with what produced it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ExecutionPlan {
+    pub root: PlanNode,
+    /// The statement that was sent (`EXPLAIN (FORMAT JSON) …`).
+    pub statement: String,
+    /// The plan as the database returned it (JSON or text), for copying.
+    pub raw: String,
+    /// The plan comes from an actual execution.
+    pub analyzed: bool,
+    /// Planning time (PostgreSQL) in milliseconds.
+    pub planning_ms: Option<f64>,
+    /// Total execution time in milliseconds, with `analyze`.
+    pub execution_ms: Option<f64>,
+}
+
+impl ExecutionPlan {
+    /// Every warning of the plan with the node's operation, in tree order.
+    pub fn warnings(&self) -> Vec<(String, String)> {
+        self.root
+            .flatten()
+            .into_iter()
+            .flat_map(|(_, n)| {
+                n.warnings
+                    .iter()
+                    .map(move |w| (n.operation.clone(), w.clone()))
+            })
+            .collect()
+    }
 }
 
 pub trait QueryService: Send + Sync {
@@ -405,8 +520,14 @@ pub trait QueryService: Send + Sync {
         session: SessionId,
         script: Script,
     ) -> BoxFuture<'_, Result<Option<u64>>>;
-    /// Execution plan of the first statement of `script`.
-    fn explain(&self, session: SessionId, script: Script) -> BoxFuture<'_, Result<PlanNode>>;
+    /// Execution plan of the first statement of `script`, run in the
+    /// session (its schema, its open transaction).
+    fn explain(
+        &self,
+        session: SessionId,
+        script: Script,
+        opts: ExplainOptions,
+    ) -> BoxFuture<'_, Result<ExecutionPlan>>;
     /// Value of one key (key-value sources).
     fn key_value(&self, session: SessionId, key: String) -> BoxFuture<'_, Result<KeyValue>>;
     /// Statements / commands that [`Self::apply_changes`] would run, for the

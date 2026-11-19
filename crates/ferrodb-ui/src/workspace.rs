@@ -38,13 +38,13 @@ use crate::{
     output,
     palette::{self, PaletteKind, PaletteModel, Target},
     panels::{
-        ConsolePanel, ExplorerPanel, GalleryPanel, HistoryPanel, InspectorPanel, LocalHistoryPanel,
-        OutputPanel, ServicesPanel, WelcomePanel, console::RunTarget, explorer,
+        ConsolePanel, ExplorerPanel, FilesPanel, GalleryPanel, HistoryPanel, InspectorPanel,
+        LocalHistoryPanel, OutputPanel, ServicesPanel, WelcomePanel, console::RunTarget, explorer,
     },
     project::{LAYOUT_VERSION, Project},
     settings::SettingsStore,
     settings_view,
-    views::{self, diff::DiffView, er_diagram::ErDiagram, wizard::WizardKind},
+    views::{self, er_diagram::ErDiagram, wizard::WizardKind},
 };
 
 /// Delay before writing the layout after the last change.
@@ -97,6 +97,7 @@ pub struct Workspace {
     consoles: Vec<WeakEntity<ConsolePanel>>,
     history_panel: Option<WeakEntity<HistoryPanel>>,
     local_history_panel: Option<WeakEntity<LocalHistoryPanel>>,
+    files_panel: Option<WeakEntity<FilesPanel>>,
     save_task: Option<Task<()>>,
     shift: ShiftTracker,
     /// Model of the last opened palette (inspected by UI tests).
@@ -167,6 +168,7 @@ impl Workspace {
             consoles: Vec::new(),
             history_panel: None,
             local_history_panel: None,
+            files_panel: None,
             save_task: None,
             shift: ShiftTracker::default(),
             last_palette: None,
@@ -325,43 +327,30 @@ impl Workspace {
     }
 
     fn compare_schemas(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // Compares the DDL of `customers` in the development and production
-        // sources (plan 2.8 mockup; schema compare arrives in phase 7).
-        let node = |ds: &str| {
-            NodeRef::root(DataSourceId::new(ds))
-                .child(ObjectKind::Database, "shop")
-                .child(ObjectKind::Schema, "public")
-                .child(ObjectKind::Table, "customers")
-        };
-        let backend = AppState::backend(cx);
-        let task = cx.background_executor().spawn(async move {
-            let m = backend.metadata();
-            let a = m
-                .definition(vec![node("shop-dev")], DdlOptions::default())
-                .await;
-            let b = m
-                .definition(vec![node("shop-prod")], DdlOptions::default())
-                .await;
-            (a, b)
+        let source = explorer_selection(cx).filter(|n| !n.path.is_empty());
+        views::schema_compare::open(source, window, cx);
+    }
+
+    /// Opens the project files panel next to the explorer.
+    fn show_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(p) = self.files_panel.as_ref().and_then(|p| p.upgrade()) {
+            p.update(cx, |p, cx| p.reload(cx));
+            return;
+        }
+        if !self.dock.read(cx).is_dock_open(DockPlacement::Left) {
+            self.toggle_dock(DockPlacement::Left, window, cx);
+        }
+        let panel = cx.new(|cx| FilesPanel::new(window, cx));
+        self.dock.update(cx, |a, cx| {
+            a.add_panel_view(
+                panel_handle(panel.clone()),
+                DockPlacement::Left,
+                None,
+                window,
+                cx,
+            )
         });
-        cx.spawn_in(window, async move |_, cx| {
-            let (a, b) = task.await;
-            let _ = cx.update(|window, cx| {
-                let (Ok(a), Ok(b)) = (a, b) else { return };
-                let view = cx.new(|cx| {
-                    DiffView::new(
-                        "shop (dev)".into(),
-                        &a,
-                        "shop (production)".into(),
-                        &b,
-                        "sql",
-                        cx,
-                    )
-                });
-                open_view_dialog(t("action-compare"), view.into(), window, cx);
-            });
-        })
-        .detach();
+        self.files_panel = Some(panel.downgrade());
     }
 
     fn open_gallery(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -861,8 +850,46 @@ pub fn open_table_editor(node: Option<NodeRef>, window: &mut Window, cx: &mut Ap
 }
 
 pub fn open_er_diagram(node: NodeRef, window: &mut Window, cx: &mut App) {
-    let view = cx.new(|cx| ErDiagram::new(node, cx));
+    let dir = project_state_dir(cx).map(|d| d.join("diagrams"));
+    let view = cx.new(|cx| ErDiagram::new(node, dir, cx));
     open_view_dialog(t("action-er-diagram"), view.into(), window, cx);
+}
+
+/// `.ferrodb/` of the active project.
+pub fn project_state_dir(cx: &App) -> Option<PathBuf> {
+    active(cx).map(|ws| ws.read(cx).project().state_dir())
+}
+
+/// Root directory of the active project.
+pub fn project_root(cx: &App) -> Option<PathBuf> {
+    active(cx).map(|ws| ws.read(cx).project().root.clone())
+}
+
+/// Reloads a node of the explorer after its metadata changed (DDL applied).
+pub fn refresh_explorer_node(node: NodeRef, cx: &mut App) {
+    if let Some(e) = cx
+        .try_global::<ActiveExplorer>()
+        .and_then(|e| e.0.upgrade())
+    {
+        e.update(cx, |e, cx| e.refresh(Some(node), cx));
+    }
+}
+
+/// Opens a file in a new console bound to it (Ctrl+S writes it back).
+pub fn open_file_console(
+    data_source: Option<DataSourceId>,
+    path: PathBuf,
+    window: &mut Window,
+    cx: &mut App,
+) -> std::io::Result<()> {
+    let text = std::fs::read_to_string(&path)?;
+    if let Some(ws) = active(cx) {
+        ws.update(cx, |ws, cx| {
+            let console = ws.add_console(data_source, text, window, cx);
+            console.update(cx, |c, cx| c.set_file(path, cx));
+        });
+    }
+    Ok(())
 }
 
 /// Shows a view in a large dialog (mockup views of plan 2.8).
@@ -1048,8 +1075,13 @@ impl Render for Workspace {
                     cx,
                 ));
             }))
+            .on_action(
+                cx.listener(|this, _: &actions::ShowProjectFiles, w, cx| this.show_files(w, cx)),
+            )
             .on_action(cx.listener(|_, _: &actions::NewTable, w, cx| {
-                let node = explorer_selection(cx).filter(|n| n.kind() == Some(ObjectKind::Table));
+                // A table opens for editing; a schema (or anything inside one)
+                // creates a new table there.
+                let node = explorer_selection(cx).filter(|n| !n.path.is_empty());
                 open_table_editor(node, w, cx)
             }))
             .on_action(cx.listener(|_, _: &actions::ShowErDiagram, w, cx| {
@@ -1124,5 +1156,15 @@ mod tests {
         // ctrl+shift does not count
         s.update(&mods(false, false), t0 + Duration::from_millis(1050));
         assert!(!s.update(&mods(true, true), t0 + Duration::from_millis(1100)));
+    }
+}
+
+/// Opens a console on `data_source` with `query` and runs it.
+pub fn open_data_query(data_source: DataSourceId, query: String, window: &mut Window, cx: &mut App) {
+    if let Some(ws) = active(cx) {
+        ws.update(cx, |ws, cx| {
+            let console = ws.add_console(Some(data_source), query, window, cx);
+            console.update(cx, |c, cx| c.run(RunTarget::Script, window, cx));
+        });
     }
 }

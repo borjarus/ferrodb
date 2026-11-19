@@ -34,7 +34,7 @@ pub struct ColumnDef {
 impl Sql {
     pub fn new(dialect_id: &str) -> Self {
         let family = match dialect_id {
-            "postgresql" | "greenplum" | "cockroachdb" | "redshift" => Family::Postgres,
+            "postgresql" | "greenplum" | "cockroachdb" | "redshift" | "duckdb" => Family::Postgres,
             "mysql" | "mariadb" => Family::MySql,
             "sqlite" => Family::Sqlite,
             _ => Family::Other,

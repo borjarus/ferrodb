@@ -300,22 +300,41 @@ pub fn children(
 }
 
 /// A plausible execution plan for the mock (shape depends on the model).
-pub fn plan(model: DataModel, text: &str) -> PlanNode {
-    let node = |op: &str, detail: Option<&str>, cost: f64, rows: u64, children| PlanNode {
-        operation: op.into(),
-        detail: detail.map(str::to_owned),
-        cost,
-        rows,
-        children,
+/// With `analyze` the nodes get actual rows and times.
+pub fn plan(model: DataModel, text: &str, analyze: bool) -> PlanNode {
+    let node = |op: &str, detail: Option<&str>, cost: f64, rows: u64, children: Vec<PlanNode>| {
+        let mut n = PlanNode {
+            operation: op.into(),
+            detail: detail.map(str::to_owned),
+            cost,
+            rows,
+            object: detail
+                .and_then(|d| d.split_whitespace().last())
+                .filter(|_| op.contains("Scan") || op.contains("SCAN"))
+                .map(str::to_owned),
+            children,
+            ..Default::default()
+        };
+        if analyze {
+            n.actual_rows = Some(rows + rows / 7);
+            n.loops = Some(1);
+            let inputs: f64 = n.children.iter().filter_map(|c| c.actual_ms).sum();
+            n.actual_ms = Some(inputs + cost / 40.0);
+        }
+        if (op == "Seq Scan" || op == "COLLSCAN") && rows >= 1000 {
+            n.warnings
+                .push(format!("full scan reading about {rows} rows; an index may help"));
+        }
+        n
     };
     let lower = text.to_ascii_lowercase();
     match model {
         DataModel::Document => node(
             "FETCH",
             None,
-            120.0,
+            0.0,
             200,
-            vec![node("IXSCAN", Some("{ name: 1 }"), 40.0, 200, vec![])],
+            vec![node("IXSCAN", Some("name_1 { name: 1 }"), 0.0, 200, vec![])],
         ),
         DataModel::KeyValue => node("SCAN", Some("MATCH *"), 1.0, 1000, vec![]),
         DataModel::Tabular if lower.contains("join") => node(
@@ -329,7 +348,7 @@ pub fn plan(model: DataModel, text: &str) -> PlanNode {
                 1830.2,
                 12_400,
                 vec![
-                    node("Seq Scan", Some("orders o"), 1120.0, 48_000, vec![]),
+                    node("Seq Scan", Some("on orders o"), 1120.0, 48_000, vec![]),
                     node(
                         "Hash",
                         None,
@@ -337,7 +356,7 @@ pub fn plan(model: DataModel, text: &str) -> PlanNode {
                         10_000,
                         vec![node(
                             "Index Scan",
-                            Some("customers_pkey on customers c"),
+                            Some("using customers_pkey on customers"),
                             380.0,
                             10_000,
                             vec![],
@@ -351,7 +370,7 @@ pub fn plan(model: DataModel, text: &str) -> PlanNode {
             Some("id"),
             95.3,
             1000,
-            vec![node("Seq Scan", Some("customers"), 22.5, 1000, vec![])],
+            vec![node("Seq Scan", Some("on customers"), 22.5, 1000, vec![])],
         ),
     }
 }
@@ -889,19 +908,19 @@ mod tests {
 
     #[test]
     fn plan_document_is_fetch_over_index_scan() {
-        let p = plan(DataModel::Document, "");
+        let p = plan(DataModel::Document, "", false);
         assert_eq!(p.operation, "FETCH");
         assert_eq!(p.rows, 200);
         assert_eq!(p.children.len(), 1);
         let ix = &p.children[0];
         assert_eq!(ix.operation, "IXSCAN");
-        assert_eq!(ix.detail.as_deref(), Some("{ name: 1 }"));
+        assert_eq!(ix.detail.as_deref(), Some("name_1 { name: 1 }"));
         assert!(ix.children.is_empty());
     }
 
     #[test]
     fn plan_key_value_is_single_scan() {
-        let p = plan(DataModel::KeyValue, "anything");
+        let p = plan(DataModel::KeyValue, "anything", false);
         assert_eq!(p.operation, "SCAN");
         assert_eq!(p.detail.as_deref(), Some("MATCH *"));
         assert!(p.children.is_empty());
@@ -912,24 +931,29 @@ mod tests {
         let p = plan(
             DataModel::Tabular,
             "SELECT * FROM orders o JOIN customers c ON o.customer_id = c.id",
+            true,
         );
         assert_eq!(p.operation, "Limit");
         let join = &p.children[0];
         assert_eq!(join.operation, "Hash Join");
         assert_eq!(join.children.len(), 2);
         assert_eq!(join.children[0].operation, "Seq Scan");
-        // Costs accumulate towards the root.
+        // Costs and times accumulate towards the root.
         assert!(p.cost >= join.cost && join.cost >= join.children[0].cost);
+        assert!(p.actual_ms.unwrap() >= join.actual_ms.unwrap());
+        assert_eq!(join.children[0].warnings.len(), 1);
     }
 
     #[test]
     fn plan_tabular_without_join_is_sort_over_seq_scan() {
-        let p = plan(DataModel::Tabular, "select 1");
+        let p = plan(DataModel::Tabular, "select 1", false);
         assert_eq!(p.operation, "Sort");
         assert_eq!(p.detail.as_deref(), Some("id"));
         assert_eq!(p.rows, 1000);
         assert_eq!(p.children.len(), 1);
         assert_eq!(p.children[0].operation, "Seq Scan");
-        assert_eq!(p.children[0].detail.as_deref(), Some("customers"));
+        assert_eq!(p.children[0].detail.as_deref(), Some("on customers"));
+        assert_eq!(p.children[0].object.as_deref(), Some("customers"));
+        assert!(p.actual_rows.is_none());
     }
 }

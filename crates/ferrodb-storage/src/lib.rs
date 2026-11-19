@@ -6,7 +6,9 @@
 //!   (FTS5 trigram index, substring search);
 //! - **query log** — every statement sent to a server, including the ones
 //!   the IDE issues itself (`SET search_path`, `BEGIN`…), with duration and
-//!   outcome.
+//!   outcome;
+//! - **Local History** (phase 7) — revisions of console texts and project
+//!   files, kept per document with a retention policy.
 //!
 //! Synchronous API: the core calls it from blocking tasks.
 
@@ -16,12 +18,15 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use ferrodb_api::{DataSourceId, HistoryEntry, HistoryFilter};
+use ferrodb_api::{
+    DataSourceId, HistoryDocument, HistoryEntry, HistoryFilter, Retention, Revision, RevisionReason,
+    retention_victims,
+};
 use rusqlite::{Connection, OptionalExtension, params};
 
 pub use rusqlite::Error as StorageError;
 
-const SCHEMA_VERSION: i32 = 1;
+const SCHEMA_VERSION: i32 = 2;
 
 /// Rows kept per table; older rows are pruned.
 const MAX_HISTORY: i64 = 20_000;
@@ -79,7 +84,7 @@ impl Storage {
         conn.pragma_update(None, "synchronous", "normal")?;
         conn.busy_timeout(Duration::from_secs(2))?;
         let version: i32 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        if version < SCHEMA_VERSION {
+        if version < 1 {
             conn.execute_batch(
                 "create table if not exists history (
                     id integer primary key,
@@ -102,6 +107,20 @@ impl Storage {
                     error text
                  );
                  create index if not exists query_log_time on query_log (started_at);",
+            )?;
+            conn.pragma_update(None, "user_version", 1)?;
+        }
+        if version < 2 {
+            conn.execute_batch(
+                "create table if not exists local_history (
+                    id integer primary key,
+                    document text not null,
+                    at integer not null,
+                    reason text not null,
+                    label text,
+                    text text not null
+                 );
+                 create index if not exists local_history_doc on local_history (document, at);",
             )?;
             conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         }
@@ -265,6 +284,132 @@ impl Storage {
         Ok(())
     }
 
+    // ------------------------------------------------------ Local History
+
+    /// Stores a revision unless the text equals the document's newest one
+    /// (labels are always stored), then applies `retention` to the document.
+    pub fn record_revision(
+        &self,
+        document: &str,
+        text: &str,
+        reason: RevisionReason,
+        label: Option<&str>,
+        retention: Retention,
+    ) -> Result<Option<Revision>, StorageError> {
+        let conn = self.conn();
+        let last: Option<String> = conn
+            .query_row(
+                "select text from local_history where document = ?1 order by at desc, id desc limit 1",
+                params![document],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if reason != RevisionReason::Label && last.as_deref() == Some(text) {
+            return Ok(None);
+        }
+        let at = SystemTime::now();
+        conn.execute(
+            "insert into local_history (document, at, reason, label, text) values (?1, ?2, ?3, ?4, ?5)",
+            params![document, millis(at), reason.as_str(), label, text],
+        )?;
+        let id = conn.last_insert_rowid();
+        drop(conn);
+        self.prune_documents(Some(document), retention)?;
+        Ok(Some(Revision {
+            id,
+            document: document.to_owned(),
+            at,
+            reason,
+            label: label.map(str::to_owned),
+            size: text.len(),
+        }))
+    }
+
+    fn revision_rows(&self, document: Option<&str>) -> Result<Vec<Revision>, StorageError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "select id, document, at, reason, label, length(cast(text as blob)) from local_history
+             where ?1 is null or document = ?1 order by at desc, id desc",
+        )?;
+        let rows = stmt.query_map(params![document], |r| {
+            Ok(Revision {
+                id: r.get(0)?,
+                document: r.get(1)?,
+                at: from_millis(r.get(2)?),
+                reason: RevisionReason::parse(&r.get::<_, String>(3)?)
+                    .unwrap_or(RevisionReason::Autosave),
+                label: r.get(4)?,
+                size: r.get::<_, i64>(5)? as usize,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Revisions of a document, newest first.
+    pub fn revisions(&self, document: &str) -> Result<Vec<Revision>, StorageError> {
+        self.revision_rows(Some(document))
+    }
+
+    /// Documents with revisions, most recently changed first.
+    pub fn history_documents(&self) -> Result<Vec<HistoryDocument>, StorageError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "select document, count(*), max(at) from local_history group by document
+             order by max(at) desc",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(HistoryDocument {
+                document: r.get(0)?,
+                revisions: r.get::<_, i64>(1)? as usize,
+                last: from_millis(r.get(2)?),
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn revision_text(&self, id: i64) -> Result<Option<String>, StorageError> {
+        self.conn()
+            .query_row(
+                "select text from local_history where id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
+            .optional()
+    }
+
+    pub fn delete_revision(&self, id: i64) -> Result<(), StorageError> {
+        self.conn()
+            .execute("delete from local_history where id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn clear_document(&self, document: &str) -> Result<(), StorageError> {
+        self.conn().execute(
+            "delete from local_history where document = ?1",
+            params![document],
+        )?;
+        Ok(())
+    }
+
+    /// Applies `retention` to one document (or all); returns revisions removed.
+    pub fn prune_documents(
+        &self,
+        document: Option<&str>,
+        retention: Retention,
+    ) -> Result<usize, StorageError> {
+        let all = self.revision_rows(document)?;
+        let victims = retention_victims(&all, retention, SystemTime::now());
+        if victims.is_empty() {
+            return Ok(0);
+        }
+        let conn = self.conn();
+        let mut stmt = conn.prepare("delete from local_history where id = ?1")?;
+        for id in &victims {
+            stmt.execute(params![id])?;
+        }
+        Ok(victims.len())
+    }
+
     /// Number of history rows (diagnostics).
     pub fn history_len(&self) -> Result<u64, StorageError> {
         self.conn()
@@ -325,6 +470,47 @@ mod tests {
         );
         s.forget(&"a".into()).unwrap();
         assert_eq!(s.history_len().unwrap(), 1);
+    }
+
+    #[test]
+    fn local_history_survives_reopen_and_prunes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("app.db");
+        let keep = Retention {
+            max_age: Duration::from_secs(3600),
+            per_document: 3,
+        };
+        {
+            let s = Storage::open(&path).unwrap();
+            let doc = "console:pg";
+            let r = |t: &str, why, label| s.record_revision(doc, t, why, label, keep).unwrap();
+            assert!(r("select 1", RevisionReason::Execute, None).is_some());
+            // The same text twice is one revision.
+            assert!(r("select 1", RevisionReason::Autosave, None).is_none());
+            r("select 2", RevisionReason::Label, Some("v1"));
+            for t in ["select 3", "select 4", "select 5"] {
+                r(t, RevisionReason::Autosave, None);
+            }
+            s.record_revision("C:/p/q.sql", "select 9", RevisionReason::Save, None, keep)
+                .unwrap();
+        }
+        let s = Storage::open(&path).unwrap();
+        let revs = s.revisions("console:pg").unwrap();
+        // 3 kept: the label plus the two newest unlabelled ones.
+        assert_eq!(revs.len(), 3, "{revs:?}");
+        assert!(revs.iter().any(|r| r.label.as_deref() == Some("v1")));
+        assert_eq!(
+            s.revision_text(revs[0].id).unwrap().as_deref(),
+            Some("select 5")
+        );
+        assert_eq!(revs[0].size, 8);
+        let docs = s.history_documents().unwrap();
+        assert_eq!(docs.len(), 2);
+        assert_eq!(docs[0].document, "C:/p/q.sql");
+        s.delete_revision(revs[0].id).unwrap();
+        assert_eq!(s.revisions("console:pg").unwrap().len(), 2);
+        s.clear_document("console:pg").unwrap();
+        assert!(s.revisions("console:pg").unwrap().is_empty());
     }
 
     #[test]

@@ -12,7 +12,8 @@
 //!   source → target column [`import::Mapping`];
 //! - [`docs`] — rows ↔ documents (copying between data models);
 //! - [`compare`] — comparing two results;
-//! - [`chart`] — chart series and selection aggregates.
+//! - [`chart`] — chart series and selection aggregates;
+//! - [`plan`] — execution plans of each database → the shared plan model.
 //!
 //! No I/O besides the files being exported or imported; nothing here
 //! talks to a database.
@@ -23,6 +24,7 @@ pub mod docs;
 pub mod edit;
 pub mod export;
 pub mod import;
+pub mod plan;
 pub mod sql;
 pub mod value;
 

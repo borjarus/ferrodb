@@ -54,6 +54,10 @@ impl<'a> Target<'a> {
 
     /// A referenced table: same container → target container.
     fn referenced(&self, container: Option<&str>, name: &str) -> String {
+        // SQLite: `REFERENCES` takes an unqualified table of the same schema.
+        if self.dialect == Dialect::Sqlite {
+            return self.q(name);
+        }
         match container {
             Some(c) if c != self.container => format!("{}.{}", self.q(c), self.q(name)),
             _ => self.qualified(name),
@@ -169,7 +173,7 @@ const PG_RESERVED: &[&str] = &[
 pub fn quote(dialect: Dialect, ident: &str) -> String {
     match dialect {
         Dialect::MySql | Dialect::MariaDb => format!("`{}`", ident.replace('`', "``")),
-        Dialect::Postgres | Dialect::Sqlite => {
+        Dialect::Postgres | Dialect::Sqlite | Dialect::DuckDb => {
             let plain = ident
                 .chars()
                 .next()
@@ -196,7 +200,7 @@ pub fn literal(dialect: Dialect, s: &str) -> String {
     }
 }
 
-fn idents(t: &Target<'_>, cols: &[String]) -> String {
+pub(crate) fn idents(t: &Target<'_>, cols: &[String]) -> String {
     cols.iter().map(|c| t.q(c)).collect::<Vec<_>>().join(", ")
 }
 
@@ -208,7 +212,7 @@ fn pg_serial(ty: &str) -> &'static str {
     }
 }
 
-fn column_def(t: &Target<'_>, c: &Column) -> String {
+pub(crate) fn column_def(t: &Target<'_>, c: &Column) -> String {
     let mut s = t.q(&c.name);
     s.push(' ');
     match t.dialect {
@@ -270,7 +274,7 @@ fn column_def(t: &Target<'_>, c: &Column) -> String {
                 s.push_str(&format!(" COMMENT {}", literal(t.dialect, cm)));
             }
         }
-        Dialect::Sqlite | Dialect::Mongo => {
+        Dialect::Sqlite | Dialect::Mongo | Dialect::DuckDb => {
             s.push_str(&c.data_type);
             if !c.nullable {
                 s.push_str(" NOT NULL");
@@ -283,13 +287,13 @@ fn column_def(t: &Target<'_>, c: &Column) -> String {
     s.trim_end().to_owned()
 }
 
-fn constraint_name(t: &Target<'_>, name: &Option<String>) -> String {
+pub(crate) fn constraint_name(t: &Target<'_>, name: &Option<String>) -> String {
     name.as_ref()
         .map(|n| format!("CONSTRAINT {} ", t.q(n)))
         .unwrap_or_default()
 }
 
-fn fk_clause(t: &Target<'_>, fk: &ForeignKey) -> String {
+pub(crate) fn fk_clause(t: &Target<'_>, fk: &ForeignKey) -> String {
     let mut s = format!(
         "{}FOREIGN KEY ({}) REFERENCES {}",
         constraint_name(t, &fk.name),
@@ -314,7 +318,7 @@ fn fk_clause(t: &Target<'_>, fk: &ForeignKey) -> String {
     s
 }
 
-fn index_stmt(t: &Target<'_>, table: &Table, i: &Index) -> String {
+pub(crate) fn index_stmt(t: &Target<'_>, table: &Table, i: &Index) -> String {
     if let Some(sql) = &i.server_sql {
         return format!("{};", sql.trim_end_matches(';'));
     }
@@ -325,6 +329,18 @@ fn index_stmt(t: &Target<'_>, table: &Table, i: &Index) -> String {
             t.q(&i.name),
             t.qualified(&table.name),
             i.columns.join(", ")
+        ),
+        // SQLite qualifies the index, never the table.
+        Dialect::Sqlite => format!(
+            "CREATE {}INDEX {} ON {} ({}){};",
+            if i.unique { "UNIQUE " } else { "" },
+            t.qualified(&i.name),
+            t.q(&table.name),
+            i.columns.join(", "),
+            i.predicate
+                .as_deref()
+                .map(|p| format!(" WHERE {p}"))
+                .unwrap_or_default()
         ),
         _ => {
             let mut s = format!(
@@ -374,7 +390,7 @@ fn mysql_key_clause(t: &Target<'_>, i: &Index) -> String {
 
 /// `CREATE TABLE` with its indexes, comments and triggers. Foreign keys in
 /// `deferred` are left out (added later with `ALTER TABLE`).
-fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey]) -> String {
+pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey]) -> String {
     let mut out = String::new();
     if t.dialect == Dialect::Sqlite
         && let Some(sql) = &table.server_sql
@@ -407,8 +423,26 @@ fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey]) -> String 
         return out;
     }
     let mysql = t.dialect.is_mysql();
-    let mut items: Vec<String> = table.columns.iter().map(|c| column_def(t, c)).collect();
-    if let Some(pk) = &table.primary_key {
+    // SQLite: `AUTOINCREMENT` only exists inline on a single-column key.
+    let sqlite_auto = (t.dialect == Dialect::Sqlite)
+        .then(|| table.primary_key.as_ref())
+        .flatten()
+        .filter(|pk| pk.columns.len() == 1)
+        .and_then(|pk| table.column(&pk.columns[0]))
+        .filter(|c| c.auto_increment)
+        .map(|c| c.name.clone());
+    let mut items: Vec<String> = table
+        .columns
+        .iter()
+        .map(|c| {
+            if sqlite_auto.as_deref() == Some(c.name.as_str()) {
+                format!("{} INTEGER PRIMARY KEY AUTOINCREMENT", t.q(&c.name))
+            } else {
+                column_def(t, c)
+            }
+        })
+        .collect();
+    if let Some(pk) = table.primary_key.as_ref().filter(|_| sqlite_auto.is_none()) {
         items.push(if mysql {
             format!("PRIMARY KEY ({})", idents(t, &pk.columns))
         } else {
@@ -501,7 +535,7 @@ fn retarget(t: &Target<'_>, def: &str) -> String {
     }
 }
 
-fn comments(t: &Target<'_>, table: &Table, out: &mut String) {
+pub(crate) fn comments(t: &Target<'_>, table: &Table, out: &mut String) {
     if t.dialect != Dialect::Postgres || !t.opts.include_comments {
         return;
     }
@@ -529,7 +563,7 @@ fn comments(t: &Target<'_>, table: &Table, out: &mut String) {
     }
 }
 
-fn view_ddl(t: &Target<'_>, v: &Table) -> String {
+pub(crate) fn view_ddl(t: &Target<'_>, v: &Table) -> String {
     if t.dialect == Dialect::Sqlite
         && let Some(sql) = &v.server_sql
     {
@@ -559,7 +593,7 @@ fn view_ddl(t: &Target<'_>, v: &Table) -> String {
     out
 }
 
-fn routine_ddl(t: &Target<'_>, r: &Routine) -> String {
+pub(crate) fn routine_ddl(t: &Target<'_>, r: &Routine) -> String {
     match &r.definition {
         Some(d) => {
             let mut s = format!("{}\n", retarget(t, d.trim_end()));
@@ -583,7 +617,7 @@ fn routine_ddl(t: &Target<'_>, r: &Routine) -> String {
     }
 }
 
-fn routine_word(r: &Routine) -> &'static str {
+pub(crate) fn routine_word(r: &Routine) -> &'static str {
     match r.kind {
         RoutineKind::Function => "FUNCTION",
         RoutineKind::Procedure => "PROCEDURE",
@@ -591,7 +625,7 @@ fn routine_word(r: &Routine) -> &'static str {
 }
 
 /// `schema.f(integer, text)` (PostgreSQL) / `db.f` (MySQL).
-fn routine_identity(t: &Target<'_>, r: &Routine) -> String {
+pub(crate) fn routine_identity(t: &Target<'_>, r: &Routine) -> String {
     if t.dialect == Dialect::Postgres {
         let args = r.signature.strip_prefix(&r.name).unwrap_or("()").to_owned();
         format!("{}{args}", t.qualified(&r.name))
@@ -600,7 +634,7 @@ fn routine_identity(t: &Target<'_>, r: &Routine) -> String {
     }
 }
 
-fn sequence_ddl(t: &Target<'_>, s: &Sequence) -> String {
+pub(crate) fn sequence_ddl(t: &Target<'_>, s: &Sequence) -> String {
     let mut out = format!("CREATE SEQUENCE {}", t.qualified(&s.name));
     if t.dialect == Dialect::Postgres {
         if let Some(ty) = &s.data_type
@@ -975,7 +1009,7 @@ fn where_clause(t: &Target<'_>, x: &Table, key: &[String]) -> String {
     }
 }
 
-fn drop_stmt(t: &Target<'_>, o: Object<'_>) -> String {
+pub(crate) fn drop_stmt(t: &Target<'_>, o: Object<'_>) -> String {
     match o {
         Object::Table(x) => format!(
             "DROP {} {};\n",

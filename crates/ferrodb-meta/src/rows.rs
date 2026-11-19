@@ -25,6 +25,11 @@ pub struct Row {
 }
 
 impl Row {
+    /// Values in column order.
+    pub fn values(&self) -> &[Option<String>] {
+        &self.values
+    }
+
     pub fn get(&self, name: &str) -> Option<&str> {
         let i = self.names.iter().position(|n| n == name)?;
         self.values[i].as_deref()

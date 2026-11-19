@@ -27,7 +27,8 @@ use std::{
 use bson::Bson;
 use ferrodb_api::{
     ApplyReport, BoxFuture, CancelHandle, ChangeSet, DataSourceConfig, DataSourceId, Error,
-    ExecOptions, HistoryEntry, KeyValue, NodeRef, NoticeLevel, ObjectKind, PlanNode, QueryError,
+    ExecOptions, ExecutionPlan, ExplainOptions, HistoryEntry, KeyValue, NodeRef, NoticeLevel,
+    ObjectKind, QueryError,
     QueryEvent, QueryHandle, QueryId, QueryService, Result, ResultChunk, ResultId, ResultShape,
     Script, ServerNotice, SessionId, SessionInfo, TxMode,
 };
@@ -87,6 +88,12 @@ enum Cmd {
     Apply {
         planned: Vec<ferrodb_data::edit::Planned>,
         reply: oneshot::Sender<Result<usize>>,
+    },
+    /// Execution plan of the first statement (phase 7).
+    Explain {
+        script: Script,
+        opts: ExplainOptions,
+        reply: oneshot::Sender<Result<ExecutionPlan>>,
     },
 }
 
@@ -210,6 +217,16 @@ impl Actor {
                 }
                 Cmd::Apply { planned, reply } => {
                     let r = self.apply(&planned).await;
+                    let _ = reply.send(r);
+                }
+                Cmd::Explain {
+                    script,
+                    opts,
+                    reply,
+                } => {
+                    self.session.status().busy = true;
+                    let r = self.explain(&script, &opts).await;
+                    self.session.status().busy = false;
                     let _ = reply.send(r);
                 }
             }
@@ -351,6 +368,49 @@ impl Actor {
             r.as_ref().err().map(|e| e.to_string()),
         );
         r
+    }
+
+    async fn explain(&mut self, script: &Script, opts: &ExplainOptions) -> Result<ExecutionPlan> {
+        let stmt = crate::explain::first_statement(&script.text, &self.ctx.dialect, self.ctx.mql)
+            .ok_or_else(|| Error::Other("nothing to explain".into()))?;
+        let ex = crate::explain::request(&self.ctx.dialect, self.ctx.mql, &stmt, opts.analyze)?;
+        if let Some(schema) = opts.schema.clone().filter(|s| !s.is_empty() && !self.ctx.mql) {
+            let current = self.session.status().schema.clone();
+            if current.as_deref() != Some(schema.as_str()) {
+                self.internal(Op::SetSchema(&schema)).await?;
+                self.session.status().schema = Some(schema);
+            }
+        }
+        let started = (SystemTime::now(), Instant::now());
+        let conn = self.connection(None).await?;
+        let out = ferrodb_drivers::sink::collect_request(
+            conn.as_mut(),
+            ex.request.clone(),
+            CancellationToken::new(),
+        )
+        .await;
+        self.log(
+            LogSource::User,
+            &ex.statement,
+            started,
+            None,
+            out.as_ref().err().map(|e| e.to_string()),
+        );
+        let mut plan = crate::explain::parse(ex.format, &out?)?;
+        plan.statement = ex.statement;
+        if let Some(run) = ex.measure {
+            let started = Instant::now();
+            let conn = self.connection(None).await?;
+            let out = ferrodb_drivers::sink::collect_request(
+                conn.as_mut(),
+                run,
+                CancellationToken::new(),
+            )
+            .await?;
+            let rows: usize = out.results.iter().map(|r| r.num_rows()).sum();
+            crate::explain::add_measurement(&mut plan, rows as u64, started);
+        }
+        Ok(plan)
     }
 
     async fn transaction(&mut self, commit: bool) -> Result<()> {
@@ -1283,8 +1343,25 @@ impl QueryService for Inner {
         Box::pin(async { Ok(None) })
     }
 
-    fn explain(&self, _session: SessionId, _script: Script) -> BoxFuture<'_, Result<PlanNode>> {
-        Box::pin(async { Err(Error::Unsupported("execution plans (phase 7)".into())) })
+    fn explain(
+        &self,
+        session: SessionId,
+        script: Script,
+        opts: ExplainOptions,
+    ) -> BoxFuture<'_, Result<ExecutionPlan>> {
+        let s = self.session(session);
+        Box::pin(async move {
+            let s = s?;
+            let (tx, rx) = oneshot::channel();
+            if !s.send(Cmd::Explain {
+                script,
+                opts,
+                reply: tx,
+            }) {
+                return Err(Error::ConnectionLost);
+            }
+            rx.await.map_err(|_| Error::ConnectionLost)?
+        })
     }
 
     fn key_value(&self, _session: SessionId, _key: String) -> BoxFuture<'_, Result<KeyValue>> {

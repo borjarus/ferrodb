@@ -222,4 +222,51 @@ pub trait MetadataService: Send + Sync {
         let _ = object;
         Box::pin(async { Err(crate::Error::Unsupported("quick documentation".into())) })
     }
+
+    /// Tables and foreign keys of a schema / database (ER diagram).
+    fn er_model(&self, container: NodeRef) -> BoxFuture<'_, Result<crate::ErModel>> {
+        let _ = container;
+        Box::pin(async { Err(crate::Error::Unsupported("ER diagrams".into())) })
+    }
+
+    /// Differences between two schemas / databases (possibly of different
+    /// data sources) and the script making `target` like `source`.
+    fn compare_schemas(
+        &self,
+        source: NodeRef,
+        target: NodeRef,
+        opts: crate::CompareOptions,
+    ) -> BoxFuture<'_, Result<crate::SchemaComparison>> {
+        let _ = (source, target, opts);
+        Box::pin(async { Err(crate::Error::Unsupported("schema comparison".into())) })
+    }
+
+    /// A table as the table editor shows it.
+    fn table_design(&self, table: NodeRef) -> BoxFuture<'_, Result<crate::TableDesign>> {
+        let _ = table;
+        Box::pin(async { Err(crate::Error::Unsupported("the table editor".into())) })
+    }
+
+    /// `CREATE TABLE` / `ALTER TABLE` statements for a design in
+    /// `container` (the table named `design.original` is altered).
+    fn design_script(
+        &self,
+        container: NodeRef,
+        design: crate::TableDesign,
+    ) -> BoxFuture<'_, Result<crate::DesignScript>> {
+        let _ = (container, design);
+        Box::pin(async { Err(crate::Error::Unsupported("the table editor".into())) })
+    }
+
+    /// Runs DDL statements in `container` (in one transaction where the
+    /// database has transactional DDL) and refreshes its metadata. Returns
+    /// the statements run.
+    fn apply_script(
+        &self,
+        container: NodeRef,
+        statements: Vec<String>,
+    ) -> BoxFuture<'_, Result<usize>> {
+        let _ = (container, statements);
+        Box::pin(async { Err(crate::Error::Unsupported("running DDL".into())) })
+    }
 }

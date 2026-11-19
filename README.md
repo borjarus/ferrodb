@@ -29,13 +29,13 @@ Environment variables:
 | `crates/ferrodb-api` | Contracts (v2): `Backend` and its services; the three data models; `Capabilities`; the driver catalog; query events |
 | `crates/ferrodb-mock` | `MockBackend`: the 26-database catalog, 5 profiles (PostgreSQL-, BigQuery-, Cassandra-, MongoDB- and Redis-like) and 10 load or failure scenarios |
 | `crates/ferrodb-core` | The real `Backend`: data sources (`data-sources.toml`), sessions, script execution with paging, transactions, read-only mode, timeouts, history |
-| `crates/ferrodb-drivers` | `Driver` / `Connection` / `FamilyVariant`, Arrow mapping; families `pgwire` (PostgreSQL), `mysql` (MySQL, MariaDB), `sqlite` |
+| `crates/ferrodb-drivers` | `Driver` / `Connection` / `FamilyVariant`, Arrow mapping; families `pgwire` (PostgreSQL), `mysql` (MySQL, MariaDB), `sqlite`, `mongodb`, `duckdb` (file data sources, phase 7) |
 | `crates/ferrodb-driver-tck` | Driver compatibility suite run against every database (ADR-012) |
 | `crates/ferrodb-lang` | SQL statement splitting, parameters, statement analysis (read-only, warnings) |
-| `crates/ferrodb-data` | Result data (phase 6): typed values, edit generators, export / import formats, row ↔ document conversion, result comparison, charts. See [`docs/phase-6.md`](docs/phase-6.md) |
+| `crates/ferrodb-data` | Result data (phase 6): typed values, edit generators, export / import formats, row ↔ document conversion, result comparison, charts; execution plan parsers (phase 7). See [`docs/phase-6.md`](docs/phase-6.md), [`docs/phase-7.md`](docs/phase-7.md) |
 | `crates/ferrodb-net` | TLS (rustls) and SSH tunnels (russh) |
 | `crates/ferrodb-secrets` | System keyring (ADR-013) |
-| `crates/ferrodb-storage` | `app.db`: query history (FTS5) and query log |
+| `crates/ferrodb-storage` | `app.db`: query history (FTS5), query log, Local History revisions (phase 7) |
 | `crates/ferrodb-ui-kit` | The facade over GPUI Kit (`gpui`, `kit`, `theme`, `icons`); the only place GPUI Kit is named |
 | `crates/ferrodb-ui` | Views: workspace, dock panels, palettes, settings, actions and keymap, i18n (PL/EN) |
 | `crates/ferrodb-app` | The `ferrodb` binary: startup, window, keymap file, packaging metadata |

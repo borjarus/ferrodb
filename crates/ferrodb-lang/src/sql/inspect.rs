@@ -154,6 +154,7 @@ fn sp_dialect(name: &str) -> Option<Box<dyn SpDialect>> {
         "postgresql" => Box::new(PostgreSqlDialect {}),
         "mysql" => Box::new(MySqlDialect {}),
         "sqlite" => Box::new(SQLiteDialect {}),
+        "duckdb" => Box::new(sqlparser::dialect::DuckDbDialect {}),
         "mssql" => Box::new(MsSqlDialect {}),
         "generic" => Box::new(GenericDialect {}),
         _ => return None,

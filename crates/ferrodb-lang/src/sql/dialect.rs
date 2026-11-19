@@ -30,6 +30,7 @@ const SOURCES: &[(&str, &str)] = &[
     ("sqlite", include_str!("../../../../assets/dialects/sqlite.toml")),
     ("tsql", include_str!("../../../../assets/dialects/tsql.toml")),
     ("oracle", include_str!("../../../../assets/dialects/oracle.toml")),
+    ("duckdb", include_str!("../../../../assets/dialects/duckdb.toml")),
 ];
 
 /// How unquoted identifiers are stored by the database.

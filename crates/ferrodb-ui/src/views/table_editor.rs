@@ -1,19 +1,30 @@
-//! Visual table editor with DDL preview (plan 2.8, mockup level: the DDL
-//! is generated locally for the preview; real generators per dialect come
-//! with `ferrodb-lang` / `ferrodb-meta`).
+//! Visual table editor (plan, phase 7): columns, primary key, indexes and
+//! foreign keys of a new or existing table. Every change asks the backend
+//! for the script ([`MetadataService::design_script`]: `CREATE TABLE` or
+//! `ALTER TABLE` in the source's dialect; a SQLite table is rebuilt when it
+//! must be) and shows it with its warnings; Apply runs it
+//! ([`MetadataService::apply_script`]) and refreshes the explorer.
+//!
+//! [`MetadataService::design_script`]: ferrodb_api::MetadataService::design_script
+//! [`MetadataService::apply_script`]: ferrodb_api::MetadataService::apply_script
 
-use ferrodb_api::{NodeRef, ObjectKind};
+use std::time::Duration;
+
+use ferrodb_api::{
+    ColumnDesign, DesignScript, ForeignKeyDesign, IndexDesign, NodeRef, ObjectKind, TableDesign,
+};
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
     icons,
     kit::{
-        ActiveTheme, Sizable as _, WindowExt as _,
+        ActiveTheme, Disableable as _, Sizable as _, WindowExt as _,
         button::{Button, ButtonVariants as _},
         checkbox::Checkbox,
         dialog::DialogFooter,
         h_flex,
         input::{Input, InputEvent, InputState},
         notification::Notification,
+        tab::{Tab, TabBar},
         v_flex,
     },
 };
@@ -22,73 +33,167 @@ use crate::{
     AppState,
     i18n::{t, t_args},
     output,
+    views::schema_compare::container_of,
+    workspace,
 };
 
+/// Delay between the last edit and asking for the script.
+const PREVIEW_DEBOUNCE: Duration = Duration::from_millis(250);
+
 pub struct ColumnRow {
+    /// Name as loaded (`None` = added in the editor).
+    pub original: Option<String>,
     pub name: Entity<InputState>,
     pub ty: Entity<InputState>,
     pub default: Entity<InputState>,
     pub nullable: bool,
     pub primary: bool,
+    pub auto_increment: bool,
+    pub comment: Option<String>,
+}
+
+pub struct IndexRow {
+    pub name: Entity<InputState>,
+    /// Comma-separated columns.
+    pub columns: Entity<InputState>,
+    pub unique: bool,
+}
+
+pub struct ForeignKeyRow {
+    pub name: Option<String>,
+    pub columns: Entity<InputState>,
+    pub ref_table: Entity<InputState>,
+    pub ref_columns: Entity<InputState>,
+    pub on_delete: Entity<InputState>,
+    pub on_update: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditorTab {
+    Columns,
+    Indexes,
+    ForeignKeys,
 }
 
 pub struct TableEditor {
-    /// Table being modified (`None` = new table).
+    /// Schema / database the table is in.
+    pub container: Option<NodeRef>,
+    /// The table being modified (`None` = a new table).
     pub source: Option<NodeRef>,
     pub name: Entity<InputState>,
     pub columns: Vec<ColumnRow>,
-    /// Columns as loaded (to produce ALTER statements).
-    original: Vec<(String, String)>,
+    pub indexes: Vec<IndexRow>,
+    pub foreign_keys: Vec<ForeignKeyRow>,
+    /// What the editor does not show, kept from the loaded design.
+    loaded: Option<TableDesign>,
+    pub tab: EditorTab,
+    pub script: Option<DesignScript>,
+    pub error: Option<String>,
+    pub applying: bool,
+    preview: Option<Task<()>>,
     _subs: Vec<Subscription>,
 }
 
+fn split_list(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(|x| x.trim().to_owned())
+        .filter(|x| !x.is_empty())
+        .collect()
+}
+
 impl TableEditor {
-    pub fn new(source: Option<NodeRef>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let table = source
+    pub fn new(node: Option<NodeRef>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let table = node
+            .as_ref()
+            .filter(|n| n.kind() == Some(ObjectKind::Table))
+            .cloned();
+        let container = node.as_ref().map(container_of).filter(|c| !c.path.is_empty());
+        let name_text = table
             .as_ref()
             .and_then(|n| n.name())
             .unwrap_or("new_table")
             .to_owned();
-        let name = cx.new(|cx| InputState::new(window, cx).default_value(table));
-        let sub = cx.subscribe(&name, |_, _, ev: &InputEvent, cx| {
-            if matches!(ev, InputEvent::Change) {
-                cx.notify()
-            }
-        });
         let mut this = Self {
-            source: source.clone(),
-            name,
+            container,
+            source: table.clone(),
+            name: cx.new(|cx| InputState::new(window, cx)),
             columns: Vec::new(),
-            original: Vec::new(),
-            _subs: vec![sub],
+            indexes: Vec::new(),
+            foreign_keys: Vec::new(),
+            loaded: None,
+            tab: EditorTab::Columns,
+            script: None,
+            error: None,
+            applying: false,
+            preview: None,
+            _subs: Vec::new(),
         };
-        match source {
+        this.name = this.input(&name_text, window, cx);
+        match table {
             Some(node) => this.load(node, window, cx),
             None => {
                 this.add_column("id", "bigint", false, true, window, cx);
+                this.columns[0].auto_increment = true;
                 this.add_column("name", "text", true, false, window, cx);
+                this.schedule_preview(cx);
             }
         }
         this
+    }
+
+    fn input(&mut self, value: &str, window: &mut Window, cx: &mut Context<Self>) -> Entity<InputState> {
+        let v = value.to_owned();
+        let e = cx.new(|cx| InputState::new(window, cx).default_value(v));
+        self._subs.push(cx.subscribe(&e, |this, _, ev: &InputEvent, cx| {
+            if matches!(ev, InputEvent::Change) {
+                this.schedule_preview(cx);
+            }
+        }));
+        e
     }
 
     fn load(&mut self, node: NodeRef, window: &mut Window, cx: &mut Context<Self>) {
         let backend = AppState::backend(cx);
         let task = cx
             .background_executor()
-            .spawn(async move { backend.metadata().children(node).await });
+            .spawn(async move { backend.metadata().table_design(node).await });
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(objs) = task.await else { return };
-            let _ = this.update_in(cx, |this, window, cx| {
-                for o in objs.iter().filter(|o| o.kind == ObjectKind::Column) {
-                    let ty = sql_type(o.detail.as_deref().unwrap_or("text"));
-                    this.original.push((o.name.clone(), ty.clone()));
-                    let pk = o.name == "id";
-                    this.add_column(&o.name, &ty, !pk, pk, window, cx);
+            let r = task.await;
+            let _ = this.update_in(cx, |this, window, cx| match r {
+                Ok(d) => this.fill(d, window, cx),
+                Err(e) => {
+                    this.error = Some(e.to_string());
+                    cx.notify();
                 }
             });
         })
         .detach();
+    }
+
+    /// Shows a loaded design.
+    pub fn fill(&mut self, d: TableDesign, window: &mut Window, cx: &mut Context<Self>) {
+        self.columns.clear();
+        self.indexes.clear();
+        self.foreign_keys.clear();
+        for c in &d.columns {
+            let pk = d.primary_key.contains(&c.name);
+            self.add_column(&c.name, &c.data_type, c.nullable, pk, window, cx);
+            let row = self.columns.last_mut().expect("just added");
+            row.original = c.original.clone();
+            row.auto_increment = c.auto_increment;
+            row.comment = c.comment.clone();
+            if let Some(def) = &c.default {
+                row.default.update(cx, |i, cx| i.set_value(def.clone(), window, cx));
+            }
+        }
+        for i in &d.indexes {
+            self.add_index(&i.name, &i.columns.join(", "), i.unique, window, cx);
+        }
+        for f in &d.foreign_keys {
+            self.add_foreign_key(f, window, cx);
+        }
+        self.loaded = Some(d);
+        self.schedule_preview(cx);
     }
 
     pub fn add_column(
@@ -100,113 +205,188 @@ impl TableEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let input = |v: &str, window: &mut Window, cx: &mut Context<Self>| {
-            let v = v.to_owned();
-            let e = cx.new(|cx| InputState::new(window, cx).default_value(v));
-            let sub = cx.subscribe(&e, |_, _, ev: &InputEvent, cx| {
-                if matches!(ev, InputEvent::Change) {
-                    cx.notify()
-                }
-            });
-            (e, sub)
-        };
-        let (name, s1) = input(name, window, cx);
-        let (ty, s2) = input(ty, window, cx);
-        let (default, s3) = input("", window, cx);
-        self._subs.extend([s1, s2, s3]);
+        let name = self.input(name, window, cx);
+        let ty = self.input(ty, window, cx);
+        let default = self.input("", window, cx);
         self.columns.push(ColumnRow {
+            original: None,
             name,
             ty,
             default,
             nullable,
             primary,
+            auto_increment: false,
+            comment: None,
         });
+        self.schedule_preview(cx);
+    }
+
+    pub fn add_index(&mut self, name: &str, columns: &str, unique: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let name = self.input(name, window, cx);
+        let columns = self.input(columns, window, cx);
+        self.indexes.push(IndexRow {
+            name,
+            columns,
+            unique,
+        });
+        self.schedule_preview(cx);
+    }
+
+    pub fn add_foreign_key(&mut self, f: &ForeignKeyDesign, window: &mut Window, cx: &mut Context<Self>) {
+        let columns = self.input(&f.columns.join(", "), window, cx);
+        let ref_table = self.input(&f.ref_table, window, cx);
+        let ref_columns = self.input(&f.ref_columns.join(", "), window, cx);
+        let on_delete = self.input(f.on_delete.as_deref().unwrap_or(""), window, cx);
+        self.foreign_keys.push(ForeignKeyRow {
+            name: f.name.clone(),
+            columns,
+            ref_table,
+            ref_columns,
+            on_delete,
+            on_update: f.on_update.clone(),
+        });
+        self.schedule_preview(cx);
+    }
+
+    /// The design as edited.
+    pub fn design(&self, cx: &App) -> TableDesign {
+        let v = |e: &Entity<InputState>| e.read(cx).value().trim().to_owned();
+        let loaded = self.loaded.clone().unwrap_or_default();
+        TableDesign {
+            original: self.source.as_ref().and_then(|n| n.name()).map(str::to_owned),
+            name: v(&self.name),
+            comment: loaded.comment.clone(),
+            columns: self
+                .columns
+                .iter()
+                .map(|c| ColumnDesign {
+                    original: c.original.clone(),
+                    name: v(&c.name),
+                    data_type: v(&c.ty),
+                    nullable: c.nullable,
+                    default: Some(v(&c.default)).filter(|d| !d.is_empty()),
+                    comment: c.comment.clone(),
+                    auto_increment: c.auto_increment,
+                })
+                .collect(),
+            primary_key: self
+                .columns
+                .iter()
+                .filter(|c| c.primary)
+                .map(|c| v(&c.name))
+                .filter(|n| !n.is_empty())
+                .collect(),
+            uniques: loaded.uniques.clone(),
+            foreign_keys: self
+                .foreign_keys
+                .iter()
+                .map(|f| ForeignKeyDesign {
+                    name: f.name.clone(),
+                    columns: split_list(&v(&f.columns)),
+                    ref_table: v(&f.ref_table),
+                    ref_columns: split_list(&v(&f.ref_columns)),
+                    on_delete: Some(v(&f.on_delete)).filter(|x| !x.is_empty()),
+                    on_update: f.on_update.clone(),
+                })
+                .collect(),
+            indexes: self
+                .indexes
+                .iter()
+                .map(|i| IndexDesign {
+                    name: v(&i.name),
+                    columns: split_list(&v(&i.columns)),
+                    unique: i.unique,
+                })
+                .collect(),
+            checks: loaded.checks.clone(),
+        }
+    }
+
+    /// Asks the backend for the script after a short pause.
+    pub fn schedule_preview(&mut self, cx: &mut Context<Self>) {
+        let Some(container) = self.container.clone() else {
+            self.error = Some(t("table-editor-no-schema"));
+            cx.notify();
+            return;
+        };
+        self.preview = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(PREVIEW_DEBOUNCE).await;
+            let Ok((design, backend)) =
+                this.update(cx, |this, cx| (this.design(cx), AppState::backend(cx)))
+            else {
+                return;
+            };
+            let r = cx
+                .background_executor()
+                .spawn(async move { backend.metadata().design_script(container, design).await })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                match r {
+                    Ok(s) => {
+                        this.script = Some(s);
+                        this.error = None;
+                    }
+                    Err(e) => {
+                        this.script = None;
+                        this.error = Some(e.to_string());
+                    }
+                }
+                cx.notify();
+            });
+        }));
         cx.notify();
     }
 
-    /// `CREATE TABLE` for a new table, `ALTER TABLE` statements for an existing one.
-    pub fn ddl(&self, cx: &App) -> String {
-        let table = self.name.read(cx).value().to_string();
-        let cols: Vec<(String, String, String, bool, bool)> = self
-            .columns
-            .iter()
-            .map(|c| {
-                (
-                    c.name.read(cx).value().trim().to_string(),
-                    c.ty.read(cx).value().trim().to_string(),
-                    c.default.read(cx).value().trim().to_string(),
-                    c.nullable,
-                    c.primary,
-                )
-            })
-            .filter(|c| !c.0.is_empty())
-            .collect();
-        let def = |(n, ty, d, null, _): &(String, String, String, bool, bool)| {
-            let mut s = format!("{n} {ty}");
-            if !null {
-                s.push_str(" NOT NULL");
-            }
-            if !d.is_empty() {
-                s.push_str(&format!(" DEFAULT {d}"));
-            }
-            s
+    /// The script shown in the preview.
+    pub fn ddl(&self) -> String {
+        match (&self.script, &self.error) {
+            (_, Some(e)) => format!("-- {e}"),
+            (Some(s), _) if s.statements.is_empty() => t("table-editor-no-changes"),
+            (Some(s), _) => s.text(),
+            (None, None) => String::new(),
+        }
+    }
+
+    /// Runs the script; returns whether it was started.
+    pub fn apply(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let (Some(container), Some(script)) = (self.container.clone(), self.script.clone()) else {
+            return false;
         };
-        if self.source.is_none() {
-            let mut lines: Vec<String> = cols.iter().map(|c| format!("    {}", def(c))).collect();
-            let pk: Vec<&str> = cols.iter().filter(|c| c.4).map(|c| c.0.as_str()).collect();
-            if !pk.is_empty() {
-                lines.push(format!("    PRIMARY KEY ({})", pk.join(", ")));
-            }
-            return format!("CREATE TABLE {table} (\n{}\n);", lines.join(",\n"));
+        if script.statements.is_empty() || self.applying {
+            return false;
         }
-        let mut out = Vec::new();
-        let original_name = self
-            .source
-            .as_ref()
-            .and_then(|n| n.name())
-            .unwrap_or_default();
-        if table != original_name {
-            out.push(format!("ALTER TABLE {original_name} RENAME TO {table};"));
-        }
-        for c in &cols {
-            match self.original.iter().find(|(n, _)| *n == c.0) {
-                None => out.push(format!("ALTER TABLE {table} ADD COLUMN {};", def(c))),
-                Some((_, ty)) if *ty != c.1 => out.push(format!(
-                    "ALTER TABLE {table} ALTER COLUMN {} TYPE {};",
-                    c.0, c.1
-                )),
-                _ => {}
-            }
-        }
-        for (n, _) in &self.original {
-            if !cols.iter().any(|c| &c.0 == n) {
-                out.push(format!("ALTER TABLE {table} DROP COLUMN {n};"));
-            }
-        }
-        if out.is_empty() {
-            t("table-editor-no-changes")
-        } else {
-            out.join("\n")
-        }
+        self.applying = true;
+        let backend = AppState::backend(cx);
+        let node = container.clone();
+        let statements = script.statements.clone();
+        let task = cx
+            .background_executor()
+            .spawn(async move { backend.metadata().apply_script(node, statements).await });
+        let text = script.text();
+        cx.spawn_in(window, async move |this, cx| {
+            let r = task.await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.applying = false;
+                match r {
+                    Ok(_) => {
+                        output::info(text.clone(), cx);
+                        window.close_dialog(cx);
+                        window.push_notification(Notification::success(t("table-editor-applied")), cx);
+                        workspace::refresh_explorer_node(container.clone(), cx);
+                    }
+                    Err(e) => {
+                        this.error = Some(e.to_string());
+                        window.push_notification(Notification::error(e.to_string()), cx);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        true
     }
-}
 
-/// Arrow type name (as the mock reports columns) → SQL type for the editor.
-fn sql_type(arrow: &str) -> String {
-    match arrow {
-        "Int64" => "bigint",
-        "Int32" => "integer",
-        "Float64" => "double precision",
-        "Boolean" => "boolean",
-        "Utf8" => "text",
-        s if s.starts_with("Timestamp") => "timestamp",
-        s => return s.to_lowercase(),
-    }
-    .into()
-}
-
-impl Render for TableEditor {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn columns_view(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let header = h_flex()
             .gap_2()
@@ -214,23 +394,24 @@ impl Render for TableEditor {
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(theme.muted_foreground)
             .child(div().w(px(160.)).child(t("table-editor-column")))
-            .child(div().w(px(140.)).child(t("table-editor-type")))
+            .child(div().w(px(150.)).child(t("table-editor-type")))
             .child(div().w(px(120.)).child(t("table-editor-default")))
-            .child(div().w(px(60.)).child("NULL"))
-            .child(div().w(px(40.)).child("PK"));
+            .child(div().w(px(50.)).child("NULL"))
+            .child(div().w(px(40.)).child("PK"))
+            .child(div().w(px(50.)).child(t("table-editor-auto")));
         let rows = self.columns.iter().enumerate().map(|(i, c)| {
             h_flex()
                 .gap_2()
                 .child(div().w(px(160.)).child(Input::new(&c.name).xsmall()))
-                .child(div().w(px(140.)).child(Input::new(&c.ty).xsmall()))
+                .child(div().w(px(150.)).child(Input::new(&c.ty).xsmall()))
                 .child(div().w(px(120.)).child(Input::new(&c.default).xsmall()))
                 .child(
-                    div().w(px(60.)).child(
+                    div().w(px(50.)).child(
                         Checkbox::new(("te-null", i))
                             .checked(c.nullable)
                             .on_click(cx.listener(move |this, v: &bool, _, cx| {
                                 this.columns[i].nullable = *v;
-                                cx.notify();
+                                this.schedule_preview(cx);
                             })),
                     ),
                 )
@@ -240,7 +421,20 @@ impl Render for TableEditor {
                             .checked(c.primary)
                             .on_click(cx.listener(move |this, v: &bool, _, cx| {
                                 this.columns[i].primary = *v;
-                                cx.notify();
+                                if *v {
+                                    this.columns[i].nullable = false;
+                                }
+                                this.schedule_preview(cx);
+                            })),
+                    ),
+                )
+                .child(
+                    div().w(px(50.)).child(
+                        Checkbox::new(("te-auto", i))
+                            .checked(c.auto_increment)
+                            .on_click(cx.listener(move |this, v: &bool, _, cx| {
+                                this.columns[i].auto_increment = *v;
+                                this.schedule_preview(cx);
                             })),
                     ),
                 )
@@ -251,21 +445,12 @@ impl Render for TableEditor {
                         .icon(icons::Lucide::Trash)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.columns.remove(i);
-                            cx.notify();
+                            this.schedule_preview(cx);
                         })),
                 )
         });
-        let ddl = self.ddl(cx);
         v_flex()
-            .id("table-editor")
-            .test_support()
-            .gap_2()
-            .child(
-                h_flex()
-                    .gap_2()
-                    .child(div().w(px(100.)).child(t("table-editor-name")))
-                    .child(div().w(px(240.)).child(Input::new(&self.name).small())),
-            )
+            .gap_1()
             .child(header)
             .child(
                 v_flex()
@@ -285,12 +470,173 @@ impl Render for TableEditor {
                         this.add_column("", "text", true, false, w, cx)
                     })),
             )
+    }
+
+    fn indexes_view(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let rows = self.indexes.iter().enumerate().map(|(i, x)| {
+            h_flex()
+                .gap_2()
+                .child(div().w(px(200.)).child(Input::new(&x.name).xsmall()))
+                .child(div().w(px(300.)).child(Input::new(&x.columns).xsmall()))
+                .child(
+                    Checkbox::new(("te-unique", i))
+                        .label(t("table-editor-unique"))
+                        .checked(x.unique)
+                        .on_click(cx.listener(move |this, v: &bool, _, cx| {
+                            this.indexes[i].unique = *v;
+                            this.schedule_preview(cx);
+                        })),
+                )
+                .child(
+                    Button::new(("te-ix-remove", i))
+                        .ghost()
+                        .xsmall()
+                        .icon(icons::Lucide::Trash)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.indexes.remove(i);
+                            this.schedule_preview(cx);
+                        })),
+                )
+        });
+        v_flex()
+            .gap_1()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.muted_foreground)
+                    .child(div().w(px(200.)).child(t("table-editor-index-name")))
+                    .child(div().w(px(300.)).child(t("table-editor-index-columns"))),
+            )
+            .children(rows)
+            .child(
+                Button::new("te-add-index")
+                    .ghost()
+                    .xsmall()
+                    .icon(icons::Lucide::Plus)
+                    .label(t("table-editor-add-index"))
+                    .on_click(cx.listener(|this, _, w, cx| {
+                        let table = this.name.read(cx).value().trim().to_owned();
+                        let n = this.indexes.len() + 1;
+                        this.add_index(&format!("ix_{table}_{n}"), "", false, w, cx)
+                    })),
+            )
+    }
+
+    fn foreign_keys_view(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let rows = self.foreign_keys.iter().enumerate().map(|(i, f)| {
+            h_flex()
+                .gap_2()
+                .child(div().w(px(150.)).child(Input::new(&f.columns).xsmall()))
+                .child(div().w(px(150.)).child(Input::new(&f.ref_table).xsmall()))
+                .child(div().w(px(150.)).child(Input::new(&f.ref_columns).xsmall()))
+                .child(div().w(px(110.)).child(Input::new(&f.on_delete).xsmall()))
+                .child(
+                    Button::new(("te-fk-remove", i))
+                        .ghost()
+                        .xsmall()
+                        .icon(icons::Lucide::Trash)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.foreign_keys.remove(i);
+                            this.schedule_preview(cx);
+                        })),
+                )
+        });
+        v_flex()
+            .gap_1()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.muted_foreground)
+                    .child(div().w(px(150.)).child(t("table-editor-fk-columns")))
+                    .child(div().w(px(150.)).child(t("table-editor-fk-table")))
+                    .child(div().w(px(150.)).child(t("table-editor-fk-ref-columns")))
+                    .child(div().w(px(110.)).child(t("table-editor-fk-on-delete"))),
+            )
+            .children(rows)
+            .child(
+                Button::new("te-add-fk")
+                    .ghost()
+                    .xsmall()
+                    .icon(icons::Lucide::Plus)
+                    .label(t("table-editor-add-fk"))
+                    .on_click(cx.listener(|this, _, w, cx| {
+                        this.add_foreign_key(&ForeignKeyDesign::default(), w, cx)
+                    })),
+            )
+    }
+}
+
+impl Render for TableEditor {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let tab_ix = match self.tab {
+            EditorTab::Columns => 0,
+            EditorTab::Indexes => 1,
+            EditorTab::ForeignKeys => 2,
+        };
+        let body = match self.tab {
+            EditorTab::Columns => self.columns_view(cx).into_any_element(),
+            EditorTab::Indexes => self.indexes_view(cx).into_any_element(),
+            EditorTab::ForeignKeys => self.foreign_keys_view(cx).into_any_element(),
+        };
+        let warnings = self
+            .script
+            .as_ref()
+            .map(|s| s.warnings.clone())
+            .unwrap_or_default();
+        let ddl = self.ddl();
+        let place = self
+            .container
+            .as_ref()
+            .map(|c| crate::views::schema_compare::label(c))
+            .unwrap_or_default();
+        v_flex()
+            .id("table-editor")
+            .test_support()
+            .gap_2()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(div().w(px(100.)).child(t("table-editor-name")))
+                    .child(div().w(px(240.)).child(Input::new(&self.name).small()))
+                    .child(div().text_sm().text_color(theme.muted_foreground).child(place)),
+            )
+            .child(
+                TabBar::new("te-tabs")
+                    .xsmall()
+                    .selected_index(tab_ix)
+                    .child(Tab::new().label(t("table-editor-columns")))
+                    .child(Tab::new().label(t_args("table-editor-indexes", &[("count", self.indexes.len().into())])))
+                    .child(Tab::new().label(t_args(
+                        "table-editor-foreign-keys",
+                        &[("count", self.foreign_keys.len().into())],
+                    )))
+                    .on_click(cx.listener(|this, ix: &usize, _, cx| {
+                        this.tab = [EditorTab::Columns, EditorTab::Indexes, EditorTab::ForeignKeys][*ix];
+                        cx.notify();
+                    })),
+            )
+            .child(body)
             .child(
                 div()
                     .text_sm()
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(t("table-editor-ddl")),
             )
+            .children(warnings.into_iter().map(|w| {
+                h_flex()
+                    .gap_1()
+                    .text_xs()
+                    .text_color(theme.warning)
+                    .child(icons::Icon::from(icons::Lucide::TriangleAlert).xsmall())
+                    .child(w)
+            }))
             .child(
                 div()
                     .id("te-ddl")
@@ -312,18 +658,30 @@ impl Render for TableEditor {
 pub struct LastTableEditor(pub Option<Entity<TableEditor>>);
 impl Global for LastTableEditor {}
 
-pub fn open(source: Option<NodeRef>, window: &mut Window, cx: &mut App) {
-    let editor = cx.new(|cx| TableEditor::new(source.clone(), window, cx));
+/// Opens the editor: a table node edits it, any other node of a schema
+/// creates a new table there.
+pub fn open(node: Option<NodeRef>, window: &mut Window, cx: &mut App) {
+    let editor = cx.new(|cx| TableEditor::new(node.clone(), window, cx));
     cx.set_global(LastTableEditor(Some(editor.clone())));
-    let title = match source.as_ref().and_then(|n| n.name()) {
+    let title = match node
+        .as_ref()
+        .filter(|n| n.kind() == Some(ObjectKind::Table))
+        .and_then(|n| n.name())
+    {
         Some(n) => t_args("table-editor-modify", &[("name", n.to_owned().into())]),
         None => t("action-new-table"),
     };
-    window.open_dialog(cx, move |dialog, _, _| {
+    window.open_dialog(cx, move |dialog, _, cx| {
         let e = editor.clone();
+        let ready = e
+            .read(cx)
+            .script
+            .as_ref()
+            .is_some_and(|s| !s.statements.is_empty())
+            && !e.read(cx).applying;
         dialog
             .title(title.clone())
-            .w(px(720.))
+            .w(px(820.))
             .child(editor.clone())
             .footer(
                 DialogFooter::new()
@@ -336,14 +694,11 @@ pub fn open(source: Option<NodeRef>, window: &mut Window, cx: &mut App) {
                         Button::new("te-apply")
                             .primary()
                             .label(t("button-apply"))
+                            .disabled(!ready)
                             .on_click(move |_, w, cx| {
-                                let ddl = e.read(cx).ddl(cx);
-                                w.close_dialog(cx);
-                                output::info(ddl, cx);
-                                w.push_notification(
-                                    Notification::info(t("table-editor-mock-applied")),
-                                    cx,
-                                );
+                                e.update(cx, |e, cx| {
+                                    e.apply(w, cx);
+                                });
                             }),
                     ),
             )
@@ -355,8 +710,8 @@ mod tests {
     use super::*;
 
     #[::core::prelude::v1::test]
-    fn arrow_types_map_to_sql() {
-        assert_eq!(sql_type("Int64"), "bigint");
-        assert_eq!(sql_type("Timestamp(Millisecond, None)"), "timestamp");
+    fn lists_are_split() {
+        assert_eq!(split_list(" a, b ,,c"), vec!["a", "b", "c"]);
+        assert!(split_list("").is_empty());
     }
 }

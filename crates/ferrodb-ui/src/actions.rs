@@ -32,8 +32,10 @@ actions!(
         ExecuteStatement,
         ExecuteScript,
         ExplainPlan,
+        ExplainAnalyze,
         StopQuery,
         FormatCode,
+        SaveFile,
         Rename,
         GoToDeclaration,
         LiveTemplates,
@@ -49,6 +51,7 @@ actions!(
         // tools
         ShowQueryHistory,
         ShowLocalHistory,
+        ShowProjectFiles,
         NewTable,
         ShowErDiagram,
         CompareSchemas,
@@ -323,6 +326,24 @@ pub static ACTIONS: &[ActionSpec] = &[
         ["plan", "explain"]
     ),
     spec!(
+        ExplainAnalyze,
+        "action-explain-analyze",
+        Console,
+        Some("secondary-alt-shift-e"),
+        None,
+        C,
+        ["plan", "explain analyze", "profile"]
+    ),
+    spec!(
+        SaveFile,
+        "action-save-file",
+        Console,
+        Some("secondary-s"),
+        None,
+        C,
+        ["save", "file"]
+    ),
+    spec!(
         StopQuery,
         "action-stop",
         Console,
@@ -456,6 +477,15 @@ pub static ACTIONS: &[ActionSpec] = &[
         None,
         None,
         ["revisions", "restore"]
+    ),
+    spec!(
+        ShowProjectFiles,
+        "action-project-files",
+        Tools,
+        None,
+        None,
+        None,
+        ["files", "project", "csv", "parquet"]
     ),
     spec!(
         NewTable,

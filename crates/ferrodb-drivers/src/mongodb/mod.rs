@@ -43,7 +43,7 @@ pub fn capabilities() -> Capabilities {
         schema: SchemaKind::Inferred,
         joins: false,
         // Execution plans arrive in phase 7.
-        explain: ExplainSupport::None,
+        explain: ExplainSupport::Structured,
         server_cancel: true,
         editable_results: true,
         cost_estimate: false,

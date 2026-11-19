@@ -321,7 +321,7 @@ impl Inner {
     }
 
     /// Looks up a node; `f` gets the dialect, container name and what was found.
-    async fn with_found<T>(
+    pub(crate) async fn with_found<T>(
         &self,
         node: &NodeRef,
         f: impl FnOnce(Dialect, &str, Found<'_>) -> Result<T>,
@@ -631,5 +631,43 @@ impl MetadataService for Inner {
             })
             .await
         })
+    }
+
+    fn er_model(&self, container: NodeRef) -> BoxFuture<'_, Result<ferrodb_api::ErModel>> {
+        let me = self.arc();
+        self.spawn(async move { me.er_model_of(container).await })
+    }
+
+    fn compare_schemas(
+        &self,
+        source: NodeRef,
+        target: NodeRef,
+        opts: ferrodb_api::CompareOptions,
+    ) -> BoxFuture<'_, Result<ferrodb_api::SchemaComparison>> {
+        let me = self.arc();
+        self.spawn(async move { me.compare(source, target, opts).await })
+    }
+
+    fn table_design(&self, table: NodeRef) -> BoxFuture<'_, Result<ferrodb_api::TableDesign>> {
+        let me = self.arc();
+        self.spawn(async move { me.design_of(table).await })
+    }
+
+    fn design_script(
+        &self,
+        container: NodeRef,
+        design: ferrodb_api::TableDesign,
+    ) -> BoxFuture<'_, Result<ferrodb_api::DesignScript>> {
+        let me = self.arc();
+        self.spawn(async move { me.script_of(container, design).await })
+    }
+
+    fn apply_script(
+        &self,
+        container: NodeRef,
+        statements: Vec<String>,
+    ) -> BoxFuture<'_, Result<usize>> {
+        let me = self.arc();
+        self.spawn(async move { me.run_ddl(container, statements).await })
     }
 }

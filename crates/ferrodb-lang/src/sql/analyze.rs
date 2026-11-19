@@ -50,6 +50,7 @@ fn sqlparser_dialect(dialect: &str) -> Box<dyn Dialect> {
         "redshift" => Box::new(sqlparser::dialect::RedshiftSqlDialect {}),
         "mysql" | "mariadb" => Box::new(MySqlDialect {}),
         "sqlite" => Box::new(SQLiteDialect {}),
+        "duckdb" => Box::new(sqlparser::dialect::DuckDbDialect {}),
         _ => Box::new(GenericDialect {}),
     }
 }

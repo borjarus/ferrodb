@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use ferrodb_api::{DataSourceId, NodeRef, ObjectKind, PlanNode};
+use ferrodb_api::{DataSourceId, ExecutionPlan, NodeRef, ObjectKind, PlanNode};
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
     icons,
@@ -51,15 +51,16 @@ pub const SECTIONS: [&str; 11] = [
     "action-export-data",
 ];
 
-fn sample_plan() -> PlanNode {
+fn sample_plan() -> ExecutionPlan {
     let n = |op: &str, d: Option<&str>, cost, rows, children| PlanNode {
         operation: op.into(),
         detail: d.map(Into::into),
         cost,
         rows,
         children,
+        ..Default::default()
     };
-    n(
+    let root = n(
         "Hash Join",
         Some("o.customer_id = c.id"),
         1830.0,
@@ -68,13 +69,24 @@ fn sample_plan() -> PlanNode {
             n("Seq Scan", Some("orders o"), 1120.0, 48_000, vec![]),
             n("Index Scan", Some("customers_pkey"), 380.0, 10_000, vec![]),
         ],
-    )
+    );
+    ExecutionPlan {
+        root,
+        statement: "EXPLAIN SELECT …".into(),
+        ..Default::default()
+    }
 }
 
 fn console(ds: &str, text: &str, window: &mut Window, cx: &mut App) -> AnyView {
     let c = cx.new(|cx| ConsolePanel::new(Some(DataSourceId::new(ds)), text.into(), window, cx));
     c.update(cx, |c, cx| c.run(RunTarget::Script, window, cx));
     c.into()
+}
+
+fn schema_node() -> NodeRef {
+    NodeRef::root(DataSourceId::new("shop-dev"))
+        .child(ObjectKind::Database, "shop")
+        .child(ObjectKind::Schema, "public")
 }
 
 /// Builds the view of section `ix`.
@@ -90,8 +102,10 @@ pub fn build_section(ix: usize, window: &mut Window, cx: &mut App) -> AnyView {
         4 => cx.new(|cx| DataSourceForm::new(None, window, cx)).into(),
         5 => cx.new(DriverManager::new).into(),
         6 => cx.new(|cx| PlanView::new(sample_plan(), window, cx)).into(),
-        7 => cx.new(|cx| ErDiagram::new(schema, cx)).into(),
-        8 => cx.new(|cx| TableEditor::new(None, window, cx)).into(),
+        7 => cx.new(|cx| ErDiagram::new(schema, None, cx)).into(),
+        8 => cx
+            .new(|cx| TableEditor::new(Some(schema_node()), window, cx))
+            .into(),
         9 => cx
             .new(|cx| {
                 DiffView::new(

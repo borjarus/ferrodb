@@ -17,6 +17,8 @@ pub enum Dialect {
     MariaDb,
     Sqlite,
     Mongo,
+    /// DuckDB: PostgreSQL-like SQL, file data sources (phase 7).
+    DuckDb,
 }
 
 impl Dialect {
@@ -27,6 +29,7 @@ impl Dialect {
             "mysql" => Self::MySql,
             "mariadb" => Self::MariaDb,
             "sqlite" => Self::Sqlite,
+            "duckdb" => Self::DuckDb,
             "mql" | "mongodb" => Self::Mongo,
             _ => return None,
         })

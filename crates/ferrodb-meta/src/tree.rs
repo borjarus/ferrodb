@@ -17,7 +17,7 @@ use crate::{ddl::Object, model::*};
 /// Kind of the top-level containers.
 pub fn container_kind(d: Dialect) -> ObjectKind {
     match d {
-        Dialect::Postgres | Dialect::Sqlite => ObjectKind::Schema,
+        Dialect::Postgres | Dialect::Sqlite | Dialect::DuckDb => ObjectKind::Schema,
         Dialect::MySql | Dialect::MariaDb | Dialect::Mongo => ObjectKind::Database,
     }
 }
@@ -48,6 +48,11 @@ pub fn hierarchy(d: Dialect) -> HierarchySpec {
             level(Schema, &[Table, View]),
             level(Table, &table_children),
             level(View, &[Column, Trigger]),
+        ],
+        Dialect::DuckDb => vec![
+            level(Schema, &[Table, View, Sequence]),
+            level(Table, &table_children),
+            level(View, &[Column]),
         ],
         Dialect::Mongo => vec![
             level(Database, &[Collection, View]),

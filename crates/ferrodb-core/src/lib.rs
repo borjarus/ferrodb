@@ -13,8 +13,11 @@
 
 mod config;
 mod documents;
+mod explain;
 mod language;
+mod local_history;
 mod metadata;
+mod schema_tools;
 mod services;
 mod session;
 mod sources;
@@ -186,6 +189,9 @@ impl Backend for CoreBackend {
     fn transfers(&self) -> &dyn ferrodb_api::TransferService {
         &*self.inner
     }
+    fn local_history(&self) -> &dyn ferrodb_api::LocalHistoryService {
+        &*self.inner
+    }
 }
 
 pub(crate) struct SourceEntry {
@@ -329,3 +335,5 @@ mod tests;
 mod tests_mongo;
 #[cfg(test)]
 mod tests_phase6;
+#[cfg(test)]
+mod tests_phase7;

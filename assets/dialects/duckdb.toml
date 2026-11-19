@@ -1,0 +1,47 @@
+id = "duckdb"
+name = "DuckDB"
+inherits = "postgresql"
+identifier_quote = '"'
+# DuckDB matches identifiers case-insensitively but keeps their case.
+case_folding = "none"
+default_schema = "main"
+parser = "duckdb"
+
+keywords = [
+  "anti", "asof", "exclude", "positional", "pivot", "qualify", "semi", "unpivot",
+]
+
+soft_keywords = [
+  "attach", "describe", "detach", "export", "import", "install", "load", "macro",
+  "summarize",
+]
+
+types = [
+  "blob", "hugeint", "list", "map", "struct", "tinyint", "ubigint", "uhugeint",
+  "uinteger", "union", "usmallint", "utinyint", "varchar",
+]
+
+[[functions]]
+name = "read_csv"
+signatures = ["read_csv(path text) -> table"]
+doc = "Reads a CSV file (types and delimiter detected)."
+
+[[functions]]
+name = "read_parquet"
+signatures = ["read_parquet(path text) -> table"]
+doc = "Reads a Parquet file or glob."
+
+[[functions]]
+name = "read_json"
+signatures = ["read_json(path text) -> table"]
+doc = "Reads a JSON array or JSON Lines file."
+
+[[functions]]
+name = "list_value"
+signatures = ["list_value(x any) -> list"]
+doc = "A list of the arguments."
+
+[[functions]]
+name = "strftime"
+signatures = ["strftime(t timestamp, format text) -> text"]
+doc = "Formats a timestamp."

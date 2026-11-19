@@ -12,7 +12,8 @@ use std::{
 };
 
 use ferrodb_api::{
-    CancelHandle, DataSourceId, DataSourceInfo, Environment, ExecMode, ExecOptions, ExplainSupport,
+    CancelHandle, DataSourceId, DataSourceInfo, Environment, ExecMode, ExecOptions, ExplainOptions,
+    ExplainSupport,
     NodeRef, QueryEvent, QueryLanguage, Risk, RiskKind, Script, SessionId, TxMode,
 };
 use ferrodb_ui_kit::{
@@ -60,6 +61,9 @@ struct SavedConsole {
     data_source: Option<DataSourceId>,
     #[serde(default)]
     schema: Option<String>,
+    /// The file the console edits (phase 7).
+    #[serde(default)]
+    file: Option<std::path::PathBuf>,
     text: String,
 }
 
@@ -127,6 +131,12 @@ pub struct ConsolePanel {
     pending_params: Vec<(String, Option<String>)>,
     /// Last values typed per parameter name, offered again next time.
     param_values: HashMap<String, String>,
+    /// The file this console edits (`None` = an unsaved console).
+    pub file: Option<std::path::PathBuf>,
+    /// Text of the file as last read or written (dirty check).
+    saved_text: Option<String>,
+    /// Pending Local History revision of unsaved edits.
+    autosave: Option<Task<()>>,
     _subs: Vec<Subscription>,
 }
 
@@ -202,6 +212,7 @@ impl ConsolePanel {
             cx.subscribe(&editor, |this, _, ev: &InputEvent, cx| {
                 if matches!(ev, InputEvent::Change) {
                     this.schedule_analysis(true, cx);
+                    this.schedule_autosave(cx);
                 }
             }),
             cx.observe(&editor, |this, _, cx| this.schedule_analysis(false, cx)),
@@ -222,10 +233,123 @@ impl ConsolePanel {
             analysis: None,
             pending_params: Vec::new(),
             param_values: HashMap::new(),
+            file: None,
+            saved_text: None,
+            autosave: None,
             _subs: subs,
         };
         this.set_data_source(data_source, cx);
         this
+    }
+
+    /// Document key of this console in Local History.
+    pub fn history_document(&self) -> String {
+        crate::local_history::document(self.file.as_deref(), self.data_source.as_ref())
+    }
+
+    /// Binds the console to a file (its text was read from it).
+    pub fn set_file(&mut self, path: std::path::PathBuf, cx: &mut Context<Self>) {
+        self.saved_text = Some(self.editor.read(cx).value().to_string());
+        self.file = Some(path);
+        cx.notify();
+    }
+
+    /// Unsaved changes of a file console.
+    pub fn is_dirty(&self, cx: &App) -> bool {
+        self.file.is_some() && self.saved_text.as_deref() != Some(&*self.editor.read(cx).value())
+    }
+
+    /// Replaces the text (Local History restore); the text before is kept as
+    /// a revision.
+    pub fn set_text(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
+        let before = self.editor.read(cx).value().to_string();
+        crate::local_history::record(
+            self.history_document(),
+            before,
+            ferrodb_api::RevisionReason::BeforeRestore,
+            None,
+            cx,
+        );
+        self.editor.update(cx, |e, cx| e.replace_all(text, window, cx));
+    }
+
+    /// A revision of unsaved edits after a pause in typing.
+    fn schedule_autosave(&mut self, cx: &mut Context<Self>) {
+        self.autosave = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_secs(
+                    crate::local_history::AUTOSAVE_SECS,
+                ))
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                let text = this.editor.read(cx).value().to_string();
+                crate::local_history::record(
+                    this.history_document(),
+                    text,
+                    ferrodb_api::RevisionReason::Autosave,
+                    None,
+                    cx,
+                );
+            });
+        }));
+    }
+
+    /// Writes the text to the console's file; a console without a file is
+    /// saved under `.ferrodb/consoles/` of the project (plan 5.10).
+    pub fn save_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = self.editor.read(cx).value().to_string();
+        let path = match &self.file {
+            Some(p) => p.clone(),
+            None => {
+                let Some(dir) = crate::workspace::project_state_dir(cx) else {
+                    return;
+                };
+                let base = self
+                    .data_source
+                    .as_ref()
+                    .map(|d| d.to_string())
+                    .unwrap_or_else(|| "console".into());
+                let ext = match self.source(cx).map(|s| s.capabilities.language) {
+                    Some(QueryLanguage::Mql) => "mongo.js",
+                    _ => "sql",
+                };
+                let dir = dir.join("consoles");
+                let mut p = dir.join(format!("{base}.{ext}"));
+                let mut n = 2;
+                while p.exists() {
+                    p = dir.join(format!("{base}-{n}.{ext}"));
+                    n += 1;
+                }
+                p
+            }
+        };
+        let written = path
+            .parent()
+            .map(std::fs::create_dir_all)
+            .unwrap_or(Ok(()))
+            .and_then(|_| std::fs::write(&path, &text));
+        match written {
+            Ok(()) => {
+                self.file = Some(path.clone());
+                self.saved_text = Some(text.clone());
+                crate::local_history::record(
+                    self.history_document(),
+                    text,
+                    ferrodb_api::RevisionReason::Save,
+                    None,
+                    cx,
+                );
+                window.push_notification(
+                    Notification::success(t_args(
+                        "console-saved",
+                        &[("file", path.display().to_string().into())],
+                    )),
+                    cx,
+                );
+                cx.notify();
+            }
+            Err(e) => window.push_notification(Notification::error(e.to_string()), cx),
+        }
     }
 
     pub fn restore(state: &PanelState, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -236,6 +360,9 @@ impl ConsolePanel {
         let mut this = Self::new(saved.data_source, saved.text, window, cx);
         if saved.schema.is_some() {
             this.schema = saved.schema;
+        }
+        if let Some(f) = saved.file {
+            this.set_file(f, cx);
         }
         this
     }
@@ -421,6 +548,13 @@ impl ConsolePanel {
             self.data_source.clone(),
             self.editor.read(cx).value().to_string(),
             "local-history-executed",
+            cx,
+        );
+        crate::local_history::record(
+            self.history_document(),
+            self.editor.read(cx).value().to_string(),
+            ferrodb_api::RevisionReason::Execute,
+            self.source_name(cx),
             cx,
         );
         let lang = src.capabilities.language.clone();
@@ -972,6 +1106,15 @@ impl ConsolePanel {
     }
 
     pub fn explain(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.explain_with(false, window, cx)
+    }
+
+    /// `EXPLAIN ANALYZE`: runs the statement and shows actual rows / times.
+    pub fn explain_analyze(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.explain_with(true, window, cx)
+    }
+
+    fn explain_with(&mut self, analyze: bool, window: &mut Window, cx: &mut Context<Self>) {
         let Some(src) = self.source(cx) else { return };
         if src.capabilities.explain == ExplainSupport::None {
             window.push_notification(Notification::info(t("explain-unsupported")), cx);
@@ -982,6 +1125,7 @@ impl ConsolePanel {
         };
         let ds = src.config.id.clone();
         let backend = AppState::backend(cx);
+        let schema = self.schema.clone();
         cx.spawn_in(window, async move |this, cx| {
             let session = match Self::ensure_session(&this, &ds, cx).await {
                 Ok(s) => s,
@@ -991,15 +1135,16 @@ impl ConsolePanel {
                 }
             };
             let script = Script::new(text);
+            let opts = ExplainOptions { analyze, schema };
             let plan = cx
                 .background_executor()
-                .spawn(async move { backend.queries().explain(session, script).await })
+                .spawn(async move { backend.queries().explain(session, script, opts).await })
                 .await;
             let _ = this.update_in(cx, |this, window, cx| match plan {
                 Ok(plan) => {
                     let view = cx.new(|cx| PlanView::new(plan, window, cx));
                     this.tabs.push(ConsoleTab::Plan {
-                        title: t("explain-tab"),
+                        title: t(if analyze { "explain-tab-analyzed" } else { "explain-tab" }),
                         view,
                     });
                     this.active_tab = this.tabs.len();
@@ -1312,6 +1457,7 @@ impl BasePanel for ConsolePanel {
         let saved = SavedConsole {
             data_source: self.data_source.clone(),
             schema: self.schema.clone(),
+            file: self.file.clone(),
             text: self.editor.read(cx).value().to_string(),
         };
         s.info = PanelInfo::panel(serde_json::to_value(saved).unwrap_or_default());
@@ -1322,6 +1468,16 @@ impl BasePanel for ConsolePanel {
 impl Panel for ConsolePanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let name = self.source_name(cx).unwrap_or_else(|| t("panel-console"));
+        let name = match &self.file {
+            Some(f) => format!(
+                "{}{}",
+                f.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                if self.is_dirty(cx) { " •" } else { "" }
+            ),
+            None => name,
+        };
         h_flex()
             .gap_1()
             .child(icons::console_icon().small())
@@ -1346,6 +1502,10 @@ impl Render for ConsolePanel {
             }))
             .on_action(cx.listener(Self::stop))
             .on_action(cx.listener(|this, _: &actions::ExplainPlan, w, cx| this.explain(w, cx)))
+            .on_action(
+                cx.listener(|this, _: &actions::ExplainAnalyze, w, cx| this.explain_analyze(w, cx)),
+            )
+            .on_action(cx.listener(|this, _: &actions::SaveFile, w, cx| this.save_file(w, cx)))
             .on_action(cx.listener(|this, _: &actions::FormatCode, w, cx| this.format_code(w, cx)))
             .on_action(cx.listener(|this, _: &actions::Rename, w, cx| this.not_yet(5, w, cx)))
             .on_action(cx.listener(|this, _: &actions::GoToDeclaration, w, cx| {

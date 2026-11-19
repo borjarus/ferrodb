@@ -16,6 +16,7 @@ mod catalog;
 pub mod data;
 mod objects;
 mod scenario;
+mod schema;
 
 use std::{
     collections::HashMap,
@@ -677,14 +678,32 @@ impl QueryService for MockBackend {
         .boxed()
     }
 
-    fn explain(&self, session: SessionId, script: Script) -> BoxFuture<'_, Result<PlanNode>> {
+    fn explain(
+        &self,
+        session: SessionId,
+        script: Script,
+        opts: ExplainOptions,
+    ) -> BoxFuture<'_, Result<ExecutionPlan>> {
         async move {
             let src = self.shared.session_source(session)?;
             self.shared.delay(self.shared.scenario().latency()).await;
             if src.capabilities.explain == ExplainSupport::None {
                 return Err(Error::Unsupported("explain".into()));
             }
-            Ok(objects::plan(src.capabilities.data_model, &script.text))
+            let root = objects::plan(src.capabilities.data_model, &script.text, opts.analyze);
+            let statement = format!(
+                "EXPLAIN{} {}",
+                if opts.analyze { " ANALYZE" } else { "" },
+                script.text.trim()
+            );
+            Ok(ExecutionPlan {
+                raw: format!("{root:#?}"),
+                execution_ms: root.actual_ms,
+                planning_ms: opts.analyze.then_some(0.2),
+                analyzed: opts.analyze,
+                statement,
+                root,
+            })
         }
         .boxed()
     }
@@ -1568,6 +1587,111 @@ impl MetadataService for MockBackend {
             Ok(out)
         }
         .boxed()
+    }
+
+    fn er_model(&self, container: NodeRef) -> BoxFuture<'_, Result<ErModel>> {
+        async move {
+            let (driver, _) = self.tabular_source(&container)?;
+            self.shared.delay(self.shared.scenario().latency()).await;
+            let (name, content) = schema::content(&driver, self.shared.scenario(), &container);
+            Ok(ferrodb_meta::diff::er_model(&name, &content))
+        }
+        .boxed()
+    }
+
+    fn compare_schemas(
+        &self,
+        source: NodeRef,
+        target: NodeRef,
+        opts: CompareOptions,
+    ) -> BoxFuture<'_, Result<SchemaComparison>> {
+        async move {
+            let (sd, _) = self.tabular_source(&source)?;
+            let (td, _) = self.tabular_source(&target)?;
+            self.shared.delay(self.shared.scenario().latency() * 2).await;
+            let scenario = self.shared.scenario();
+            let (sn, sc) = schema::content(&sd, scenario, &source);
+            let (tn, tc) = schema::content(&td, scenario, &target);
+            let side = |d: &str, n, c| ferrodb_meta::diff::Side {
+                dialect: schema::dialect(d),
+                container: n,
+                content: c,
+            };
+            let r = ferrodb_meta::diff::compare(side(&sd, &sn, &sc), side(&td, &tn, &tc), &opts);
+            let up = |n: &NodeRef| {
+                let mut n = n.clone();
+                while n.kind().is_some_and(|k| k != ObjectKind::Schema && k != ObjectKind::Database) {
+                    n.path.pop();
+                }
+                n
+            };
+            Ok(SchemaComparison {
+                source: up(&source),
+                target: up(&target),
+                items: r.items,
+                script: r.script,
+                warnings: r.warnings,
+            })
+        }
+        .boxed()
+    }
+
+    fn table_design(&self, table: NodeRef) -> BoxFuture<'_, Result<TableDesign>> {
+        async move {
+            let (driver, _) = self.tabular_source(&table)?;
+            let (_, content) = schema::content(&driver, self.shared.scenario(), &table);
+            let name = table.name().unwrap_or_default();
+            content
+                .table(name)
+                .filter(|t| !t.is_view())
+                .map(ferrodb_meta::diff::table_to_design)
+                .ok_or_else(|| Error::NotFound(name.to_owned()))
+        }
+        .boxed()
+    }
+
+    fn design_script(
+        &self,
+        container: NodeRef,
+        design: TableDesign,
+    ) -> BoxFuture<'_, Result<DesignScript>> {
+        async move {
+            let (driver, _) = self.tabular_source(&container)?;
+            let (name, content) = schema::content(&driver, self.shared.scenario(), &container);
+            ferrodb_meta::diff::design_script(schema::dialect(&driver), &name, &content, &design)
+                .map_err(Error::Other)
+        }
+        .boxed()
+    }
+
+    fn apply_script(
+        &self,
+        container: NodeRef,
+        statements: Vec<String>,
+    ) -> BoxFuture<'_, Result<usize>> {
+        async move {
+            let src = self.shared.source(&container.data_source)?;
+            if src.config.read_only {
+                return Err(Error::ReadOnly);
+            }
+            self.shared.delay(self.shared.scenario().latency()).await;
+            // The mock schema is generated: nothing is stored.
+            Ok(statements.iter().filter(|s| !s.trim().is_empty()).count())
+        }
+        .boxed()
+    }
+}
+
+impl MockBackend {
+    /// Driver id and info of a tabular source (schema tools).
+    fn tabular_source(&self, node: &NodeRef) -> Result<(String, DataSourceInfo)> {
+        let src = self.shared.source(&node.data_source)?;
+        if src.capabilities.data_model != DataModel::Tabular {
+            return Err(Error::Unsupported(
+                "schema tools on document and key-value sources".into(),
+            ));
+        }
+        Ok((src.config.driver.0.clone(), src))
     }
 }
 

@@ -719,6 +719,22 @@ fn object_menu(
                 .on_click(move |_, w, cx| workspace::open_er_diagram(o.node.clone(), w, cx)),
         );
     }
+    // Schema tools on a schema / database (phase 7).
+    if model == Some(DataModel::Tabular)
+        && matches!(
+            kind,
+            ObjectKind::Schema | ObjectKind::Dataset | ObjectKind::Database
+        )
+    {
+        let (on, oc) = (o.clone(), o.clone());
+        menu = menu
+            .item(PopupMenuItem::new(t("action-new-table")).on_click(move |_, w, cx| {
+                workspace::open_table_editor(Some(on.node.clone()), w, cx)
+            }))
+            .item(PopupMenuItem::new(t("action-compare")).on_click(move |_, w, cx| {
+                crate::views::schema_compare::open(Some(oc.node.clone()), w, cx)
+            }));
+    }
     if model == Some(DataModel::Document)
         && matches!(kind, ObjectKind::Collection | ObjectKind::Table)
     {

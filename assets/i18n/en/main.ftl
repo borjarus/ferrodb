@@ -443,7 +443,7 @@ keys-edit-member = Edit “{ $member }”
 
 ## History, Local History, Services
 history-filter = Filter history…
-local-history-empty = Snapshots appear here each time a console runs
+local-history-empty = Revisions appear here when a console runs, is saved or edited
 local-history-executed = executed
 local-history-snapshot = Snapshot
 local-history-current = Current console
@@ -461,7 +461,6 @@ table-editor-add-column = Add column
 table-editor-ddl = DDL preview
 table-editor-no-changes = -- no changes
 table-editor-modify = Modify Table “{ $name }”
-table-editor-mock-applied = DDL written to the Output panel (execution arrives in phase 4)
 er-summary = Schema { $schema }: { $tables } tables, { $relations } relations
 diff-identical = identical
 wizard-format = Format
@@ -505,3 +504,89 @@ params-title = Parameter values
 params-description = Values are inserted as SQL literals. Leave a field empty for NULL.
 params-null = NULL
 params-run = Execute
+
+## Phase 7 — advanced tools
+
+action-explain-analyze = Explain Analyze
+action-save-file = Save File
+action-project-files = Project Files
+console-saved = Saved to { $file }
+
+explain-tab-analyzed = Plan (analyzed)
+explain-planning = planning { $time }
+explain-execution = execution { $time }
+explain-analyzed = actual rows and times
+explain-mode-tree = Tree
+explain-mode-table = Table
+explain-mode-diagram = Diagram
+explain-copy-raw = Copy Raw Plan
+explain-col-operation = Operation
+explain-col-object = Object
+explain-col-cost = Cost
+explain-col-self = Self
+explain-col-rows = Est. rows
+explain-col-actual-rows = Actual rows
+explain-col-time = Time
+explain-col-loops = Loops
+
+er-loading = Loading the schema…
+er-more-columns = … { $count } more
+er-reset-layout = Reset Layout
+
+compare-source = Source
+compare-target = Target
+compare-choose = Choose a schema…
+compare-run = Compare
+compare-running = Comparing…
+compare-pick-both = Choose a source and a target schema
+compare-identical = The schemas are identical
+compare-summary = { $count ->
+    [one] 1 difference
+   *[other] { $count } differences
+}
+compare-drop-removed = Drop objects missing in the source
+compare-ignore-comments = Ignore comments
+compare-routines = Routines and triggers
+compare-script = Migration script (makes the target like the source)
+compare-no-script = -- nothing to change
+compare-open-console = Open in Console
+compare-apply = Apply to Target
+compare-applied = { $count ->
+    [one] 1 statement applied
+   *[other] { $count } statements applied
+}
+
+table-editor-columns = Columns
+table-editor-indexes = Indexes ({ $count })
+table-editor-foreign-keys = Foreign Keys ({ $count })
+table-editor-auto = Auto
+table-editor-unique = Unique
+table-editor-index-name = Index
+table-editor-index-columns = Columns (comma-separated)
+table-editor-add-index = Add index
+table-editor-fk-columns = Columns
+table-editor-fk-table = References table
+table-editor-fk-ref-columns = Referenced columns
+table-editor-fk-on-delete = On delete
+table-editor-add-fk = Add foreign key
+table-editor-no-schema = Select a schema or table in the explorer first
+table-editor-applied = Table changes applied
+
+panel-files = Files
+files-folder = Files
+files-refresh = Refresh
+files-open = Open in Console
+files-open-as-source = Open as Data Source
+files-opened-as-source = Data source “{ $name }” ready
+
+local-history-saved = saved
+local-history-autosaved = autosaved
+local-history-before-restore = before restore
+local-history-external = changed on disk
+local-history-labelled = label
+local-history-label-placeholder = Label…
+local-history-put-label = Put Label
+local-history-delete = Delete revision
+local-history-clear = Clear History of Document
+local-history-restored = Revision restored
+local-history-not-open = Open the document in a console first

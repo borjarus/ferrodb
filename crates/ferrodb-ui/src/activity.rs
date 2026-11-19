@@ -1,6 +1,7 @@
 //! UI-side activity shared by panels: queries started by consoles (Services
-//! panel, cancellation) and Local History snapshots of console texts.
-//! (Persistent Local History moves to `ferrodb-storage` with the core.)
+//! panel, cancellation), snapshots of console texts taken this session, and
+//! a counter bumped whenever a Local History revision was stored in the
+//! backend (phase 7), so the Local History panel reloads.
 
 use std::time::{Instant, SystemTime};
 
@@ -32,6 +33,8 @@ const MAX_SNAPSHOTS: usize = 200;
 pub struct Activity {
     pub running: Vec<RunningQuery>,
     pub snapshots: Vec<Snapshot>,
+    /// Revisions stored in the backend's Local History this session.
+    pub revisions: u64,
 }
 
 struct ActivityGlobal(Entity<Activity>);
@@ -57,6 +60,11 @@ fn update(cx: &mut App, f: impl FnOnce(&mut Activity)) {
 
 pub fn started(q: RunningQuery, cx: &mut App) {
     update(cx, |a| a.running.push(q));
+}
+
+/// A Local History revision was written (see [`crate::local_history`]).
+pub fn revision_stored(cx: &mut App) {
+    update(cx, |a| a.revisions += 1);
 }
 
 pub fn finished(id: QueryId, cx: &mut App) {

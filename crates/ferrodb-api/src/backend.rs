@@ -22,6 +22,13 @@ pub trait Backend: Send + Sync + 'static {
     fn transfers(&self) -> &dyn TransferService {
         &crate::NoTransfers
     }
+    /// Local History of consoles and files (phase 7). The default keeps it
+    /// in memory for the life of the process.
+    fn local_history(&self) -> &dyn crate::LocalHistoryService {
+        static MEMORY: std::sync::LazyLock<crate::MemoryLocalHistory> =
+            std::sync::LazyLock::new(crate::MemoryLocalHistory::new);
+        &*MEMORY
+    }
 }
 
 #[cfg(test)]

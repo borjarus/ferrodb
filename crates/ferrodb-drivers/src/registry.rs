@@ -32,6 +32,8 @@ impl Registry {
         r.drivers.extend(crate::sqlite::drivers());
         #[cfg(feature = "mongodb")]
         r.drivers.extend(crate::mongodb::drivers());
+        #[cfg(feature = "duckdb")]
+        r.drivers.extend(crate::duckdb::drivers());
         r
     }
 
@@ -58,8 +60,14 @@ pub fn relational_capabilities(dialect: &str, auth: Vec<AuthMethod>) -> Capabili
         transactions: TxSupport::MultiStatement,
         schema: SchemaKind::Strict,
         joins: true,
-        // EXPLAIN as a diagram arrives in phase 7.
-        explain: ExplainSupport::None,
+        // Plans parsed into the shared model (phase 7); other dialects get
+        // theirs in phase 8.
+        explain: match dialect {
+            "postgresql" | "greenplum" | "mysql" | "mariadb" | "sqlite" | "duckdb" => {
+                ExplainSupport::Structured
+            }
+            _ => ExplainSupport::None,
+        },
         server_cancel: true,
         // Editing results arrives in phase 6.
         editable_results: false,

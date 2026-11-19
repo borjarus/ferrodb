@@ -13,6 +13,7 @@ sqlite = ["dep:rusqlite"]
 pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls"]
 mysql = ["dep:mysql_async"]
 mongodb = ["dep:mongodb"]
+duckdb = ["dep:duckdb"]
 
 [dependencies]
 ferrodb-api.workspace = true
@@ -33,6 +34,7 @@ tokio-postgres = { workspace = true, optional = true }
 tokio-postgres-rustls = { workspace = true, optional = true }
 mysql_async = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
+duckdb = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

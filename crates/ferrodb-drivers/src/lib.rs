@@ -11,13 +11,16 @@
 //!   quirks, object hierarchy (ADR-008);
 //! - [`Registry`] — the drivers compiled into this build.
 //!
-//! Families are behind feature flags: `sqlite`, `pgwire`, `mysql`, `mongodb`.
+//! Families are behind feature flags: `sqlite`, `pgwire`, `mysql`, `mongodb`,
+//! `duckdb` (file data sources; compiles DuckDB from C++ sources).
 
 pub mod columns;
 pub mod config;
 pub mod registry;
 pub mod sink;
 
+#[cfg(feature = "duckdb")]
+pub mod duckdb;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 #[cfg(feature = "mysql")]

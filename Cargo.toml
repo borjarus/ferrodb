@@ -69,6 +69,8 @@ tokio-postgres-rustls = { version = "0.14.0", default-features = false, features
 mysql_async = { version = "0.37.1", default-features = false, features = ["minimal-rust", "derive", "rustls-tls", "tls12", "ring"] }
 mongodb = { version = "3.10.0", default-features = false, features = ["compat-3-3-0", "bson-3", "rustls-tls", "dns-resolver"] }
 rusqlite = { version = "0.41.1", features = ["bundled", "column_decltype"] }
+# DuckDB compiled from source (C++), with the Parquet and JSON readers: file data sources (phase 7).
+duckdb = { version = "=1.20000.2", default-features = false, features = ["bundled", "parquet", "json"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 rustls-platform-verifier = "0.7.1"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }

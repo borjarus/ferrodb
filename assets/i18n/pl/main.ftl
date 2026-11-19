@@ -454,7 +454,7 @@ keys-edit-member = Edycja „{ $member }”
 
 ## Historia, historia lokalna, usługi
 history-filter = Filtruj historię…
-local-history-empty = Migawki pojawiają się tu przy każdym uruchomieniu konsoli
+local-history-empty = Rewizje pojawiają się tu po uruchomieniu, zapisaniu lub edycji konsoli
 local-history-executed = wykonanie
 local-history-snapshot = Migawka
 local-history-current = Bieżąca konsola
@@ -472,7 +472,6 @@ table-editor-add-column = Dodaj kolumnę
 table-editor-ddl = Podgląd DDL
 table-editor-no-changes = -- brak zmian
 table-editor-modify = Modyfikacja tabeli „{ $name }”
-table-editor-mock-applied = DDL zapisano w panelu Wyjście (wykonanie pojawi się w fazie 4)
 er-summary = Schemat { $schema }: tabele { $tables }, relacje { $relations }
 diff-identical = identyczne
 wizard-format = Format
@@ -516,3 +515,91 @@ params-title = Wartości parametrów
 params-description = Wartości są wstawiane jako literały SQL. Puste pole oznacza NULL.
 params-null = NULL
 params-run = Wykonaj
+
+## Faza 7 — narzędzia zaawansowane
+
+action-explain-analyze = Explain Analyze
+action-save-file = Zapisz plik
+action-project-files = Pliki projektu
+console-saved = Zapisano w { $file }
+
+explain-tab-analyzed = Plan (z wykonaniem)
+explain-planning = planowanie { $time }
+explain-execution = wykonanie { $time }
+explain-analyzed = rzeczywiste wiersze i czasy
+explain-mode-tree = Drzewo
+explain-mode-table = Tabela
+explain-mode-diagram = Diagram
+explain-copy-raw = Kopiuj surowy plan
+explain-col-operation = Operacja
+explain-col-object = Obiekt
+explain-col-cost = Koszt
+explain-col-self = Własny
+explain-col-rows = Szac. wiersze
+explain-col-actual-rows = Rzecz. wiersze
+explain-col-time = Czas
+explain-col-loops = Pętle
+
+er-loading = Wczytywanie schematu…
+er-more-columns = … i { $count } więcej
+er-reset-layout = Przywróć układ
+
+compare-source = Źródło
+compare-target = Cel
+compare-choose = Wybierz schemat…
+compare-run = Porównaj
+compare-running = Porównywanie…
+compare-pick-both = Wybierz schemat źródłowy i docelowy
+compare-identical = Schematy są identyczne
+compare-summary = { $count ->
+    [one] 1 różnica
+    [few] { $count } różnice
+   *[other] { $count } różnic
+}
+compare-drop-removed = Usuń obiekty, których nie ma w źródle
+compare-ignore-comments = Pomijaj komentarze
+compare-routines = Procedury i wyzwalacze
+compare-script = Skrypt migracji (cel staje się taki jak źródło)
+compare-no-script = -- nic do zmiany
+compare-open-console = Otwórz w konsoli
+compare-apply = Zastosuj w celu
+compare-applied = { $count ->
+    [one] Wykonano 1 instrukcję
+    [few] Wykonano { $count } instrukcje
+   *[other] Wykonano { $count } instrukcji
+}
+
+table-editor-columns = Kolumny
+table-editor-indexes = Indeksy ({ $count })
+table-editor-foreign-keys = Klucze obce ({ $count })
+table-editor-auto = Auto
+table-editor-unique = Unikalny
+table-editor-index-name = Indeks
+table-editor-index-columns = Kolumny (po przecinku)
+table-editor-add-index = Dodaj indeks
+table-editor-fk-columns = Kolumny
+table-editor-fk-table = Tabela docelowa
+table-editor-fk-ref-columns = Kolumny docelowe
+table-editor-fk-on-delete = Przy usunięciu
+table-editor-add-fk = Dodaj klucz obcy
+table-editor-no-schema = Najpierw zaznacz schemat lub tabelę w eksploratorze
+table-editor-applied = Zmiany tabeli zastosowane
+
+panel-files = Pliki
+files-folder = Pliki
+files-refresh = Odśwież
+files-open = Otwórz w konsoli
+files-open-as-source = Otwórz jako źródło danych
+files-opened-as-source = Źródło danych „{ $name }” gotowe
+
+local-history-saved = zapis
+local-history-autosaved = autozapis
+local-history-before-restore = przed przywróceniem
+local-history-external = zmiana na dysku
+local-history-labelled = etykieta
+local-history-label-placeholder = Etykieta…
+local-history-put-label = Dodaj etykietę
+local-history-delete = Usuń rewizję
+local-history-clear = Wyczyść historię dokumentu
+local-history-restored = Przywrócono rewizję
+local-history-not-open = Najpierw otwórz dokument w konsoli

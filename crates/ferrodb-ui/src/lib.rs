@@ -10,6 +10,7 @@ pub mod completion;
 pub mod dialogs;
 pub mod i18n;
 pub mod inspector;
+pub mod local_history;
 pub mod keymap;
 pub mod menus;
 pub mod output;

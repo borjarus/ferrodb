@@ -45,7 +45,7 @@ impl Flavor {
     /// generic flavor; derived dialects map to their base.
     pub fn for_dialect(dialect: &str) -> Self {
         match dialect {
-            "postgresql" | "greenplum" | "cockroachdb" | "redshift" => Self {
+            "postgresql" | "greenplum" | "cockroachdb" | "redshift" | "duckdb" => Self {
                 dollar_quotes: true,
                 nested_comments: true,
                 question_params: false,
