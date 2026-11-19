@@ -109,10 +109,7 @@ impl SchemaModel {
                     schema: si,
                     table: ti,
                 };
-                m.by_name
-                    .entry(t.name.to_lowercase())
-                    .or_default()
-                    .push(id);
+                m.by_name.entry(t.name.to_lowercase()).or_default().push(id);
                 for (fi, fk) in t.foreign_keys.iter().enumerate() {
                     let rs = fk.ref_schema.as_deref().unwrap_or(&s.name);
                     m.referenced_by

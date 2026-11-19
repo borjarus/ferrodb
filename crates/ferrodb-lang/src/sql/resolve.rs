@@ -161,18 +161,21 @@ impl<'a> Env<'a> {
             return Ok((TableTarget::Local(i), true));
         }
         if let Some(s) = &schema
-            && let Some(i) = self
-                .locals
-                .iter()
-                .rposition(|l| self.eq(&l.name, &n) && l.schema.as_deref().is_some_and(|x| self.eq(x, s)))
+            && let Some(i) = self.locals.iter().rposition(|l| {
+                self.eq(&l.name, &n) && l.schema.as_deref().is_some_and(|x| self.eq(x, s))
+            })
         {
             return Ok((TableTarget::Local(i), true));
         }
-        let exact = self.model.find_tables(schema.as_deref(), &n, true, &self.order);
+        let exact = self
+            .model
+            .find_tables(schema.as_deref(), &n, true, &self.order);
         if let Some(id) = exact.first() {
             return Ok((TableTarget::Db(*id), true));
         }
-        let loose = self.model.find_tables(schema.as_deref(), &n, false, &self.order);
+        let loose = self
+            .model
+            .find_tables(schema.as_deref(), &n, false, &self.order);
         if let Some(id) = loose.first() {
             // Same name in another case: fine where lookups ignore case.
             let fine = self.d.folding == Folding::None;
@@ -322,7 +325,9 @@ impl Resolver<'_, '_> {
         let n = r.parts.len();
         let mut parts = vec![None; n];
         if n == 1
-            && let Some((s, idx)) = self.p.find_cte(r.scope, &r.parts[0].name(self.d()), self.d())
+            && let Some((s, idx)) = self
+                .p
+                .find_cte(r.scope, &r.parts[0].name(self.d()), self.d())
         {
             parts[0] = Some(Symbol::Cte { scope: s, idx });
             return ok(parts, None);
@@ -393,7 +398,12 @@ impl Resolver<'_, '_> {
     }
 
     /// Columns of source `src` of `scope`; `None` = unknown.
-    pub fn source_columns(&self, scope: usize, src: usize, depth: usize) -> Option<Vec<SourceColumn>> {
+    pub fn source_columns(
+        &self,
+        scope: usize,
+        src: usize,
+        depth: usize,
+    ) -> Option<Vec<SourceColumn>> {
         source_columns(self.p, self.env, &self.sources, scope, src, depth)
     }
 
@@ -446,7 +456,10 @@ impl Resolver<'_, '_> {
                     }
                     let qi = qual.len() - 1;
                     parts[qi] = if src.alias.is_some() {
-                        Some(Symbol::Alias { scope: s, source: i })
+                        Some(Symbol::Alias {
+                            scope: s,
+                            source: i,
+                        })
                     } else {
                         self.sources
                             .get(&(s, i))
@@ -487,7 +500,10 @@ impl Resolver<'_, '_> {
         }
 
         // Unqualified: innermost scope with a match wins.
-        if PSEUDO_COLUMNS.iter().any(|p| col.text.eq_ignore_ascii_case(p)) {
+        if PSEUDO_COLUMNS
+            .iter()
+            .any(|p| col.text.eq_ignore_ascii_case(p))
+        {
             return unknown(parts);
         }
         let mut all_known = true;
@@ -551,11 +567,17 @@ impl Resolver<'_, '_> {
                 src.exposed()
                     .is_some_and(|e| self.d().is_same(&e.name(self.d()), &col_name))
             }) {
-                parts[n - 1] = Some(Symbol::Alias { scope: s, source: i });
+                parts[n - 1] = Some(Symbol::Alias {
+                    scope: s,
+                    source: i,
+                });
                 return ok(parts, None);
             }
         }
-        if !any_source || !all_known || self.d().is_soft_keyword(&col.text) || self.d().is_type(&col.text)
+        if !any_source
+            || !all_known
+            || self.d().is_soft_keyword(&col.text)
+            || self.d().is_type(&col.text)
         {
             return unknown(parts);
         }
@@ -600,7 +622,10 @@ impl Resolver<'_, '_> {
                 parts[at] = Some(c.symbol.clone());
                 ok(parts, c.data_type.clone())
             }
-            None if PSEUDO_COLUMNS.iter().any(|p| col.text.eq_ignore_ascii_case(p)) => {
+            None if PSEUDO_COLUMNS
+                .iter()
+                .any(|p| col.text.eq_ignore_ascii_case(p)) =>
+            {
                 unknown(parts)
             }
             None => {
@@ -887,7 +912,11 @@ pub(crate) mod tests {
                 SchemaInfo {
                     name: "audit".into(),
                     loaded: true,
-                    tables: vec![t("log", vec![col("id", "integer"), col("message", "text")], vec![])],
+                    tables: vec![t(
+                        "log",
+                        vec![col("id", "integer"), col("message", "text")],
+                        vec![],
+                    )],
                     routines: vec![],
                 },
             ],
@@ -919,13 +948,24 @@ pub(crate) mod tests {
     #[test]
     fn aliases_and_columns_resolve() {
         let m = shop("public");
-        let sql = "select o.id, c.name, total from orders o join customers c on c.id = o.customer_id";
+        let sql =
+            "select o.id, c.name, total from orders o join customers c on c.id = o.customer_id";
         let (p, r) = run(sql, "postgresql", &m);
         for x in &r {
             assert_eq!(x.status, Status::Ok, "{:?}", x);
         }
-        let i = p.refs.iter().position(|x| &sql[x.range()] == "o.id").unwrap();
-        assert_eq!(r[i].parts[0], Some(Symbol::Alias { scope: 0, source: 0 }));
+        let i = p
+            .refs
+            .iter()
+            .position(|x| &sql[x.range()] == "o.id")
+            .unwrap();
+        assert_eq!(
+            r[i].parts[0],
+            Some(Symbol::Alias {
+                scope: 0,
+                source: 0
+            })
+        );
         assert_eq!(
             r[i].parts[1],
             Some(Symbol::Column {
@@ -945,18 +985,26 @@ pub(crate) mod tests {
         assert!(matches!(status_of(sql, &p, &r, "id"), Status::Ambiguous(_)));
         assert!(matches!(
             status_of(sql, &p, &r, "x.name"),
-            Status::Unresolved { what: What::Qualifier, .. }
+            Status::Unresolved {
+                what: What::Qualifier,
+                ..
+            }
         ));
         // `nope` is unknown, so unqualified columns cannot be checked.
         assert_eq!(status_of(sql, &p, &r, "totl"), &Status::Unknown);
         assert!(matches!(
             status_of(sql, &p, &r, "nope"),
-            Status::Unresolved { what: What::Table, .. }
+            Status::Unresolved {
+                what: What::Table,
+                ..
+            }
         ));
         let sql = "select totl from orders";
         let (p, r) = run(sql, "postgresql", &m);
         match status_of(sql, &p, &r, "totl") {
-            Status::Unresolved { suggestions, .. } => assert_eq!(suggestions, &vec!["total".to_owned()]),
+            Status::Unresolved { suggestions, .. } => {
+                assert_eq!(suggestions, &vec!["total".to_owned()])
+            }
             s => panic!("{s:?}"),
         }
     }
@@ -996,7 +1044,10 @@ pub(crate) mod tests {
         let sql = "insert into orders (customer_id, totl) values (1, 2)";
         let (p, r) = run(sql, "postgresql", &m);
         assert_eq!(status_of(sql, &p, &r, "customer_id"), &Status::Ok);
-        assert!(matches!(status_of(sql, &p, &r, "totl"), Status::Unresolved { .. }));
+        assert!(matches!(
+            status_of(sql, &p, &r, "totl"),
+            Status::Unresolved { .. }
+        ));
         let sql = "update orders set status = 'x' where id = 1";
         let (_, r) = run(sql, "postgresql", &m);
         assert!(r.iter().all(|x| x.status == Status::Ok), "{r:?}");

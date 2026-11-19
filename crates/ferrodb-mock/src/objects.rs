@@ -322,8 +322,9 @@ pub fn plan(model: DataModel, text: &str, analyze: bool) -> PlanNode {
             n.actual_ms = Some(inputs + cost / 40.0);
         }
         if (op == "Seq Scan" || op == "COLLSCAN") && rows >= 1000 {
-            n.warnings
-                .push(format!("full scan reading about {rows} rows; an index may help"));
+            n.warnings.push(format!(
+                "full scan reading about {rows} rows; an index may help"
+            ));
         }
         n
     };

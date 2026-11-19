@@ -55,7 +55,7 @@ pub fn record(
         let stored = task.await;
         match stored {
             Ok(Some(_)) => {
-                let _ = cx.update(activity::revision_stored);
+                cx.update(activity::revision_stored);
             }
             Ok(None) => {}
             Err(e) => tracing::warn!(error = %e, "local history not written"),

@@ -107,7 +107,10 @@ impl TableEditor {
             .as_ref()
             .filter(|n| n.kind() == Some(ObjectKind::Table))
             .cloned();
-        let container = node.as_ref().map(container_of).filter(|c| !c.path.is_empty());
+        let container = node
+            .as_ref()
+            .map(container_of)
+            .filter(|c| !c.path.is_empty());
         let name_text = table
             .as_ref()
             .and_then(|n| n.name())
@@ -141,14 +144,20 @@ impl TableEditor {
         this
     }
 
-    fn input(&mut self, value: &str, window: &mut Window, cx: &mut Context<Self>) -> Entity<InputState> {
+    fn input(
+        &mut self,
+        value: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<InputState> {
         let v = value.to_owned();
         let e = cx.new(|cx| InputState::new(window, cx).default_value(v));
-        self._subs.push(cx.subscribe(&e, |this, _, ev: &InputEvent, cx| {
-            if matches!(ev, InputEvent::Change) {
-                this.schedule_preview(cx);
-            }
-        }));
+        self._subs
+            .push(cx.subscribe(&e, |this, _, ev: &InputEvent, cx| {
+                if matches!(ev, InputEvent::Change) {
+                    this.schedule_preview(cx);
+                }
+            }));
         e
     }
 
@@ -183,7 +192,8 @@ impl TableEditor {
             row.auto_increment = c.auto_increment;
             row.comment = c.comment.clone();
             if let Some(def) = &c.default {
-                row.default.update(cx, |i, cx| i.set_value(def.clone(), window, cx));
+                row.default
+                    .update(cx, |i, cx| i.set_value(def.clone(), window, cx));
             }
         }
         for i in &d.indexes {
@@ -221,7 +231,14 @@ impl TableEditor {
         self.schedule_preview(cx);
     }
 
-    pub fn add_index(&mut self, name: &str, columns: &str, unique: bool, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn add_index(
+        &mut self,
+        name: &str,
+        columns: &str,
+        unique: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let name = self.input(name, window, cx);
         let columns = self.input(columns, window, cx);
         self.indexes.push(IndexRow {
@@ -232,7 +249,12 @@ impl TableEditor {
         self.schedule_preview(cx);
     }
 
-    pub fn add_foreign_key(&mut self, f: &ForeignKeyDesign, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn add_foreign_key(
+        &mut self,
+        f: &ForeignKeyDesign,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let columns = self.input(&f.columns.join(", "), window, cx);
         let ref_table = self.input(&f.ref_table, window, cx);
         let ref_columns = self.input(&f.ref_columns.join(", "), window, cx);
@@ -253,7 +275,11 @@ impl TableEditor {
         let v = |e: &Entity<InputState>| e.read(cx).value().trim().to_owned();
         let loaded = self.loaded.clone().unwrap_or_default();
         TableDesign {
-            original: self.source.as_ref().and_then(|n| n.name()).map(str::to_owned),
+            original: self
+                .source
+                .as_ref()
+                .and_then(|n| n.name())
+                .map(str::to_owned),
             name: v(&self.name),
             comment: loaded.comment.clone(),
             columns: self
@@ -371,7 +397,10 @@ impl TableEditor {
                     Ok(_) => {
                         output::info(text.clone(), cx);
                         window.close_dialog(cx);
-                        window.push_notification(Notification::success(t("table-editor-applied")), cx);
+                        window.push_notification(
+                            Notification::success(t("table-editor-applied")),
+                            cx,
+                        );
                         workspace::refresh_explorer_node(container.clone(), cx);
                     }
                     Err(e) => {
@@ -594,7 +623,7 @@ impl Render for TableEditor {
         let place = self
             .container
             .as_ref()
-            .map(|c| crate::views::schema_compare::label(c))
+            .map(crate::views::schema_compare::label)
             .unwrap_or_default();
         v_flex()
             .id("table-editor")
@@ -605,20 +634,32 @@ impl Render for TableEditor {
                     .gap_2()
                     .child(div().w(px(100.)).child(t("table-editor-name")))
                     .child(div().w(px(240.)).child(Input::new(&self.name).small()))
-                    .child(div().text_sm().text_color(theme.muted_foreground).child(place)),
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(theme.muted_foreground)
+                            .child(place),
+                    ),
             )
             .child(
                 TabBar::new("te-tabs")
                     .xsmall()
                     .selected_index(tab_ix)
                     .child(Tab::new().label(t("table-editor-columns")))
-                    .child(Tab::new().label(t_args("table-editor-indexes", &[("count", self.indexes.len().into())])))
+                    .child(Tab::new().label(t_args(
+                        "table-editor-indexes",
+                        &[("count", self.indexes.len().into())],
+                    )))
                     .child(Tab::new().label(t_args(
                         "table-editor-foreign-keys",
                         &[("count", self.foreign_keys.len().into())],
                     )))
                     .on_click(cx.listener(|this, ix: &usize, _, cx| {
-                        this.tab = [EditorTab::Columns, EditorTab::Indexes, EditorTab::ForeignKeys][*ix];
+                        this.tab = [
+                            EditorTab::Columns,
+                            EditorTab::Indexes,
+                            EditorTab::ForeignKeys,
+                        ][*ix];
                         cx.notify();
                     })),
             )

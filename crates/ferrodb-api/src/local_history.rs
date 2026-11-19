@@ -248,7 +248,7 @@ impl LocalHistoryService for MemoryLocalHistory {
                 }),
             }
         }
-        docs.sort_by(|a, b| b.last.cmp(&a.last));
+        docs.sort_by_key(|a| std::cmp::Reverse(a.last));
         Box::pin(async move { Ok(docs) })
     }
 
@@ -269,7 +269,9 @@ impl LocalHistoryService for MemoryLocalHistory {
     }
 
     fn clear(&self, document: String) -> BoxFuture<'_, Result<()>> {
-        self.lock().revisions.retain(|(r, _)| r.document != document);
+        self.lock()
+            .revisions
+            .retain(|(r, _)| r.document != document);
         Box::pin(async { Ok(()) })
     }
 
@@ -310,8 +312,13 @@ mod tests {
         for t in ["b", "c", "d"] {
             block(h.record(doc.clone(), t.into(), RevisionReason::Autosave, None)).unwrap();
         }
-        block(h.record(doc.clone(), "d".into(), RevisionReason::Label, Some("v1".into())))
-            .unwrap();
+        block(h.record(
+            doc.clone(),
+            "d".into(),
+            RevisionReason::Label,
+            Some("v1".into()),
+        ))
+        .unwrap();
         let revs = block(h.revisions(doc.clone())).unwrap();
         assert_eq!(revs.len(), 5);
         assert_eq!(revs[0].label.as_deref(), Some("v1"));

@@ -13,8 +13,7 @@ use std::{
 
 use ferrodb_api::{
     CancelHandle, DataSourceId, DataSourceInfo, Environment, ExecMode, ExecOptions, ExplainOptions,
-    ExplainSupport,
-    NodeRef, QueryEvent, QueryLanguage, Risk, RiskKind, Script, SessionId, TxMode,
+    ExplainSupport, NodeRef, QueryEvent, QueryLanguage, Risk, RiskKind, Script, SessionId, TxMode,
 };
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -270,7 +269,8 @@ impl ConsolePanel {
             None,
             cx,
         );
-        self.editor.update(cx, |e, cx| e.replace_all(text, window, cx));
+        self.editor
+            .update(cx, |e, cx| e.replace_all(text, window, cx));
     }
 
     /// A revision of unsaved edits after a pause in typing.
@@ -1144,7 +1144,11 @@ impl ConsolePanel {
                 Ok(plan) => {
                     let view = cx.new(|cx| PlanView::new(plan, window, cx));
                     this.tabs.push(ConsoleTab::Plan {
-                        title: t(if analyze { "explain-tab-analyzed" } else { "explain-tab" }),
+                        title: t(if analyze {
+                            "explain-tab-analyzed"
+                        } else {
+                            "explain-tab"
+                        }),
                         view,
                     });
                     this.active_tab = this.tabs.len();

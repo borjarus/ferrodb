@@ -55,6 +55,12 @@ const DOUBLE_SHIFT: Duration = Duration::from_millis(400);
 struct ActiveWorkspace(WeakEntity<Workspace>);
 impl Global for ActiveWorkspace {}
 
+struct ActiveProjectPath {
+    root: PathBuf,
+    state_dir: PathBuf,
+}
+impl Global for ActiveProjectPath {}
+
 /// The most recently created / used console (Local History compare).
 pub struct LastConsole(pub WeakEntity<ConsolePanel>);
 impl Global for LastConsole {}
@@ -155,6 +161,10 @@ impl Workspace {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         cx.set_global(ActiveWorkspace(cx.entity().downgrade()));
+        cx.set_global(ActiveProjectPath {
+            root: project.root.clone(),
+            state_dir: project.state_dir(),
+        });
 
         output::info(
             t_args("project-opened", &[("name", project.name().into())]),
@@ -474,6 +484,10 @@ impl Workspace {
             t_args("project-opened", &[("name", project.name().into())]),
             cx,
         );
+        cx.set_global(ActiveProjectPath {
+            root: project.root.clone(),
+            state_dir: project.state_dir(),
+        });
         self.project = project;
         window.set_window_title(&format!("{} — {}", self.project.name(), t("app-name")));
         cx.notify();
@@ -857,12 +871,16 @@ pub fn open_er_diagram(node: NodeRef, window: &mut Window, cx: &mut App) {
 
 /// `.ferrodb/` of the active project.
 pub fn project_state_dir(cx: &App) -> Option<PathBuf> {
-    active(cx).map(|ws| ws.read(cx).project().state_dir())
+    cx.try_global::<ActiveProjectPath>()
+        .map(|p| p.state_dir.clone())
+        .or_else(|| active(cx).map(|ws| ws.read(cx).project().state_dir()))
 }
 
 /// Root directory of the active project.
 pub fn project_root(cx: &App) -> Option<PathBuf> {
-    active(cx).map(|ws| ws.read(cx).project().root.clone())
+    cx.try_global::<ActiveProjectPath>()
+        .map(|p| p.root.clone())
+        .or_else(|| active(cx).map(|ws| ws.read(cx).project().root.clone()))
 }
 
 /// Reloads a node of the explorer after its metadata changed (DDL applied).
@@ -1129,6 +1147,21 @@ impl Render for Workspace {
     }
 }
 
+/// Opens a console on `data_source` with `query` and runs it.
+pub fn open_data_query(
+    data_source: DataSourceId,
+    query: String,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if let Some(ws) = active(cx) {
+        ws.update(cx, |ws, cx| {
+            let console = ws.add_console(Some(data_source), query, window, cx);
+            console.update(cx, |c, cx| c.run(RunTarget::Script, window, cx));
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1156,15 +1189,5 @@ mod tests {
         // ctrl+shift does not count
         s.update(&mods(false, false), t0 + Duration::from_millis(1050));
         assert!(!s.update(&mods(true, true), t0 + Duration::from_millis(1100)));
-    }
-}
-
-/// Opens a console on `data_source` with `query` and runs it.
-pub fn open_data_query(data_source: DataSourceId, query: String, window: &mut Window, cx: &mut App) {
-    if let Some(ws) = active(cx) {
-        ws.update(cx, |ws, cx| {
-            let console = ws.add_console(Some(data_source), query, window, cx);
-            console.update(cx, |c, cx| c.run(RunTarget::Script, window, cx));
-        });
     }
 }

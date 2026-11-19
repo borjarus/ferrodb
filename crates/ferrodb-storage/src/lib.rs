@@ -19,8 +19,8 @@ use std::{
 };
 
 use ferrodb_api::{
-    DataSourceId, HistoryDocument, HistoryEntry, HistoryFilter, Retention, Revision, RevisionReason,
-    retention_victims,
+    DataSourceId, HistoryDocument, HistoryEntry, HistoryFilter, Retention, Revision,
+    RevisionReason, retention_victims,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 

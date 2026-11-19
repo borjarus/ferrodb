@@ -137,7 +137,13 @@ pub fn diagram_file(node: &NodeRef) -> String {
     let name: String = parts
         .join("-")
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     format!("{name}.json")
 }
@@ -173,10 +179,15 @@ impl ErDiagram {
     /// Diagram of a schema / database (or of the schema containing a table).
     pub fn new(node: NodeRef, diagrams_dir: Option<PathBuf>, cx: &mut Context<Self>) -> Self {
         let mut container = node.clone();
-        while container
-            .kind()
-            .is_some_and(|k| !matches!(k, ObjectKind::Schema | ObjectKind::Database | ObjectKind::Keyspace | ObjectKind::Dataset))
-        {
+        while container.kind().is_some_and(|k| {
+            !matches!(
+                k,
+                ObjectKind::Schema
+                    | ObjectKind::Database
+                    | ObjectKind::Keyspace
+                    | ObjectKind::Dataset
+            )
+        }) {
             container.path.pop();
         }
         let title = container.name().unwrap_or_default().to_owned();
@@ -237,8 +248,10 @@ impl ErDiagram {
             let (Some(from), Some(to)) = (self.find(&r.from), self.find(&r.to)) else {
                 continue;
             };
-            let fy = from.origin.y + px(from.row_y(r.from_columns.first().map(String::as_str).unwrap_or("")));
-            let ty = to.origin.y + px(to.row_y(r.to_columns.first().map(String::as_str).unwrap_or("")));
+            let fy = from.origin.y
+                + px(from.row_y(r.from_columns.first().map(String::as_str).unwrap_or("")));
+            let ty =
+                to.origin.y + px(to.row_y(r.to_columns.first().map(String::as_str).unwrap_or("")));
             // Leave from the side facing the other box.
             let (a, b) = if from.origin.x >= to.origin.x + px(BOX_W / 2.) {
                 (point(from.origin.x, fy), point(to.origin.x + px(BOX_W), ty))
@@ -246,7 +259,10 @@ impl ErDiagram {
                 (point(from.origin.x + px(BOX_W), fy), point(to.origin.x, ty))
             } else {
                 // Same column (or a self reference): loop on the right side.
-                (point(from.origin.x + px(BOX_W), fy), point(to.origin.x + px(BOX_W), ty))
+                (
+                    point(from.origin.x + px(BOX_W), fy),
+                    point(to.origin.x + px(BOX_W), ty),
+                )
             };
             out.push(Connector {
                 a,
@@ -273,7 +289,12 @@ impl ErDiagram {
             positions: self
                 .boxes
                 .iter()
-                .map(|b| (b.name.clone(), (f32::from(b.origin.x), f32::from(b.origin.y))))
+                .map(|b| {
+                    (
+                        b.name.clone(),
+                        (f32::from(b.origin.x), f32::from(b.origin.y)),
+                    )
+                })
                 .collect(),
         };
         if let Some(dir) = f.parent() {
@@ -298,96 +319,103 @@ impl Render for ErDiagram {
         let lines = self.connectors();
         let line_color = theme.primary;
         let optional_color = theme.muted_foreground;
-        let boxes = self.boxes.iter().enumerate().map(|(i, b)| {
-            let more = b.columns.len().saturating_sub(MAX_COLS);
-            div()
-                .absolute()
-                .left(b.origin.x)
-                .top(b.origin.y)
-                .w(px(BOX_W))
-                .rounded_md()
-                .border_1()
-                .border_color(theme.border)
-                .bg(theme.background)
-                .shadow_sm()
-                .child(
-                    h_flex()
-                        .id(("er-head", i))
-                        .h(px(HEADER_H))
-                        .px_2()
-                        .gap_1()
-                        .bg(theme.muted)
-                        .rounded_t_md()
-                        .cursor_move()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, ev: &MouseDownEvent, _, cx| {
-                                if let Some(b) = this.boxes.get(i) {
-                                    this.drag = Some(Drag {
-                                        index: i,
-                                        start_mouse: ev.position,
-                                        start_origin: b.origin,
-                                    });
-                                    cx.stop_propagation();
-                                }
-                            }),
-                        )
-                        .child(
-                            icons::object_icon(if b.view {
-                                ObjectKind::View
-                            } else {
-                                ObjectKind::Table
-                            })
-                            .xsmall(),
-                        )
-                        .child(b.name.clone()),
-                )
-                .child(
-                    v_flex()
-                        .px_2()
-                        .py_1()
-                        .text_xs()
-                        .children(b.columns.iter().take(MAX_COLS).map(|(n, ty, pk, fk)| {
-                            h_flex()
-                                .h(px(ROW_H))
-                                .gap_1()
-                                .child(
-                                    div()
-                                        .w(px(14.))
-                                        .text_color(if *pk { theme.warning } else { theme.primary })
-                                        .child(match (pk, fk) {
-                                            (true, _) => "PK",
-                                            (false, true) => "FK",
-                                            _ => "",
-                                        }),
-                                )
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .overflow_hidden()
-                                        .when(*pk, |d| d.font_weight(FontWeight::SEMIBOLD))
-                                        .child(n.clone()),
-                                )
-                                .child(
-                                    div()
-                                        .max_w(px(90.))
-                                        .overflow_hidden()
-                                        .text_color(theme.muted_foreground)
-                                        .child(ty.clone()),
-                                )
-                        }))
-                        .when(more > 0, |d| {
-                            d.child(
-                                div()
-                                    .h(px(ROW_H))
-                                    .text_color(theme.muted_foreground)
-                                    .child(t_args("er-more-columns", &[("count", more.into())])),
+        let boxes = self
+            .boxes
+            .iter()
+            .enumerate()
+            .map(|(i, b)| {
+                let more = b.columns.len().saturating_sub(MAX_COLS);
+                div()
+                    .absolute()
+                    .left(b.origin.x)
+                    .top(b.origin.y)
+                    .w(px(BOX_W))
+                    .rounded_md()
+                    .border_1()
+                    .border_color(theme.border)
+                    .bg(theme.background)
+                    .shadow_sm()
+                    .child(
+                        h_flex()
+                            .id(("er-head", i))
+                            .h(px(HEADER_H))
+                            .px_2()
+                            .gap_1()
+                            .bg(theme.muted)
+                            .rounded_t_md()
+                            .cursor_move()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, ev: &MouseDownEvent, _, cx| {
+                                    if let Some(b) = this.boxes.get(i) {
+                                        this.drag = Some(Drag {
+                                            index: i,
+                                            start_mouse: ev.position,
+                                            start_origin: b.origin,
+                                        });
+                                        cx.stop_propagation();
+                                    }
+                                }),
                             )
-                        }),
-                )
-        })
-        .collect::<Vec<_>>();
+                            .child(
+                                icons::object_icon(if b.view {
+                                    ObjectKind::View
+                                } else {
+                                    ObjectKind::Table
+                                })
+                                .xsmall(),
+                            )
+                            .child(b.name.clone()),
+                    )
+                    .child(
+                        v_flex()
+                            .px_2()
+                            .py_1()
+                            .text_xs()
+                            .children(b.columns.iter().take(MAX_COLS).map(|(n, ty, pk, fk)| {
+                                h_flex()
+                                    .h(px(ROW_H))
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .w(px(14.))
+                                            .text_color(if *pk {
+                                                theme.warning
+                                            } else {
+                                                theme.primary
+                                            })
+                                            .child(match (pk, fk) {
+                                                (true, _) => "PK",
+                                                (false, true) => "FK",
+                                                _ => "",
+                                            }),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .overflow_hidden()
+                                            .when(*pk, |d| d.font_weight(FontWeight::SEMIBOLD))
+                                            .child(n.clone()),
+                                    )
+                                    .child(
+                                        div()
+                                            .max_w(px(90.))
+                                            .overflow_hidden()
+                                            .text_color(theme.muted_foreground)
+                                            .child(ty.clone()),
+                                    )
+                            }))
+                            .when(more > 0, |d| {
+                                d.child(
+                                    div().h(px(ROW_H)).text_color(theme.muted_foreground).child(
+                                        t_args("er-more-columns", &[("count", more.into())]),
+                                    ),
+                                )
+                            }),
+                    )
+            })
+            .collect::<Vec<_>>();
         let width = self
             .boxes
             .iter()
@@ -488,7 +516,11 @@ impl Render for ErDiagram {
                                             if let Ok(p) = path.build() {
                                                 window.paint_path(
                                                     p,
-                                                    if c.optional { optional_color } else { line_color },
+                                                    if c.optional {
+                                                        optional_color
+                                                    } else {
+                                                        line_color
+                                                    },
                                                 );
                                             }
                                             // The referenced end: a small bar.
@@ -553,7 +585,10 @@ mod tests {
                 entity("customers", &["id", "email"]),
                 entity("tags", &["id"]),
             ],
-            relations: vec![rel("items", "order_id", "orders"), rel("orders", "customer_id", "customers")],
+            relations: vec![
+                rel("items", "order_id", "orders"),
+                rel("orders", "customer_id", "customers"),
+            ],
         }
     }
 

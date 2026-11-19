@@ -40,6 +40,10 @@ The plan gives no completion criteria for this phase; the table below lists each
 - **DuckDB is not in the mock catalog** (the 26 databases of 1.0 stay as they are): "Open as Data Source" needs the core backend.
 - **DuckDB build cost**: the C++ sources take about 30 minutes to compile once per profile and feature set (`--no-default-features` on `ferrodb-core` leaves it out).
 
-## Test runs
+## Test runs (2026-11-19, macOS, mock and local SQLite/DuckDB tests)
 
-See the commit message for the commands and counts.
+- `cargo xtask ci` passed (fmt, clippy with `-D warnings`, test workspace).
+- `cargo test --workspace`: 449 passed, 0 failed, 2 ignored (`million_rows_stream`, `export_10m_rows`).
+- UI tests in `crates/ferrodb-ui/tests/phase7.rs`: 6 passed (plan modes + analyze, ER diagram + saved layout, schema comparison dev → prod, table editor ALTER, project files + save, Local History restore).
+- `crates/ferrodb-ui/tests/flows.rs`: 23 passed.
+- `crates/ferrodb-ui/tests/ui.rs`: 5 passed.

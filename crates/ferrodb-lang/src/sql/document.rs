@@ -7,7 +7,7 @@ use std::{collections::HashMap, ops::Range};
 use super::{
     dialect::Dialect,
     lexer::{Token, TokenKind, tokenize},
-    resolve::{Env, LocalTable, Resolution, TableTarget, resolve, source_columns, SourceColumn},
+    resolve::{Env, LocalTable, Resolution, SourceColumn, TableTarget, resolve, source_columns},
     schema::SchemaModel,
     split::{Statement, split},
     syntax::{Parsed, parse},

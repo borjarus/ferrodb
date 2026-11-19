@@ -103,9 +103,8 @@ pub(crate) fn request(dialect: &str, mql: bool, stmt: &str, analyze: bool) -> Re
             )));
         }
     };
-    let measure = (analyze && format == Format::SqliteRows).then(|| Request::Text {
-        text: stmt.clone(),
-    });
+    let measure =
+        (analyze && format == Format::SqliteRows).then(|| Request::Text { text: stmt.clone() });
     Ok(Explain {
         request: Request::Text { text: text.clone() },
         statement: text,
@@ -295,7 +294,10 @@ mod tests {
     #[test]
     fn statements_per_dialect() {
         let e = request("postgresql", false, "select 1;", true).unwrap();
-        assert_eq!(e.statement, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) select 1");
+        assert_eq!(
+            e.statement,
+            "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) select 1"
+        );
         let e = request("mysql", false, "select 1", false).unwrap();
         assert_eq!(e.format, Format::MySqlJson);
         let e = request("mysql", false, "select 1", true).unwrap();
@@ -332,8 +334,18 @@ mod tests {
         let inner = command.get_document("explain").unwrap();
         assert_eq!(inner.get_str("find").unwrap(), "orders");
         assert_eq!(inner.get_i64("limit").unwrap(), 5);
-        let e = request("", true, "db.orders.aggregate([{$group: {_id: '$s'}}])", false).unwrap();
-        assert!(e.statement.contains("\"aggregate\":\"orders\""), "{}", e.statement);
+        let e = request(
+            "",
+            true,
+            "db.orders.aggregate([{$group: {_id: '$s'}}])",
+            false,
+        )
+        .unwrap();
+        assert!(
+            e.statement.contains("\"aggregate\":\"orders\""),
+            "{}",
+            e.statement
+        );
         assert!(request("", true, "db.orders.insertOne({a: 1})", false).is_err());
         assert!(request("", true, "db.o.aggregate([{$out: 'x'}])", false).is_err());
     }

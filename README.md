@@ -2,7 +2,7 @@
 
 A native, cross-platform database IDE for SQL and NoSQL, written in Rust on GPUI + GPUI Kit. The plan is in [`docs/plan-ferrodb.en.md`](docs/plan-ferrodb.en.md).
 
-**Status: phases 0–3.** The application runs on real databases: PostgreSQL, MySQL, MariaDB and SQLite, with native drivers, TLS, SSH tunnels, keyring-stored secrets, streaming, cancellation, transactions and read-only mode. See [`docs/phase-3.md`](docs/phase-3.md). The GUI components from phase 2 are described in [`docs/phase-2.md`](docs/phase-2.md).
+**Status: phases 0–7.** Advanced tools: execution plans (tree, table, diagram), ER diagrams with foreign keys and layout persistence, schema comparison and migration scripts, visual table editor generating `ALTER`, project files panel, DuckDB file data sources, and full Local History in `app.db`. See [`docs/phase-7.md`](docs/phase-7.md). For earlier phases, see [`docs/phase-6.md`](docs/phase-6.md) and [`docs/phase-3.md`](docs/phase-3.md).
 
 ## Quick start
 

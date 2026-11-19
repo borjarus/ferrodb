@@ -167,7 +167,7 @@ impl PlanView {
         cx.notify();
     }
 
-    fn header(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn header(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         let p = &self.plan;
         let mut parts = vec![t_args(
@@ -225,9 +225,10 @@ impl PlanView {
                         cx.write_to_clipboard(ClipboardItem::new_string(raw.clone()))
                     }),
             )
+            .into_any_element()
     }
 
-    fn warnings(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+    fn warnings(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let w = self.plan.warnings();
         if w.is_empty() {
             return None;
@@ -246,10 +247,15 @@ impl PlanView {
                 .children(w.into_iter().map(move |(op, msg)| {
                     h_flex()
                         .gap_1()
-                        .child(icons::Icon::from(icons::Lucide::TriangleAlert).xsmall().text_color(theme.warning))
+                        .child(
+                            icons::Icon::from(icons::Lucide::TriangleAlert)
+                                .xsmall()
+                                .text_color(theme.warning),
+                        )
                         .child(div().font_weight(FontWeight::SEMIBOLD).child(op))
                         .child(msg)
-                })),
+                }))
+                .into_any_element(),
         )
     }
 
@@ -302,7 +308,11 @@ impl PlanView {
                                     .text_color(theme.warning),
                             )
                         })
-                        .child(div().font_weight(FontWeight::SEMIBOLD).child(n.operation.clone()))
+                        .child(
+                            div()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(n.operation.clone()),
+                        )
                         .child(
                             div()
                                 .flex_1()
@@ -341,7 +351,13 @@ impl PlanView {
             .border_b_1()
             .border_color(theme.border)
             .child(head("#".into(), 28.))
-            .child(div().flex_1().text_xs().font_weight(FontWeight::SEMIBOLD).child(t("explain-col-operation")))
+            .child(
+                div()
+                    .flex_1()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(t("explain-col-operation")),
+            )
             .child(head(t("explain-col-object"), 140.))
             .child(head(t("explain-col-cost"), 80.))
             .child(head(t("explain-col-self"), 80.))
@@ -382,7 +398,12 @@ impl PlanView {
                                         .text_color(theme.warning),
                                 )
                             })
-                            .child(div().text_xs().font_weight(FontWeight::SEMIBOLD).child(n.operation.clone()))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(n.operation.clone()),
+                            )
                             .child(
                                 div()
                                     .text_xs()
@@ -393,9 +414,7 @@ impl PlanView {
                     )
                     .child(cell(n.object.clone().unwrap_or_default(), 140.))
                     .child(cell(fmt_num(n.cost), 80.))
-                    .child(
-                        div().w(px(80.)).flex_shrink_0().child(bar(&theme, share)),
-                    )
+                    .child(div().w(px(80.)).flex_shrink_0().child(bar(&theme, share)))
                     .child(cell(n.rows.to_string(), 80.))
                     .when(analyzed, |d| {
                         d.child(cell(
@@ -497,7 +516,12 @@ impl PlanView {
                         .text_color(theme.muted_foreground)
                         .child(n.object.clone().or(n.detail.clone()).unwrap_or_default()),
                 )
-                .child(div().text_xs().text_color(theme.muted_foreground).child(stat))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.muted_foreground)
+                        .child(stat),
+                )
         });
         let width = pos.iter().map(|p| p.0).fold(0., f32::max) + BOX_W + 48.;
         let height = pos.iter().map(|p| p.1).fold(0., f32::max) + BOX_H + 48.;
@@ -538,7 +562,7 @@ impl PlanView {
             .into_any_element()
     }
 
-    fn details(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn details(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         let nodes = self.plan.root.flatten();
         let Some((_, n)) = nodes.get(self.selected) else {
@@ -558,7 +582,10 @@ impl PlanView {
                 .child(div().flex_1().min_w_0().child(v))
         };
         let mut items = vec![
-            row(t("explain-col-cost"), format!("{} (self {})", fmt_num(n.cost), fmt_num(n.self_cost()))),
+            row(
+                t("explain-col-cost"),
+                format!("{} (self {})", fmt_num(n.cost), fmt_num(n.self_cost())),
+            ),
             row(t("explain-col-rows"), n.rows.to_string()),
         ];
         if let Some(r) = n.actual_rows {
@@ -567,7 +594,11 @@ impl PlanView {
         if let Some(ms) = n.actual_ms {
             items.push(row(
                 t("explain-col-time"),
-                format!("{} (self {})", fmt_ms(ms), n.self_ms().map(fmt_ms).unwrap_or_default()),
+                format!(
+                    "{} (self {})",
+                    fmt_ms(ms),
+                    n.self_ms().map(fmt_ms).unwrap_or_default()
+                ),
             ));
         }
         if let Some(l) = n.loops {
@@ -624,7 +655,11 @@ fn bar(theme: &ferrodb_ui_kit::kit::Theme, share: f32) -> impl IntoElement {
                 .h_full()
                 .rounded_sm()
                 .w(relative(share.clamp(0., 1.)))
-                .bg(if share > 0.3 { theme.warning } else { theme.primary }),
+                .bg(if share > 0.3 {
+                    theme.warning
+                } else {
+                    theme.primary
+                }),
         )
 }
 
@@ -668,7 +703,10 @@ mod tests {
 
     #[::core::prelude::v1::test]
     fn diagram_centers_parents_over_inputs() {
-        let root = n("join", vec![n("scan a", vec![]), n("hash", vec![n("scan b", vec![])])]);
+        let root = n(
+            "join",
+            vec![n("scan a", vec![]), n("hash", vec![n("scan b", vec![])])],
+        );
         let pos = diagram_layout(&root);
         assert_eq!(pos.len(), 4);
         // Leaves side by side, depth by depth.

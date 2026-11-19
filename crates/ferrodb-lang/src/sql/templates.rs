@@ -20,24 +20,76 @@ use serde::Deserialize;
 
 const SQL: &[(&str, &str, &str)] = &[
     ("sel", "SELECT * FROM table", "SELECT * FROM $table$$END$"),
-    ("selw", "SELECT … WHERE", "SELECT * FROM $table$ WHERE $END$"),
-    ("selc", "SELECT count(*)", "SELECT count(*) FROM $table$ WHERE $END$"),
-    ("ins", "INSERT INTO … VALUES", "INSERT INTO $table$ ($columns$) VALUES ($END$)"),
-    ("upd", "UPDATE … SET … WHERE", "UPDATE $table$ SET $column$ = $END$ WHERE "),
-    ("del", "DELETE FROM … WHERE", "DELETE FROM $table$ WHERE $END$"),
-    ("crt", "CREATE TABLE", "CREATE TABLE $name$ (\n    id $type$ PRIMARY KEY,\n    $END$\n)"),
-    ("cte", "WITH … AS (…)", "WITH $name$ AS (\n    $SELECTION$$END$\n)\nSELECT * FROM $name$"),
-    ("exi", "EXISTS (subquery)", "EXISTS (SELECT 1 FROM $table$ WHERE $END$)"),
-    ("case", "CASE WHEN … END", "CASE WHEN $condition$ THEN $END$ ELSE NULL END"),
+    (
+        "selw",
+        "SELECT … WHERE",
+        "SELECT * FROM $table$ WHERE $END$",
+    ),
+    (
+        "selc",
+        "SELECT count(*)",
+        "SELECT count(*) FROM $table$ WHERE $END$",
+    ),
+    (
+        "ins",
+        "INSERT INTO … VALUES",
+        "INSERT INTO $table$ ($columns$) VALUES ($END$)",
+    ),
+    (
+        "upd",
+        "UPDATE … SET … WHERE",
+        "UPDATE $table$ SET $column$ = $END$ WHERE ",
+    ),
+    (
+        "del",
+        "DELETE FROM … WHERE",
+        "DELETE FROM $table$ WHERE $END$",
+    ),
+    (
+        "crt",
+        "CREATE TABLE",
+        "CREATE TABLE $name$ (\n    id $type$ PRIMARY KEY,\n    $END$\n)",
+    ),
+    (
+        "cte",
+        "WITH … AS (…)",
+        "WITH $name$ AS (\n    $SELECTION$$END$\n)\nSELECT * FROM $name$",
+    ),
+    (
+        "exi",
+        "EXISTS (subquery)",
+        "EXISTS (SELECT 1 FROM $table$ WHERE $END$)",
+    ),
+    (
+        "case",
+        "CASE WHEN … END",
+        "CASE WHEN $condition$ THEN $END$ ELSE NULL END",
+    ),
     ("lj", "LEFT JOIN … ON", "LEFT JOIN $table$ ON $END$"),
-    ("gb", "GROUP BY with count", "SELECT $column$, count(*) FROM $table$ GROUP BY $column$$END$"),
+    (
+        "gb",
+        "GROUP BY with count",
+        "SELECT $column$, count(*) FROM $table$ GROUP BY $column$$END$",
+    ),
 ];
 
 const MQL: &[(&str, &str, &str)] = &[
-    ("find", "db.collection.find()", "db.$collection$.find({$END$})"),
-    ("agg", "aggregate pipeline", "db.$collection$.aggregate([\n    { $$match: {$END$} }\n])"),
+    (
+        "find",
+        "db.collection.find()",
+        "db.$collection$.find({$END$})",
+    ),
+    (
+        "agg",
+        "aggregate pipeline",
+        "db.$collection$.aggregate([\n    { $$match: {$END$} }\n])",
+    ),
     ("ins", "insertOne", "db.$collection$.insertOne({$END$})"),
-    ("upd", "updateOne with $set", "db.$collection$.updateOne({$filter$}, { $$set: {$END$} })"),
+    (
+        "upd",
+        "updateOne with $set",
+        "db.$collection$.updateOne({$filter$}, { $$set: {$END$} })",
+    ),
 ];
 
 fn lang_key(lang: &QueryLanguage) -> Option<&'static str> {
@@ -198,7 +250,11 @@ pub fn expand(
     let t = templates
         .iter()
         .find(|t| t.abbreviation == abbr)
-        .or_else(|| templates.iter().find(|t| t.abbreviation.eq_ignore_ascii_case(abbr)))?;
+        .or_else(|| {
+            templates
+                .iter()
+                .find(|t| t.abbreviation.eq_ignore_ascii_case(abbr))
+        })?;
     let (out, selection) = expand_body(&t.body, None);
     Some(TemplateExpansion {
         replace: start..offset,

@@ -63,7 +63,11 @@ pub fn content(driver: &str, scenario: Scenario, node: &NodeRef) -> (String, Con
         let view = o.kind == K::View;
         let mut t = Table {
             name: o.name.clone(),
-            kind: if view { TableKind::View } else { TableKind::Table },
+            kind: if view {
+                TableKind::View
+            } else {
+                TableKind::Table
+            },
             ..Default::default()
         };
         if view {
@@ -141,7 +145,11 @@ mod tests {
             orders.columns.len()
         );
         // A table node resolves to its schema.
-        let (n, _) = content("postgresql", Scenario::Normal, &dev.child(K::Table, "orders"));
+        let (n, _) = content(
+            "postgresql",
+            Scenario::Normal,
+            &dev.child(K::Table, "orders"),
+        );
         assert_eq!(n, "public");
     }
 }

@@ -158,11 +158,20 @@ impl<'a> Engine<'a> {
         refactor::declaration(&self.sql(doc)?, offset)
     }
 
-    pub fn prepare_rename(&self, doc: &DocSnapshot, offset: usize) -> Option<(Range<usize>, String)> {
+    pub fn prepare_rename(
+        &self,
+        doc: &DocSnapshot,
+        offset: usize,
+    ) -> Option<(Range<usize>, String)> {
         refactor::prepare_rename(&self.sql(doc)?, offset)
     }
 
-    pub fn rename(&self, doc: &DocSnapshot, offset: usize, new_name: &str) -> Result<Vec<TextEdit>> {
+    pub fn rename(
+        &self,
+        doc: &DocSnapshot,
+        offset: usize,
+        new_name: &str,
+    ) -> Result<Vec<TextEdit>> {
         match self.sql(doc) {
             Some(d) => refactor::rename(&d, offset, new_name),
             None => Err(Error::Unsupported("rename in this language".into())),

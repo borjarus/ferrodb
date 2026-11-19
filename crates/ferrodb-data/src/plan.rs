@@ -74,8 +74,9 @@ fn common_warnings(n: &mut PlanNode, full_scan: bool) {
     if full_scan {
         let rows = n.actual_rows.unwrap_or(n.rows);
         if rows >= SCAN_WARNING_ROWS {
-            n.warnings
-                .push(format!("full scan reading about {rows} rows; an index may help"));
+            n.warnings.push(format!(
+                "full scan reading about {rows} rows; an index may help"
+            ));
         }
     }
     if let Some(actual) = n.actual_rows
@@ -179,7 +180,9 @@ fn pg_operation(o: &Map<String, Value>) -> String {
 }
 
 fn pg_node(v: &Value) -> Result<PlanNode> {
-    let o = v.as_object().ok_or_else(|| err("plan node is not an object"))?;
+    let o = v
+        .as_object()
+        .ok_or_else(|| err("plan node is not an object"))?;
     let s = |k: &str| o.get(k).and_then(Value::as_str);
     let relation = s("Relation Name");
     let alias = s("Alias").filter(|a| Some(*a) != relation);
@@ -227,8 +230,9 @@ fn pg_node(v: &Value) -> Result<PlanNode> {
     if let Some(m) = n.property("Sort Method")
         && m.contains("external")
     {
-        n.warnings
-            .push(format!("sort spilled to disk ({m}); consider more work_mem"));
+        n.warnings.push(format!(
+            "sort spilled to disk ({m}); consider more work_mem"
+        ));
     }
     if let (Some(removed), Some(actual)) = (count(o.get("Rows Removed by Filter")), n.actual_rows)
         && removed >= SCAN_WARNING_ROWS
@@ -276,8 +280,12 @@ pub fn duckdb_json(raw: &str) -> Result<ExecutionPlan> {
             .trim();
         let kids = v.get("children").and_then(Value::as_array);
         match kids {
-            Some(k) if k.len() == 1
-                && matches!(name, "RESULT_COLLECTOR" | "EXECUTE" | "EXPLAIN_ANALYZE" | "QUERY") =>
+            Some(k)
+                if k.len() == 1
+                    && matches!(
+                        name,
+                        "RESULT_COLLECTOR" | "EXECUTE" | "EXPLAIN_ANALYZE" | "QUERY"
+                    ) =>
             {
                 unwrap(&k[0])
             }
@@ -457,8 +465,11 @@ fn my_children(o: &Value) -> Vec<PlanNode> {
                 }
                 out.push(u);
             }
-            "attached_subqueries" | "optimized_away_subqueries" | "order_by_subqueries"
-            | "group_by_subqueries" | "subqueries" => {
+            "attached_subqueries"
+            | "optimized_away_subqueries"
+            | "order_by_subqueries"
+            | "group_by_subqueries"
+            | "subqueries" => {
                 for s in v.as_array().into_iter().flatten() {
                     if let Some(qb) = s.get("query_block") {
                         let mut b = my_block(qb);
@@ -491,8 +502,9 @@ fn my_operation(key: &str, v: &Value) -> PlanNode {
         n.detail = Some(text(k));
     }
     if flag("using_filesort") || key == "filesort" {
-        n.warnings
-            .push("sorts rows (filesort): an index on the ORDER BY / GROUP BY columns may help".into());
+        n.warnings.push(
+            "sorts rows (filesort): an index on the ORDER BY / GROUP BY columns may help".into(),
+        );
     }
     if flag("using_temporary_table") || key == "temporary_table" {
         n.warnings.push("uses a temporary table".into());
@@ -711,7 +723,8 @@ fn tree_line(body: &str) -> PlanNode {
         .map(str::to_owned);
     common_warnings(&mut n, lower == "table scan");
     if lower.starts_with("sort") && !lower.contains("index") {
-        n.warnings.push("sorts rows: an index on the sort columns may help".into());
+        n.warnings
+            .push("sorts rows: an index on the sort columns may help".into());
     }
     if lower.contains("temporary table") {
         n.warnings.push("uses a temporary table".into());
@@ -808,7 +821,11 @@ fn sqlite_node(detail: &str) -> PlanNode {
                     w.chars().any(char::is_alphabetic) && w.chars().all(|c| !c.is_lowercase())
                 })
                 .collect();
-            let op = if op.is_empty() { d.to_owned() } else { op.join(" ") };
+            let op = if op.is_empty() {
+                d.to_owned()
+            } else {
+                op.join(" ")
+            };
             let rest = d[op.len().min(d.len())..].trim();
             n.operation = op;
             n.detail = (!rest.is_empty()).then(|| rest.to_owned());
@@ -979,9 +996,11 @@ fn mongo_stage(v: &Value, ns: Option<&str>) -> PlanNode {
         (None, _, Some(f)) => Some(compact(f)),
         _ => None,
     };
-    n.object = index
-        .map(str::to_owned)
-        .or_else(|| (stage == "COLLSCAN").then(|| ns.map(str::to_owned)).flatten());
+    n.object = index.map(str::to_owned).or_else(|| {
+        (stage == "COLLSCAN")
+            .then(|| ns.map(str::to_owned))
+            .flatten()
+    });
     if let Some(i) = v.get("inputStage") {
         n.children.push(mongo_stage(i, ns));
     }
@@ -994,9 +1013,7 @@ fn mongo_stage(v: &Value, ns: Option<&str>) -> PlanNode {
         n.children.push(mongo_stage(i, ns));
     }
     match stage.as_str() {
-        "COLLSCAN" => n
-            .warnings
-            .push("collection scan: no index is used".into()),
+        "COLLSCAN" => n.warnings.push("collection scan: no index is used".into()),
         "SORT" => {
             if v.get("usedDisk").and_then(Value::as_bool) == Some(true) {
                 n.warnings.push("sort spilled to disk".into());
@@ -1043,9 +1060,16 @@ mod tests {
         assert_eq!(scan.operation, "Seq Scan");
         assert_eq!(scan.detail.as_deref(), Some("on orders o"));
         assert_eq!(scan.object.as_deref(), Some("orders"));
-        assert!(scan.warnings[0].contains("full scan"), "{:?}", scan.warnings);
+        assert!(
+            scan.warnings[0].contains("full scan"),
+            "{:?}",
+            scan.warnings
+        );
         let idx = &r.children[1].children[0];
-        assert_eq!(idx.detail.as_deref(), Some("using customers_pkey on customers c"));
+        assert_eq!(
+            idx.detail.as_deref(),
+            Some("using customers_pkey on customers c")
+        );
         assert!(
             idx.warnings.iter().any(|w| w.contains("estimated 2 rows")),
             "{:?}",
@@ -1094,7 +1118,10 @@ mod tests {
         assert_eq!(nl.children[0].operation, "Full table scan");
         assert!(!nl.children[0].warnings.is_empty());
         assert_eq!(nl.children[1].operation, "Index lookup");
-        assert_eq!(nl.children[1].detail.as_deref(), Some("on o using ix_customer"));
+        assert_eq!(
+            nl.children[1].detail.as_deref(),
+            Some("on o using ix_customer")
+        );
         assert_eq!(
             nl.children[1].property("attached_condition"),
             Some("(o.total > 10)")

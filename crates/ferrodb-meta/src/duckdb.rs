@@ -270,18 +270,65 @@ mod tests {
         let fk_cols = "customer_id".to_owned();
         let t = assemble(
             vec![
-                row(&[("name", Some("orders")), ("kind", Some("table")), ("sql", Some("CREATE TABLE orders(...);")), ("comment", None), ("row_estimate", Some("3"))]),
-                row(&[("name", Some("v")), ("kind", Some("view")), ("sql", Some("CREATE VIEW v AS SELECT 1;")), ("comment", None), ("row_estimate", None)]),
+                row(&[
+                    ("name", Some("orders")),
+                    ("kind", Some("table")),
+                    ("sql", Some("CREATE TABLE orders(...);")),
+                    ("comment", None),
+                    ("row_estimate", Some("3")),
+                ]),
+                row(&[
+                    ("name", Some("v")),
+                    ("kind", Some("view")),
+                    ("sql", Some("CREATE VIEW v AS SELECT 1;")),
+                    ("comment", None),
+                    ("row_estimate", None),
+                ]),
             ],
             vec![
-                row(&[("tbl", Some("orders")), ("name", Some("id")), ("type", Some("INTEGER")), ("nullable", Some("false")), ("def", None), ("comment", None)]),
-                row(&[("tbl", Some("orders")), ("name", Some("customer_id")), ("type", Some("INTEGER")), ("nullable", Some("true")), ("def", None), ("comment", None)]),
+                row(&[
+                    ("tbl", Some("orders")),
+                    ("name", Some("id")),
+                    ("type", Some("INTEGER")),
+                    ("nullable", Some("false")),
+                    ("def", None),
+                    ("comment", None),
+                ]),
+                row(&[
+                    ("tbl", Some("orders")),
+                    ("name", Some("customer_id")),
+                    ("type", Some("INTEGER")),
+                    ("nullable", Some("true")),
+                    ("def", None),
+                    ("comment", None),
+                ]),
             ],
             vec![
-                row(&[("tbl", Some("orders")), ("type", Some("PRIMARY KEY")), ("name", None), ("cols", Some(&cols_pk)), ("ref_table", None), ("ref_cols", None), ("expression", None)]),
-                row(&[("tbl", Some("orders")), ("type", Some("FOREIGN KEY")), ("name", None), ("cols", Some(&fk_cols)), ("ref_table", Some("customers")), ("ref_cols", Some("id")), ("expression", None)]),
+                row(&[
+                    ("tbl", Some("orders")),
+                    ("type", Some("PRIMARY KEY")),
+                    ("name", None),
+                    ("cols", Some(&cols_pk)),
+                    ("ref_table", None),
+                    ("ref_cols", None),
+                    ("expression", None),
+                ]),
+                row(&[
+                    ("tbl", Some("orders")),
+                    ("type", Some("FOREIGN KEY")),
+                    ("name", None),
+                    ("cols", Some(&fk_cols)),
+                    ("ref_table", Some("customers")),
+                    ("ref_cols", Some("id")),
+                    ("expression", None),
+                ]),
             ],
-            vec![row(&[("tbl", Some("orders")), ("name", Some("ix")), ("uniq", Some("false")), ("sql", Some("CREATE INDEX ix ON orders(customer_id, id);"))])],
+            vec![row(&[
+                ("tbl", Some("orders")),
+                ("name", Some("ix")),
+                ("uniq", Some("false")),
+                ("sql", Some("CREATE INDEX ix ON orders(customer_id, id);")),
+            ])],
         );
         assert_eq!(t.len(), 2);
         let o = &t[0];

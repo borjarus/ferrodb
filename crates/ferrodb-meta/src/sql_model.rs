@@ -74,7 +74,10 @@ pub fn sql_model(catalog: &Catalog) -> SchemaModel {
             }
         })
         .collect();
-    let search_path = containers.first().map(|c| vec![c.name.clone()]).unwrap_or_default();
+    let search_path = containers
+        .first()
+        .map(|c| vec![c.name.clone()])
+        .unwrap_or_default();
     SchemaModel::new(schemas, search_path)
 }
 

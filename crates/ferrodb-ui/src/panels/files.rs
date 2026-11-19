@@ -11,9 +11,7 @@ use std::{
     rc::Rc,
 };
 
-use ferrodb_api::{
-    DataSourceConfig, DataSourceId, Environment, SecretValues, TxMode,
-};
+use ferrodb_api::{DataSourceConfig, DataSourceId, Environment, SecretValues, TxMode};
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
     icons,
@@ -107,8 +105,11 @@ pub fn view_name(path: &Path) -> String {
     out
 }
 
+/// (driver, properties, query to start with).
+pub type FileSourceSpec = (&'static str, Vec<(String, String)>, String);
+
 /// A data source for a file: (driver, properties, query to start with).
-pub fn source_for(path: &Path) -> Option<(&'static str, Vec<(String, String)>, String)> {
+pub fn source_for(path: &Path) -> Option<FileSourceSpec> {
     let p = path.to_string_lossy().into_owned();
     match file_kind(path) {
         FileKind::Data => Some((
@@ -144,7 +145,10 @@ pub fn scan(root: &Path) -> (Vec<TreeItem>, HashMap<SharedString, PathBuf>) {
                 Some((is_dir, name, e.path()))
             })
             .collect();
-        entries.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.to_lowercase().cmp(&b.1.to_lowercase())));
+        entries.sort_by(|a, b| {
+            b.0.cmp(&a.0)
+                .then(a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+        });
         let mut out = Vec::new();
         for (is_dir, name, path) in entries {
             if *count >= MAX_ENTRIES {
@@ -242,7 +246,13 @@ impl FilesPanel {
         let id = existing.clone().unwrap_or_else(|| {
             let base: String = name
                 .chars()
-                .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+                .map(|c| {
+                    if c.is_alphanumeric() {
+                        c.to_ascii_lowercase()
+                    } else {
+                        '-'
+                    }
+                })
                 .collect();
             let ids: Vec<DataSourceId> = backend
                 .data_sources()
@@ -271,7 +281,10 @@ impl FilesPanel {
         };
         let task = cx.background_executor().spawn(async move {
             if existing.is_none() {
-                backend.data_sources().save(cfg, SecretValues::new()).await?;
+                backend
+                    .data_sources()
+                    .save(cfg, SecretValues::new())
+                    .await?;
             }
             Ok::<_, ferrodb_api::Error>(())
         });
@@ -351,9 +364,12 @@ impl Render for FilesPanel {
         })
         .size_full();
         let open_target = selected.clone().filter(|p| p.is_file());
-        let source_target = open_target
-            .clone()
-            .filter(|_| matches!(kind, Some(FileKind::Data | FileKind::DuckDb | FileKind::Sqlite)));
+        let source_target = open_target.clone().filter(|_| {
+            matches!(
+                kind,
+                Some(FileKind::Data | FileKind::DuckDb | FileKind::Sqlite)
+            )
+        });
         v_flex()
             .id("project-files")
             .test_support()

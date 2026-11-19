@@ -1608,7 +1608,9 @@ impl MetadataService for MockBackend {
         async move {
             let (sd, _) = self.tabular_source(&source)?;
             let (td, _) = self.tabular_source(&target)?;
-            self.shared.delay(self.shared.scenario().latency() * 2).await;
+            self.shared
+                .delay(self.shared.scenario().latency() * 2)
+                .await;
             let scenario = self.shared.scenario();
             let (sn, sc) = schema::content(&sd, scenario, &source);
             let (tn, tc) = schema::content(&td, scenario, &target);
@@ -1620,7 +1622,10 @@ impl MetadataService for MockBackend {
             let r = ferrodb_meta::diff::compare(side(&sd, &sn, &sc), side(&td, &tn, &tc), &opts);
             let up = |n: &NodeRef| {
                 let mut n = n.clone();
-                while n.kind().is_some_and(|k| k != ObjectKind::Schema && k != ObjectKind::Database) {
+                while n
+                    .kind()
+                    .is_some_and(|k| k != ObjectKind::Schema && k != ObjectKind::Database)
+                {
                     n.path.pop();
                 }
                 n

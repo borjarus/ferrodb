@@ -425,7 +425,7 @@ pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey])
     let mysql = t.dialect.is_mysql();
     // SQLite: `AUTOINCREMENT` only exists inline on a single-column key.
     let sqlite_auto = (t.dialect == Dialect::Sqlite)
-        .then(|| table.primary_key.as_ref())
+        .then_some(table.primary_key.as_ref())
         .flatten()
         .filter(|pk| pk.columns.len() == 1)
         .and_then(|pk| table.column(&pk.columns[0]))

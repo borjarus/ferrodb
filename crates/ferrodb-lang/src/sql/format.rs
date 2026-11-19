@@ -33,20 +33,60 @@ const OPERATORS: &[&str] = &[
 
 /// Clause keywords that start a line at the query's indentation.
 const CLAUSES: &[&str] = &[
-    "select", "from", "where", "having", "limit", "offset", "fetch", "union", "intersect",
-    "except", "minus", "values", "set", "returning", "window", "qualify",
+    "select",
+    "from",
+    "where",
+    "having",
+    "limit",
+    "offset",
+    "fetch",
+    "union",
+    "intersect",
+    "except",
+    "minus",
+    "values",
+    "set",
+    "returning",
+    "window",
+    "qualify",
 ];
 
 /// First words of a join phrase.
 const JOIN_WORDS: &[&str] = &[
-    "join", "left", "right", "full", "inner", "cross", "natural", "straight_join",
+    "join",
+    "left",
+    "right",
+    "full",
+    "inner",
+    "cross",
+    "natural",
+    "straight_join",
 ];
 
 /// Reserved words used as functions: no space before `(`.
 const KEYWORD_FUNCTIONS: &[&str] = &[
-    "cast", "left", "right", "replace", "char", "convert", "coalesce", "nullif", "if",
-    "row", "array", "position", "substring", "trim", "extract", "overlay", "collate",
-    "current_date", "current_time", "current_timestamp", "values", "exists",
+    "cast",
+    "left",
+    "right",
+    "replace",
+    "char",
+    "convert",
+    "coalesce",
+    "nullif",
+    "if",
+    "row",
+    "array",
+    "position",
+    "substring",
+    "trim",
+    "extract",
+    "overlay",
+    "collate",
+    "current_date",
+    "current_time",
+    "current_timestamp",
+    "values",
+    "exists",
 ];
 
 /// Formats a whole script.
@@ -67,9 +107,9 @@ pub fn format(text: &str, dialect: &str, style: &FormatStyle) -> String {
             .take_while(|t| t.range.start < span.body.start)
             .collect();
         ti += gap_toks.len();
-        let code_in_gap = gap_toks.iter().any(|t| {
-            !t.is_trivia() && !(t.kind == TokenKind::Punct && t.text(text) == ";")
-        });
+        let code_in_gap = gap_toks
+            .iter()
+            .any(|t| !t.is_trivia() && !(t.kind == TokenKind::Punct && t.text(text) == ";"));
         if code_in_gap {
             // `DELIMITER` commands: keep the gap verbatim.
             out.push_str(&text[pos..span.body.start]);
@@ -92,9 +132,9 @@ pub fn format(text: &str, dialect: &str, style: &FormatStyle) -> String {
     }
     // Tail: terminator and trailing comments.
     let tail: Vec<&Token> = toks[ti..].iter().collect();
-    let code_in_tail = tail.iter().any(|t| {
-        !t.is_trivia() && !(t.kind == TokenKind::Punct && t.text(text) == ";")
-    });
+    let code_in_tail = tail
+        .iter()
+        .any(|t| !t.is_trivia() && !(t.kind == TokenKind::Punct && t.text(text) == ";"));
     if code_in_tail {
         out.push_str(&text[pos..]);
     } else {
@@ -130,11 +170,19 @@ fn gap(out: &mut String, text: &str, toks: &[&Token], first: bool, before_stmt: 
             TokenKind::Whitespace => pending_ws = pending_ws.max(breaks(t.text(text))),
             TokenKind::LineComment | TokenKind::BlockComment => {
                 if !out.is_empty() {
-                    let ws = if after_line_comment { pending_ws.max(1) } else { pending_ws };
+                    let ws = if after_line_comment {
+                        pending_ws.max(1)
+                    } else {
+                        pending_ws
+                    };
                     sep(out, ws);
                 }
                 let c = t.text(text);
-                out.push_str(if t.kind == TokenKind::LineComment { c.trim_end() } else { c });
+                out.push_str(if t.kind == TokenKind::LineComment {
+                    c.trim_end()
+                } else {
+                    c
+                });
                 after_line_comment = t.kind == TokenKind::LineComment;
                 pending_ws = 0;
             }
@@ -175,13 +223,18 @@ fn verbatim(src: &str, toks: &[Token]) -> bool {
         .map(|t| t.text(src).to_ascii_lowercase())
         .collect();
     let routine = words.first().is_some_and(|w| w == "create")
-        && words
-            .iter()
-            .any(|w| matches!(w.as_str(), "function" | "procedure" | "trigger" | "event" | "package" | "rule"));
-    let block = words
-        .first()
-        .is_some_and(|w| matches!(w.as_str(), "do" | "begin" | "declare" | "if" | "while" | "loop"))
-        && toks.len() > 2;
+        && words.iter().any(|w| {
+            matches!(
+                w.as_str(),
+                "function" | "procedure" | "trigger" | "event" | "package" | "rule"
+            )
+        });
+    let block = words.first().is_some_and(|w| {
+        matches!(
+            w.as_str(),
+            "do" | "begin" | "declare" | "if" | "while" | "loop"
+        )
+    }) && toks.len() > 2;
     let broken = toks.iter().any(|t| {
         let s = t.text(src);
         match t.kind {
@@ -298,7 +351,8 @@ impl<'a> Body<'a> {
             items.push(Item {
                 text,
                 kind: t.kind,
-                own_line: own_line && matches!(t.kind, TokenKind::LineComment | TokenKind::BlockComment),
+                own_line: own_line
+                    && matches!(t.kind, TokenKind::LineComment | TokenKind::BlockComment),
                 break_after,
                 _src: src,
             });
@@ -329,7 +383,9 @@ impl<'a> Body<'a> {
     }
 
     fn is(&self, i: usize, s: &str) -> bool {
-        self.items.get(i).is_some_and(|it| it.text == s && it.kind == TokenKind::Punct)
+        self.items
+            .get(i)
+            .is_some_and(|it| it.text == s && it.kind == TokenKind::Punct)
     }
 
     /// Next / previous code item (not a comment).
@@ -458,15 +514,18 @@ impl<'a> Body<'a> {
                         .is_some_and(|pw| JOIN_WORDS.contains(&pw.as_str()) || pw == "outer")
                     && self.join_follows(i);
                 let group_order = matches!(w, "group" | "order")
-                    && self.next_code(i).and_then(|k| self.word(k)).is_some_and(|x| x == "by");
+                    && self
+                        .next_code(i)
+                        .and_then(|k| self.word(k))
+                        .is_some_and(|x| x == "by");
                 let set_clause = w == "set"
-                    && !prev.and_then(|p| self.word(p)).is_some_and(|p| matches!(p.as_str(), "character" | "char" | "charset"));
+                    && !prev
+                        .and_then(|p| self.word(p))
+                        .is_some_and(|p| matches!(p.as_str(), "character" | "char" | "charset"));
                 let is_clause = (CLAUSES.contains(&w) && (w != "set" || set_clause))
                     || join_start
                     || group_order
-                    || (w == "on"
-                        && self.top().clause == "join"
-                        && false);
+                    || (w == "on" && self.top().clause == "join" && false);
                 if is_clause && prev.is_some() {
                     self.ensure_line(base);
                 }
@@ -529,7 +588,11 @@ impl<'a> Body<'a> {
                         if sub || cols {
                             let b = self.indent + 1;
                             self.frames.push(Frame {
-                                kind: if sub { FrameKind::Query } else { FrameKind::Columns },
+                                kind: if sub {
+                                    FrameKind::Query
+                                } else {
+                                    FrameKind::Columns
+                                },
                                 base: b,
                                 outer,
                                 clause: String::new(),
@@ -567,7 +630,11 @@ impl<'a> Body<'a> {
                         let at_list = (f.kind == FrameKind::Query && f.list_break)
                             || f.kind == FrameKind::Columns;
                         if at_list {
-                            let b = if f.kind == FrameKind::Columns { f.base } else { f.base + 1 };
+                            let b = if f.kind == FrameKind::Columns {
+                                f.base
+                            } else {
+                                f.base + 1
+                            };
                             self.newline(b);
                         }
                         i += 1;
@@ -612,14 +679,21 @@ impl<'a> Body<'a> {
 
     /// `CREATE [TEMP] TABLE name (` → column list.
     fn create_table_paren(&self, i: usize) -> bool {
-        let Some(name) = self.prev_code(i) else { return false };
-        if !matches!(self.items[name].kind, TokenKind::Word | TokenKind::QuotedIdent) {
+        let Some(name) = self.prev_code(i) else {
+            return false;
+        };
+        if !matches!(
+            self.items[name].kind,
+            TokenKind::Word | TokenKind::QuotedIdent
+        ) {
             return false;
         }
         // Walk back over the (qualified) name and IF NOT EXISTS.
         let mut k = name;
         loop {
-            let Some(p) = self.prev_code(k) else { return false };
+            let Some(p) = self.prev_code(k) else {
+                return false;
+            };
             if self.is(p, ".") {
                 k = match self.prev_code(p) {
                     Some(x) => x,
@@ -658,8 +732,7 @@ impl<'a> Body<'a> {
                 self.prev_code(p)
                     .and_then(|pp| self.word(pp))
                     .is_some_and(|pw| matches!(pw.as_str(), "into" | "table" | "exists"))
-                    || self.prev_code(p).is_some_and(|pp| self.is(pp, "."))
-                        && self.insert_target(p)
+                    || self.prev_code(p).is_some_and(|pp| self.is(pp, ".")) && self.insert_target(p)
             }
             TokenKind::QuotedIdent => self
                 .prev_code(p)
@@ -690,7 +763,8 @@ impl<'a> Body<'a> {
         let Some(p) = prev else { return false };
         let cur = &self.items[i];
         let pi = &self.items[p];
-        if cur.kind == TokenKind::Punct && matches!(cur.text.as_str(), "." | "::" | "[" | "]" | ";") {
+        if cur.kind == TokenKind::Punct && matches!(cur.text.as_str(), "." | "::" | "[" | "]" | ";")
+        {
             return false;
         }
         if pi.kind == TokenKind::Punct && matches!(pi.text.as_str(), "(" | "." | "::" | "[" | "@") {
@@ -741,7 +815,11 @@ mod tests {
             .filter(|t| t.kind != TokenKind::Whitespace && t.text(s) != ";")
             .map(|t| {
                 let x = t.text(s);
-                if t.kind == TokenKind::LineComment { x.trim_end().to_lowercase() } else { x.to_lowercase() }
+                if t.kind == TokenKind::LineComment {
+                    x.trim_end().to_lowercase()
+                } else {
+                    x.to_lowercase()
+                }
             })
             .collect::<Vec<_>>()
             .concat()
@@ -788,30 +866,71 @@ mod tests {
     #[test]
     fn routines_and_delimiter_scripts_are_kept() {
         let src = "create function f() returns int as $$ select 1 $$ language sql;\nselect 1";
-        assert!(fmt(src, "postgresql").starts_with("create function f() returns int as $$ select 1 $$ language sql;"));
-        let src = "DELIMITER //\ncreate procedure p() begin select 1; end //\nDELIMITER ;\nselect 1";
+        assert!(
+            fmt(src, "postgresql")
+                .starts_with("create function f() returns int as $$ select 1 $$ language sql;")
+        );
+        let src =
+            "DELIMITER //\ncreate procedure p() begin select 1; end //\nDELIMITER ;\nselect 1";
         let out = fmt(src, "mysql");
-        assert!(out.contains("DELIMITER //\ncreate procedure p() begin select 1; end //\nDELIMITER ;"), "{out}");
+        assert!(
+            out.contains("DELIMITER //\ncreate procedure p() begin select 1; end //\nDELIMITER ;"),
+            "{out}"
+        );
     }
 
     #[test]
     fn corpus_is_idempotent_and_preserves_tokens() {
         let corpus = [
-            ("postgresql", "with a as (select 1 x), b as (select x from a) select * from b union all select 2"),
-            ("postgresql", "update orders o set total = total * 1.1, status = 'x' from customers c where c.id = o.customer_id returning o.id"),
-            ("postgresql", "select count(*) filter (where x > 0) over (partition by y order by z rows between unbounded preceding and current row) from t"),
-            ("postgresql", "select case when a = 1 then 'one' else 'many' end as n, array[1,2], j->>'k', j #> '{a}' from t where not exists(select 1)"),
-            ("mysql", "select `a`, b from t where c like '%x\\'%' limit 10, 5; insert into t set a = 1 on duplicate key update a = values(a)"),
-            ("sqlite", "select [a] , \"b\" from t join u using (id) where a is not null and b <> ? group by a having count(*) > 1"),
-            ("postgresql", "delete from t where id in (select id from u where x = $1) -- trailing\n"),
-            ("postgresql", "select 1;;select 2 /* c */ ; -- x\n-- y\n\nselect 3"),
-            ("postgresql", "SELECT a FROM t WHERE x >= -1 AND y<>-2 AND z = +3"),
+            (
+                "postgresql",
+                "with a as (select 1 x), b as (select x from a) select * from b union all select 2",
+            ),
+            (
+                "postgresql",
+                "update orders o set total = total * 1.1, status = 'x' from customers c where c.id = o.customer_id returning o.id",
+            ),
+            (
+                "postgresql",
+                "select count(*) filter (where x > 0) over (partition by y order by z rows between unbounded preceding and current row) from t",
+            ),
+            (
+                "postgresql",
+                "select case when a = 1 then 'one' else 'many' end as n, array[1,2], j->>'k', j #> '{a}' from t where not exists(select 1)",
+            ),
+            (
+                "mysql",
+                "select `a`, b from t where c like '%x\\'%' limit 10, 5; insert into t set a = 1 on duplicate key update a = values(a)",
+            ),
+            (
+                "sqlite",
+                "select [a] , \"b\" from t join u using (id) where a is not null and b <> ? group by a having count(*) > 1",
+            ),
+            (
+                "postgresql",
+                "delete from t where id in (select id from u where x = $1) -- trailing\n",
+            ),
+            (
+                "postgresql",
+                "select 1;;select 2 /* c */ ; -- x\n-- y\n\nselect 3",
+            ),
+            (
+                "postgresql",
+                "SELECT a FROM t WHERE x >= -1 AND y<>-2 AND z = +3",
+            ),
         ];
         for (d, src) in corpus {
             let once = fmt(src, d);
             let twice = fmt(&once, d);
-            assert_eq!(once, twice, "not idempotent:\n{src}\n---\n{once}\n---\n{twice}");
-            assert_eq!(significant(src, d), significant(&once, d), "tokens changed:\n{src}\n---\n{once}");
+            assert_eq!(
+                once, twice,
+                "not idempotent:\n{src}\n---\n{once}\n---\n{twice}"
+            );
+            assert_eq!(
+                significant(src, d),
+                significant(&once, d),
+                "tokens changed:\n{src}\n---\n{once}"
+            );
         }
     }
 }

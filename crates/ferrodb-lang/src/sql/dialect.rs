@@ -22,15 +22,30 @@ const SOURCES: &[(&str, &str)] = &[
         "postgresql",
         include_str!("../../../../assets/dialects/postgresql.toml"),
     ),
-    ("mysql", include_str!("../../../../assets/dialects/mysql.toml")),
+    (
+        "mysql",
+        include_str!("../../../../assets/dialects/mysql.toml"),
+    ),
     (
         "mariadb",
         include_str!("../../../../assets/dialects/mariadb.toml"),
     ),
-    ("sqlite", include_str!("../../../../assets/dialects/sqlite.toml")),
-    ("tsql", include_str!("../../../../assets/dialects/tsql.toml")),
-    ("oracle", include_str!("../../../../assets/dialects/oracle.toml")),
-    ("duckdb", include_str!("../../../../assets/dialects/duckdb.toml")),
+    (
+        "sqlite",
+        include_str!("../../../../assets/dialects/sqlite.toml"),
+    ),
+    (
+        "tsql",
+        include_str!("../../../../assets/dialects/tsql.toml"),
+    ),
+    (
+        "oracle",
+        include_str!("../../../../assets/dialects/oracle.toml"),
+    ),
+    (
+        "duckdb",
+        include_str!("../../../../assets/dialects/duckdb.toml"),
+    ),
 ];
 
 /// How unquoted identifiers are stored by the database.
@@ -196,9 +211,7 @@ fn registry() -> &'static HashMap<String, Dialect> {
                 (d.id.clone(), d)
             })
             .collect();
-        raw.keys()
-            .map(|id| (id.clone(), build(id, &raw)))
-            .collect()
+        raw.keys().map(|id| (id.clone(), build(id, &raw))).collect()
     })
 }
 

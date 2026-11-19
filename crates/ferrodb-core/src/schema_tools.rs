@@ -6,8 +6,7 @@
 use std::time::{Instant, SystemTime};
 
 use ferrodb_api::{
-    CompareOptions, DesignScript, ErModel, Error, NodeRef, Result, SchemaComparison,
-    TableDesign,
+    CompareOptions, DesignScript, ErModel, Error, NodeRef, Result, SchemaComparison, TableDesign,
 };
 use ferrodb_drivers::{CancellationToken, sink::collect};
 use ferrodb_meta::{
@@ -36,7 +35,10 @@ fn container_of(node: &NodeRef) -> Result<NodeRef> {
 
 impl Inner {
     /// Dialect, container name and loaded content of a container node.
-    pub(crate) async fn container_content(&self, node: &NodeRef) -> Result<(Dialect, String, Content)> {
+    pub(crate) async fn container_content(
+        &self,
+        node: &NodeRef,
+    ) -> Result<(Dialect, String, Content)> {
         let c = container_of(node)?;
         let (_, d) = self.source_dialect(&c.data_source)?;
         let d = d.ok_or_else(|| Error::Unsupported("metadata of this data source".into()))?;
@@ -106,7 +108,11 @@ impl Inner {
         .await
     }
 
-    pub(crate) async fn script_of(&self, container: NodeRef, design: TableDesign) -> Result<DesignScript> {
+    pub(crate) async fn script_of(
+        &self,
+        container: NodeRef,
+        design: TableDesign,
+    ) -> Result<DesignScript> {
         let (d, name, content) = self.container_content(&container).await?;
         if d == Dialect::Mongo {
             return Err(Error::Unsupported("the table editor on collections".into()));
@@ -117,7 +123,11 @@ impl Inner {
     /// Runs DDL in the container: one transaction where DDL is
     /// transactional (PostgreSQL, SQLite, DuckDB), statement by statement
     /// otherwise; then refreshes the container's metadata.
-    pub(crate) async fn run_ddl(&self, container: NodeRef, statements: Vec<String>) -> Result<usize> {
+    pub(crate) async fn run_ddl(
+        &self,
+        container: NodeRef,
+        statements: Vec<String>,
+    ) -> Result<usize> {
         let c = container_of(&container)?;
         let ds = c.data_source.clone();
         let cfg = self.source_config(&ds)?;

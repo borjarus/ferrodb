@@ -35,30 +35,88 @@ struct Cand {
 const MAX_ITEMS: usize = 200;
 
 const STATEMENT_START: &[&str] = &[
-    "SELECT", "INSERT INTO", "UPDATE", "DELETE FROM", "WITH", "CREATE TABLE", "CREATE VIEW",
-    "CREATE INDEX", "ALTER TABLE", "DROP TABLE", "TRUNCATE", "EXPLAIN", "BEGIN", "COMMIT",
+    "SELECT",
+    "INSERT INTO",
+    "UPDATE",
+    "DELETE FROM",
+    "WITH",
+    "CREATE TABLE",
+    "CREATE VIEW",
+    "CREATE INDEX",
+    "ALTER TABLE",
+    "DROP TABLE",
+    "TRUNCATE",
+    "EXPLAIN",
+    "BEGIN",
+    "COMMIT",
     "ROLLBACK",
 ];
 
 const AFTER_SOURCE: &[&str] = &[
-    "WHERE", "JOIN", "LEFT JOIN", "INNER JOIN", "RIGHT JOIN", "FULL JOIN", "CROSS JOIN", "ON",
-    "USING", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "UNION", "UNION ALL", "AS",
+    "WHERE",
+    "JOIN",
+    "LEFT JOIN",
+    "INNER JOIN",
+    "RIGHT JOIN",
+    "FULL JOIN",
+    "CROSS JOIN",
+    "ON",
+    "USING",
+    "GROUP BY",
+    "ORDER BY",
+    "HAVING",
+    "LIMIT",
+    "UNION",
+    "UNION ALL",
+    "AS",
 ];
 
 const IN_EXPRESSION: &[&str] = &[
-    "AND", "OR", "NOT", "IN", "IS NULL", "IS NOT NULL", "LIKE", "BETWEEN", "EXISTS", "CASE",
-    "WHEN", "THEN", "ELSE", "END", "AS", "DISTINCT", "NULL", "TRUE", "FALSE", "FROM", "WHERE",
-    "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "ASC", "DESC", "JOIN", "LEFT JOIN", "UNION",
+    "AND",
+    "OR",
+    "NOT",
+    "IN",
+    "IS NULL",
+    "IS NOT NULL",
+    "LIKE",
+    "BETWEEN",
+    "EXISTS",
+    "CASE",
+    "WHEN",
+    "THEN",
+    "ELSE",
+    "END",
+    "AS",
+    "DISTINCT",
+    "NULL",
+    "TRUE",
+    "FALSE",
+    "FROM",
+    "WHERE",
+    "GROUP BY",
+    "ORDER BY",
+    "HAVING",
+    "LIMIT",
+    "ASC",
+    "DESC",
+    "JOIN",
+    "LEFT JOIN",
+    "UNION",
 ];
 
 /// Completion items at `offset`.
-pub fn complete(doc: &Document<'_>, offset: usize, templates: &[LiveTemplate]) -> Vec<CompletionItem> {
+pub fn complete(
+    doc: &Document<'_>,
+    offset: usize,
+    templates: &[LiveTemplate],
+) -> Vec<CompletionItem> {
     let offset = offset.min(doc.text.len());
     // Nothing inside strings and comments.
     if let Some(t) = doc.token_at(offset)
         && t.range.start < offset
         && (matches!(t.kind, TokenKind::LineComment | TokenKind::BlockComment)
-            || (t.kind == TokenKind::String && (offset < t.range.end || !closed_string(doc.text, t))))
+            || (t.kind == TokenKind::String
+                && (offset < t.range.end || !closed_string(doc.text, t))))
     {
         return Vec::new();
     }
@@ -181,12 +239,19 @@ impl Ctx<'_, '_> {
             self.after_dot(&qual);
             return;
         }
-        let (scope, clause) = self.parsed().map_or((0, Clause::None), |p| p.at(self.replace.start));
+        let (scope, clause) = self
+            .parsed()
+            .map_or((0, Clause::None), |p| p.at(self.replace.start));
         let prev = self.word(&last).unwrap_or_default();
         let in_from = matches!(clause, Clause::From | Clause::Join);
-        if matches!(prev.as_str(), "from" | "join" | "update" | "into" | "table" | "lateral" | "only")
-            || (lt == "," && in_from)
-            || (prev == "using" && self.parsed().is_some_and(|p| p.kind == super::syntax::StmtKind::Delete))
+        if matches!(
+            prev.as_str(),
+            "from" | "join" | "update" | "into" | "table" | "lateral" | "only"
+        ) || (lt == "," && in_from)
+            || (prev == "using"
+                && self
+                    .parsed()
+                    .is_some_and(|p| p.kind == super::syntax::StmtKind::Delete))
         {
             if prev == "join" {
                 self.joins(scope);
@@ -229,10 +294,12 @@ impl Ctx<'_, '_> {
                 | Clause::Limit
                 | Clause::Target
         ) {
-            let expect_name = !matches!(last.kind, TokenKind::Word | TokenKind::QuotedIdent | TokenKind::Number | TokenKind::String)
-                || self.doc.dialect().is_keyword(lt)
+            let expect_name = !matches!(
+                last.kind,
+                TokenKind::Word | TokenKind::QuotedIdent | TokenKind::Number | TokenKind::String
+            ) || self.doc.dialect().is_keyword(lt)
                 || lt == ")";
-            if expect_name && !(lt == ")" ) {
+            if expect_name && !(lt == ")") {
                 self.scope_columns(scope, clause);
                 self.functions();
                 for k in IN_EXPRESSION {
@@ -246,7 +313,14 @@ impl Ctx<'_, '_> {
             return;
         }
         if clause == Clause::None || clause == Clause::With {
-            for k in ["SELECT", "INSERT INTO", "UPDATE", "DELETE FROM", "AS", "RECURSIVE"] {
+            for k in [
+                "SELECT",
+                "INSERT INTO",
+                "UPDATE",
+                "DELETE FROM",
+                "AS",
+                "RECURSIVE",
+            ] {
                 self.keyword(k, 200);
             }
         }
@@ -292,7 +366,11 @@ impl Ctx<'_, '_> {
             self.push(Cand {
                 label: name,
                 filter: None,
-                insert: if no_args { format!("{q}()") } else { format!("{q}(") },
+                insert: if no_args {
+                    format!("{q}()")
+                } else {
+                    format!("{q}(")
+                },
                 kind: CompletionKind::Function,
                 detail: Some(sig),
                 prio: 20,
@@ -341,7 +419,10 @@ impl Ctx<'_, '_> {
                     insert: format!(
                         "{} ({})",
                         d.quote_if_needed(&name),
-                        cols.iter().map(|c| d.quote_if_needed(c)).collect::<Vec<_>>().join(", ")
+                        cols.iter()
+                            .map(|c| d.quote_if_needed(c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
                     ),
                     kind: CompletionKind::Table,
                     detail: Some("script".into()),
@@ -368,7 +449,11 @@ impl Ctx<'_, '_> {
             let name = if in_path {
                 d.quote_if_needed(&t.name)
             } else {
-                format!("{}.{}", d.quote_if_needed(&schema), d.quote_if_needed(&t.name))
+                format!(
+                    "{}.{}",
+                    d.quote_if_needed(&schema),
+                    d.quote_if_needed(&t.name)
+                )
             };
             let prio = if Some(id.schema) == first {
                 100
@@ -406,13 +491,24 @@ impl Ctx<'_, '_> {
                 filter: Some(t.name.clone()),
                 insert: name,
                 kind: CompletionKind::Table,
-                detail: Some(if t.view { format!("{schema} (view)") } else { schema }),
+                detail: Some(if t.view {
+                    format!("{schema} (view)")
+                } else {
+                    schema
+                }),
                 prio,
             };
             self.push(c);
         }
         // Schemas, to qualify names.
-        let schemas: Vec<String> = self.doc.env.model.schemas.iter().map(|s| s.name.clone()).collect();
+        let schemas: Vec<String> = self
+            .doc
+            .env
+            .model
+            .schemas
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
         for s in schemas {
             self.push(Cand {
                 insert: d.quote_if_needed(&s),
@@ -446,11 +542,12 @@ impl Ctx<'_, '_> {
                         // The qualifier itself being typed as a source.
                         continue;
                     }
-                    let hit = src
-                        .exposed()
-                        .is_some_and(|e| d.is_same(&e.name(d), &qn));
+                    let hit = src.exposed().is_some_and(|e| d.is_same(&e.name(d), &qn));
                     if hit {
-                        found = Some((self.doc.columns(si, s, i).unwrap_or_default(), src_label(src)));
+                        found = Some((
+                            self.doc.columns(si, s, i).unwrap_or_default(),
+                            src_label(src),
+                        ));
                         break 'outer;
                     }
                 }
@@ -475,7 +572,9 @@ impl Ctx<'_, '_> {
         let Some(si) = env.model.schema(&qn) else {
             // `schema.table.` → columns of the table.
             if qual.len() >= 2 {
-                let tables = env.model.find_tables(Some(&qual[qual.len() - 2].name(d)), &qn, false, &[]);
+                let tables =
+                    env.model
+                        .find_tables(Some(&qual[qual.len() - 2].name(d)), &qn, false, &[]);
                 if let Some(id) = tables.first() {
                     let t = env.model.table(*id).clone();
                     for c in table_columns(&t, env.model.schema_name(*id)) {
@@ -509,7 +608,13 @@ impl Ctx<'_, '_> {
         }
     }
 
-    fn column_cand(&mut self, c: &SourceColumn, qualify: Option<&str>, owner: Option<String>, prio: i32) {
+    fn column_cand(
+        &mut self,
+        c: &SourceColumn,
+        qualify: Option<&str>,
+        owner: Option<String>,
+        prio: i32,
+    ) {
         let d = self.doc.dialect();
         let name = d.quote_if_needed(&c.name);
         let insert = match qualify {
@@ -544,7 +649,9 @@ impl Ctx<'_, '_> {
                 continue;
             }
             for (i, src) in p.scopes[s].sources.iter().enumerate() {
-                let Some(exposed) = src.exposed() else { continue };
+                let Some(exposed) = src.exposed() else {
+                    continue;
+                };
                 aliases.push(exposed.text.clone());
                 if let Some(cols) = self.doc.columns(si, s, i) {
                     all.push((exposed.text.clone(), cols, 100 - 20 * depth as i32));
@@ -630,25 +737,28 @@ impl Ctx<'_, '_> {
             .map(|ins| {
                 ins.columns
                     .iter()
-                    .filter(|c| c.range.end < self.replace.start || c.range.start > self.replace.end)
+                    .filter(|c| {
+                        c.range.end < self.replace.start || c.range.start > self.replace.end
+                    })
                     .map(|c| c.name(d).to_lowercase())
                     .collect()
             })
             .unwrap_or_default();
         let cols = self.doc.columns(si, s, i).unwrap_or_default();
-        let generated: Vec<String> = match self.doc.stmts[si].sources.get(&(s, i)).copied().flatten() {
-            Some(TableTarget::Db(id)) => self
-                .doc
-                .env
-                .model
-                .table(id)
-                .columns
-                .iter()
-                .filter(|c| c.generated)
-                .map(|c| c.name.clone())
-                .collect(),
-            _ => Vec::new(),
-        };
+        let generated: Vec<String> =
+            match self.doc.stmts[si].sources.get(&(s, i)).copied().flatten() {
+                Some(TableTarget::Db(id)) => self
+                    .doc
+                    .env
+                    .model
+                    .table(id)
+                    .columns
+                    .iter()
+                    .filter(|c| c.generated)
+                    .map(|c| c.name.clone())
+                    .collect(),
+                _ => Vec::new(),
+            };
         let rest: Vec<&SourceColumn> = cols
             .iter()
             .filter(|c| !listed.contains(&c.name.to_lowercase()))
@@ -683,7 +793,9 @@ impl Ctx<'_, '_> {
 
     /// Sources of `scope` already in the query (not the one being typed).
     fn existing_sources(&self, scope: usize) -> Vec<(usize, Source)> {
-        let Some(p) = self.parsed() else { return Vec::new() };
+        let Some(p) = self.parsed() else {
+            return Vec::new();
+        };
         p.scopes[scope]
             .sources
             .iter()
@@ -694,7 +806,12 @@ impl Ctx<'_, '_> {
     }
 
     fn db_table(&self, scope: usize, src: usize) -> Option<TableId> {
-        match self.doc.stmts[self.stmt?].sources.get(&(scope, src)).copied().flatten()? {
+        match self.doc.stmts[self.stmt?]
+            .sources
+            .get(&(scope, src))
+            .copied()
+            .flatten()?
+        {
             TableTarget::Db(id) => Some(id),
             _ => None,
         }
@@ -712,8 +829,12 @@ impl Ctx<'_, '_> {
         let mut out = Vec::new();
         let model = self.doc.env.model;
         for (i, src) in &existing {
-            let Some(id) = self.db_table(scope, *i) else { continue };
-            let Some(exposed) = src.exposed().map(|e| e.text.clone()) else { continue };
+            let Some(id) = self.db_table(scope, *i) else {
+                continue;
+            };
+            let Some(exposed) = src.exposed().map(|e| e.text.clone()) else {
+                continue;
+            };
             let t = model.table(id);
             // Outgoing: this source references another table.
             for fk in &t.foreign_keys {
@@ -739,7 +860,11 @@ impl Ctx<'_, '_> {
             let name = if self.doc.env.order.contains(&target.schema) {
                 d.quote_if_needed(&t.name)
             } else {
-                format!("{}.{}", d.quote_if_needed(schema), d.quote_if_needed(&t.name))
+                format!(
+                    "{}.{}",
+                    d.quote_if_needed(schema),
+                    d.quote_if_needed(&t.name)
+                )
             };
             let text = format!("{name} {alias} ON {cond}");
             taken.push(alias.to_lowercase());
@@ -759,14 +884,24 @@ impl Ctx<'_, '_> {
     fn join_conditions(&mut self, scope: usize) {
         let d = self.doc.dialect();
         let existing = self.existing_sources(scope);
-        let Some((li, last)) = existing.last().cloned() else { return };
-        let Some(lid) = self.db_table(scope, li) else { return };
-        let Some(lname) = last.exposed().map(|e| e.text.clone()) else { return };
+        let Some((li, last)) = existing.last().cloned() else {
+            return;
+        };
+        let Some(lid) = self.db_table(scope, li) else {
+            return;
+        };
+        let Some(lname) = last.exposed().map(|e| e.text.clone()) else {
+            return;
+        };
         let model = self.doc.env.model;
         let mut conds = Vec::new();
         for (oi, other) in &existing[..existing.len() - 1] {
-            let Some(oid) = self.db_table(scope, *oi) else { continue };
-            let Some(oname) = other.exposed().map(|e| e.text.clone()) else { continue };
+            let Some(oid) = self.db_table(scope, *oi) else {
+                continue;
+            };
+            let Some(oname) = other.exposed().map(|e| e.text.clone()) else {
+                continue;
+            };
             for fk in &model.table(lid).foreign_keys {
                 if model.fk_target(lid, fk) == Some(oid) {
                     conds.push(pairs(&lname, &fk.columns, &oname, &fk.ref_columns, d));
@@ -792,11 +927,23 @@ impl Ctx<'_, '_> {
 }
 
 /// `a.x = b.y AND a.z = b.w`
-fn pairs(a: &str, acols: &[String], b: &str, bcols: &[String], d: &super::dialect::Dialect) -> String {
+fn pairs(
+    a: &str,
+    acols: &[String],
+    b: &str,
+    bcols: &[String],
+    d: &super::dialect::Dialect,
+) -> String {
     acols
         .iter()
         .zip(bcols)
-        .map(|(x, y)| format!("{a}.{} = {b}.{}", d.quote_if_needed(x), d.quote_if_needed(y)))
+        .map(|(x, y)| {
+            format!(
+                "{a}.{} = {b}.{}",
+                d.quote_if_needed(x),
+                d.quote_if_needed(y)
+            )
+        })
         .collect::<Vec<_>>()
         .join(" AND ")
 }
@@ -804,7 +951,7 @@ fn pairs(a: &str, acols: &[String], b: &str, bcols: &[String], d: &super::dialec
 /// Alias from the initials of the name's segments, unique among `taken`.
 pub fn gen_alias(name: &str, taken: &[String]) -> String {
     let mut base: String = name
-        .split(|c: char| c == '_' || c == ' ' || c == '-')
+        .split(['_', ' ', '-'])
         .filter_map(|s| s.chars().next())
         .flat_map(char::to_lowercase)
         .collect();
@@ -881,10 +1028,14 @@ mod tests {
         let at = sql.find('|').expect("cursor");
         let text = sql.replacen('|', "", 1);
         let doc = Document::analyze(&text, dialect, model, None);
-        complete(&doc, at, &templates::builtin(&ferrodb_api::QueryLanguage::Sql(dialect.into())))
-            .into_iter()
-            .map(|i| i.insert_text)
-            .collect()
+        complete(
+            &doc,
+            at,
+            &templates::builtin(&ferrodb_api::QueryLanguage::Sql(dialect.into())),
+        )
+        .into_iter()
+        .map(|i| i.insert_text)
+        .collect()
     }
 
     #[test]
@@ -908,8 +1059,15 @@ mod tests {
             l.contains(&"customers c ON c.id = o.customer_id".to_owned()),
             "{l:?}"
         );
-        assert!(l.contains(&"order_items oi ON oi.order_id = o.id".to_owned()), "{l:?}");
-        let l = labels("select * from orders o join customers c on |", "postgresql", &m);
+        assert!(
+            l.contains(&"order_items oi ON oi.order_id = o.id".to_owned()),
+            "{l:?}"
+        );
+        let l = labels(
+            "select * from orders o join customers c on |",
+            "postgresql",
+            &m,
+        );
         assert_eq!(l[0], "c.id = o.customer_id", "{l:?}");
     }
 
@@ -927,9 +1085,16 @@ mod tests {
     #[test]
     fn expression_columns_are_qualified_when_ambiguous() {
         let m = shop("public");
-        let l = labels("select | from orders o join customers c on c.id = o.customer_id", "postgresql", &m);
+        let l = labels(
+            "select | from orders o join customers c on c.id = o.customer_id",
+            "postgresql",
+            &m,
+        );
         assert!(l.contains(&"customer_id".to_owned()));
-        assert!(l.contains(&"o.id".to_owned()) && l.contains(&"c.id".to_owned()), "{l:?}");
+        assert!(
+            l.contains(&"o.id".to_owned()) && l.contains(&"c.id".to_owned()),
+            "{l:?}"
+        );
         let l = labels("select * from orders where tot|", "postgresql", &m);
         assert_eq!(l[0], "total");
     }

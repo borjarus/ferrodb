@@ -25,7 +25,13 @@ impl LocalHistoryService for Inner {
         self.spawn(async move {
             me.blocking(move || {
                 storage
-                    .record_revision(&document, &text, reason, label.as_deref(), Retention::default())
+                    .record_revision(
+                        &document,
+                        &text,
+                        reason,
+                        label.as_deref(),
+                        Retention::default(),
+                    )
                     .map_err(storage_err)
             })
             .await
@@ -86,8 +92,12 @@ impl LocalHistoryService for Inner {
         let storage = self.storage.clone();
         let me = self.arc();
         self.spawn(async move {
-            me.blocking(move || storage.prune_documents(None, retention).map_err(storage_err))
-                .await
+            me.blocking(move || {
+                storage
+                    .prune_documents(None, retention)
+                    .map_err(storage_err)
+            })
+            .await
         })
     }
 }

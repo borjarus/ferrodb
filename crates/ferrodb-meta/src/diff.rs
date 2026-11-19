@@ -216,8 +216,14 @@ fn same_index(a: &Index, b: &Index) -> bool {
             .all(|(x, y)| normalize_text(&strip_quotes(x)) == normalize_text(&strip_quotes(y)))
         && a.include == b.include
         && a.predicate.as_deref().map(normalize_text) == b.predicate.as_deref().map(normalize_text)
-        && a.method.as_deref().map(str::to_ascii_lowercase).filter(|m| m != "btree")
-            == b.method.as_deref().map(str::to_ascii_lowercase).filter(|m| m != "btree")
+        && a.method
+            .as_deref()
+            .map(str::to_ascii_lowercase)
+            .filter(|m| m != "btree")
+            == b.method
+                .as_deref()
+                .map(str::to_ascii_lowercase)
+                .filter(|m| m != "btree")
 }
 
 fn strip_quotes(s: &str) -> String {
@@ -294,12 +300,21 @@ fn literal_comment(t: &Target<'_>, c: &Option<String>) -> String {
 }
 
 /// `ALTER TABLE t …` statements turning column `a` into `b` (same name).
-fn alter_column(t: &Target<'_>, table: &str, a: &Column, b: &Column, opts: &CompareOptions) -> Vec<String> {
+fn alter_column(
+    t: &Target<'_>,
+    table: &str,
+    a: &Column,
+    b: &Column,
+    opts: &CompareOptions,
+) -> Vec<String> {
     let name = t.qualified(table);
     let col = t.q(&b.name);
     match t.dialect {
         Dialect::MySql | Dialect::MariaDb => {
-            vec![format!("ALTER TABLE {name} MODIFY COLUMN {};", ddl::column_def(t, b))]
+            vec![format!(
+                "ALTER TABLE {name} MODIFY COLUMN {};",
+                ddl::column_def(t, b)
+            )]
         }
         _ => {
             let mut out = Vec::new();
@@ -311,7 +326,11 @@ fn alter_column(t: &Target<'_>, table: &str, a: &Column, b: &Column, opts: &Comp
                 };
                 out.push(format!(
                     "ALTER TABLE {name} ALTER COLUMN {col} {}{} {}{using};",
-                    if t.dialect == Dialect::DuckDb { "SET DATA " } else { "" },
+                    if t.dialect == Dialect::DuckDb {
+                        "SET DATA "
+                    } else {
+                        ""
+                    },
                     "TYPE",
                     b.data_type
                 ));
@@ -334,7 +353,9 @@ fn alter_column(t: &Target<'_>, table: &str, a: &Column, b: &Column, opts: &Comp
                     Some(kind) => format!(
                         "ALTER TABLE {name} ALTER COLUMN {col} ADD GENERATED {kind} AS IDENTITY;"
                     ),
-                    None => format!("ALTER TABLE {name} ALTER COLUMN {col} DROP IDENTITY IF EXISTS;"),
+                    None => {
+                        format!("ALTER TABLE {name} ALTER COLUMN {col} DROP IDENTITY IF EXISTS;")
+                    }
                 });
             }
             if !opts.ignore_comments && a.comment != b.comment && t.dialect == Dialect::Postgres {
@@ -390,7 +411,12 @@ fn rename_table(t: &Target<'_>, from: &str, to: &str) -> String {
 // --------------------------------------------------------------- tables
 
 /// Does turning `old` into `new` need a SQLite table rebuild?
-fn sqlite_needs_rebuild(old: &Table, new: &Table, renames: &[(String, String)], opts: &CompareOptions) -> bool {
+fn sqlite_needs_rebuild(
+    old: &Table,
+    new: &Table,
+    renames: &[(String, String)],
+    opts: &CompareOptions,
+) -> bool {
     let mapped = |c: &str| {
         renames
             .iter()
@@ -399,7 +425,12 @@ fn sqlite_needs_rebuild(old: &Table, new: &Table, renames: &[(String, String)], 
             .unwrap_or(c)
             .to_owned()
     };
-    let pk = |t: &Table| t.primary_key.as_ref().map(|k| k.columns.clone()).unwrap_or_default();
+    let pk = |t: &Table| {
+        t.primary_key
+            .as_ref()
+            .map(|k| k.columns.clone())
+            .unwrap_or_default()
+    };
     let new_pk: Vec<String> = pk(new).iter().map(|c| mapped(c)).collect();
     if !same_columns(&pk(old), &new_pk) {
         return true;
@@ -408,8 +439,15 @@ fn sqlite_needs_rebuild(old: &Table, new: &Table, renames: &[(String, String)], 
         let src = mapped(&c.name);
         match old.column(&src) {
             Some(o) => {
-                if !column_changes(o, c, &CompareOptions { ignore_comments: true, ..opts.clone() })
-                    .is_empty()
+                if !column_changes(
+                    o,
+                    c,
+                    &CompareOptions {
+                        ignore_comments: true,
+                        ..opts.clone()
+                    },
+                )
+                .is_empty()
                 {
                     return true;
                 }
@@ -441,15 +479,26 @@ fn sqlite_needs_rebuild(old: &Table, new: &Table, renames: &[(String, String)], 
             .iter()
             .all(|f| fk_match(f, &old.foreign_keys).is_some_and(|o| same_fk(o, f)));
     let uniques_same = old.uniques.len() == new.uniques.len()
-        && new.uniques.iter().all(|k| key_match(k, &old.uniques).is_some());
+        && new
+            .uniques
+            .iter()
+            .all(|k| key_match(k, &old.uniques).is_some());
     let checks_same = old.checks.len() == new.checks.len()
-        && new.checks.iter().all(|c| check_match(c, &old.checks).is_some());
+        && new
+            .checks
+            .iter()
+            .all(|c| check_match(c, &old.checks).is_some());
     !(fks_same && uniques_same && checks_same)
 }
 
 /// SQLite: create the new table under a temporary name, copy the rows,
 /// replace the old table, recreate indexes and triggers.
-fn sqlite_rebuild(t: &Target<'_>, old: &Table, new: &Table, renames: &[(String, String)]) -> Change {
+fn sqlite_rebuild(
+    t: &Target<'_>,
+    old: &Table,
+    new: &Table,
+    renames: &[(String, String)],
+) -> Change {
     let mut ch = Change::default();
     let tmp_name = format!("_ferrodb_new_{}", new.name);
     let mut tmp = new.clone();
@@ -558,8 +607,10 @@ pub fn alter_table(
         });
         if !kept {
             ch.details.push(format!("column {} dropped", c.name));
-            ch.warnings
-                .push(format!("dropping column {}.{} deletes its data", old.name, c.name));
+            ch.warnings.push(format!(
+                "dropping column {}.{} deletes its data",
+                old.name, c.name
+            ));
         }
     }
     for (n, o) in renames {
@@ -637,10 +688,7 @@ pub fn alter_table(
         if existing.is_none() {
             ch.push(
                 P_ADD_FK,
-                format!(
-                    "ALTER TABLE {qname} ADD {};",
-                    ddl::fk_clause(t, f)
-                ),
+                format!("ALTER TABLE {qname} ADD {};", ddl::fk_clause(t, f)),
             );
             ch.details.push(format!(
                 "foreign key ({}) → {} added",
@@ -651,8 +699,16 @@ pub fn alter_table(
     }
 
     // Primary key.
-    let old_pk = old.primary_key.as_ref().map(|k| k.columns.clone()).unwrap_or_default();
-    let new_pk = new.primary_key.as_ref().map(|k| k.columns.clone()).unwrap_or_default();
+    let old_pk = old
+        .primary_key
+        .as_ref()
+        .map(|k| k.columns.clone())
+        .unwrap_or_default();
+    let new_pk = new
+        .primary_key
+        .as_ref()
+        .map(|k| k.columns.clone())
+        .unwrap_or_default();
     let old_pk_mapped: Vec<String> = old_pk
         .iter()
         .map(|c| {
@@ -669,7 +725,10 @@ pub fn alter_table(
             if k.name.is_none() && t.dialect == Dialect::Postgres {
                 k.name = Some(format!("{}_pkey", old.name));
             }
-            ch.push(P_ALTER, ddl::drop_stmt(t, Object::PrimaryKey(&with_name(old, &name), &k)));
+            ch.push(
+                P_ALTER,
+                ddl::drop_stmt(t, Object::PrimaryKey(&with_name(old, &name), &k)),
+            );
         }
         if !new_pk.is_empty() {
             ch.push(
@@ -691,7 +750,10 @@ pub fn alter_table(
     for c in &old.columns {
         let kept = new.columns.iter().any(|n| old_of(&n.name) == c.name);
         if !kept {
-            ch.push(P_ALTER, ddl::drop_stmt(t, Object::Column(&with_name(old, &name), c)));
+            ch.push(
+                P_ALTER,
+                ddl::drop_stmt(t, Object::Column(&with_name(old, &name), c)),
+            );
         }
     }
     for c in &new.columns {
@@ -705,10 +767,7 @@ pub fn alter_table(
                 }
                 ch.push(
                     P_ALTER,
-                    format!(
-                        "ALTER TABLE {qname} ADD COLUMN {};",
-                        ddl::column_def(t, c)
-                    ),
+                    format!("ALTER TABLE {qname} ADD COLUMN {};", ddl::column_def(t, c)),
                 );
                 if t.dialect == Dialect::Postgres
                     && !opts.ignore_comments
@@ -785,8 +844,10 @@ pub fn alter_table(
             if c.name.is_some() {
                 ch.push(P_ALTER, drop_check(t, &name, c));
             } else {
-                ch.warnings
-                    .push(format!("check ({}) has no name and cannot be dropped", c.expression));
+                ch.warnings.push(format!(
+                    "check ({}) has no name and cannot be dropped",
+                    c.expression
+                ));
             }
             ch.details.push(format!("check {} dropped", c.expression));
         }
@@ -808,7 +869,11 @@ pub fn alter_table(
                 ch.details.push(format!(
                     "index {} {}",
                     i.name,
-                    if other.is_some() { "changed" } else { "dropped" }
+                    if other.is_some() {
+                        "changed"
+                    } else {
+                        "dropped"
+                    }
                 ));
             }
         }
@@ -1037,8 +1102,18 @@ pub fn compare(source: Side<'_>, target: Side<'_>, opts: &CompareOptions) -> Com
     }
 
     // Tables (not views).
-    let src_tables: Vec<&Table> = source.content.tables.iter().filter(|t| !t.is_view()).collect();
-    let tgt_tables: Vec<&Table> = target.content.tables.iter().filter(|t| !t.is_view()).collect();
+    let src_tables: Vec<&Table> = source
+        .content
+        .tables
+        .iter()
+        .filter(|t| !t.is_view())
+        .collect();
+    let tgt_tables: Vec<&Table> = target
+        .content
+        .tables
+        .iter()
+        .filter(|t| !t.is_view())
+        .collect();
     let added: Vec<&Table> = src_tables
         .iter()
         .copied()
@@ -1072,11 +1147,12 @@ pub fn compare(source: Side<'_>, target: Side<'_>, opts: &CompareOptions) -> Com
                 s_in.foreign_keys.iter().collect()
             };
             for st in split_statements(&ddl::table_ddl(&no_triggers, &s_in, &deferred)) {
-                let phase = if st.starts_with("CREATE INDEX") || st.starts_with("CREATE UNIQUE INDEX") {
-                    P_INDEX
-                } else {
-                    P_CREATE_TABLE
-                };
+                let phase =
+                    if st.starts_with("CREATE INDEX") || st.starts_with("CREATE UNIQUE INDEX") {
+                        P_INDEX
+                    } else {
+                        P_CREATE_TABLE
+                    };
                 ch.push(phase, st);
             }
             for f in &deferred {
@@ -1155,7 +1231,8 @@ pub fn compare(source: Side<'_>, target: Side<'_>, opts: &CompareOptions) -> Com
         }
         let mut ch = alter_table(&tgt_t, t, &want, &[], opts);
         if !opts.include_routines {
-            ch.statements.retain(|(p, _)| *p != P_TRIGGER && *p != P_DROP_TRIGGER);
+            ch.statements
+                .retain(|(p, _)| *p != P_TRIGGER && *p != P_DROP_TRIGGER);
         }
         if ch.is_empty() {
             continue;
@@ -1172,8 +1249,18 @@ pub fn compare(source: Side<'_>, target: Side<'_>, opts: &CompareOptions) -> Com
     }
 
     // Views: drop changed ones before the tables change, create after.
-    let src_views: Vec<&Table> = source.content.tables.iter().filter(|t| t.is_view()).collect();
-    let tgt_views: Vec<&Table> = target.content.tables.iter().filter(|t| t.is_view()).collect();
+    let src_views: Vec<&Table> = source
+        .content
+        .tables
+        .iter()
+        .filter(|t| t.is_view())
+        .collect();
+    let tgt_views: Vec<&Table> = target
+        .content
+        .tables
+        .iter()
+        .filter(|t| t.is_view())
+        .collect();
     for v in &src_views {
         let existing = tgt_views.iter().find(|t| t.name == v.name);
         let same = existing.is_some_and(|t| {
@@ -1234,7 +1321,11 @@ pub fn compare(source: Side<'_>, target: Side<'_>, opts: &CompareOptions) -> Com
     // Routines (by signature, definition text).
     if opts.include_routines {
         for r in &source.content.routines {
-            let existing = target.content.routines.iter().find(|x| x.signature == r.signature);
+            let existing = target
+                .content
+                .routines
+                .iter()
+                .find(|x| x.signature == r.signature);
             if existing.is_some_and(|x| same_definition(&x.definition, &r.definition)) {
                 continue;
             }
@@ -1262,7 +1353,12 @@ pub fn compare(source: Side<'_>, target: Side<'_>, opts: &CompareOptions) -> Com
             add(&mut out, it, &ch);
         }
         for x in &target.content.routines {
-            if source.content.routines.iter().any(|r| r.signature == x.signature) {
+            if source
+                .content
+                .routines
+                .iter()
+                .any(|r| r.signature == x.signature)
+            {
                 continue;
             }
             let mut ch = Change::default();
@@ -1377,7 +1473,8 @@ pub fn design_to_table(
             col.nullable = c.nullable;
             col.default = c.default.clone().filter(|x| !x.trim().is_empty());
             col.comment = c.comment.clone().filter(|x| !x.is_empty());
-            let was_auto = old.is_some_and(|o| o.auto_increment || o.identity.is_some() || o.serial);
+            let was_auto =
+                old.is_some_and(|o| o.auto_increment || o.identity.is_some() || o.serial);
             if c.auto_increment != was_auto || old.is_none() {
                 col.auto_increment = false;
                 col.identity = None;
@@ -1405,7 +1502,15 @@ pub fn design_to_table(
         .filter(|u| !u.is_empty())
         .map(|u| Key {
             name: base
-                .and_then(|b| key_match(&Key { name: None, columns: u.clone() }, &b.uniques))
+                .and_then(|b| {
+                    key_match(
+                        &Key {
+                            name: None,
+                            columns: u.clone(),
+                        },
+                        &b.uniques,
+                    )
+                })
                 .and_then(|k| k.name.clone()),
             columns: u.clone(),
         })
@@ -1455,12 +1560,20 @@ pub fn design_to_table(
         .iter()
         .filter(|c| !c.trim().is_empty())
         .map(|c| {
-            base.and_then(|b| check_match(&Check { name: None, expression: c.clone() }, &b.checks))
-                .cloned()
-                .unwrap_or(Check {
-                    name: None,
-                    expression: c.clone(),
-                })
+            base.and_then(|b| {
+                check_match(
+                    &Check {
+                        name: None,
+                        expression: c.clone(),
+                    },
+                    &b.checks,
+                )
+            })
+            .cloned()
+            .unwrap_or(Check {
+                name: None,
+                expression: c.clone(),
+            })
         })
         .collect();
     t
@@ -1546,7 +1659,10 @@ pub fn design_script(
         if c.data_type.trim().is_empty() {
             return Err(format!("column {} has no type", c.name));
         }
-        if named[..i].iter().any(|o| o.name.eq_ignore_ascii_case(&c.name)) {
+        if named[..i]
+            .iter()
+            .any(|o| o.name.eq_ignore_ascii_case(&c.name))
+        {
             return Err(format!("column {} appears twice", c.name));
         }
     }
@@ -1600,7 +1716,11 @@ pub fn er_model(container: &str, content: &Content) -> ferrodb_api::ErModel {
         .iter()
         .filter(|t| t.partition_of.is_none())
         .map(|t| {
-            let pk = t.primary_key.as_ref().map(|k| k.columns.as_slice()).unwrap_or(&[]);
+            let pk = t
+                .primary_key
+                .as_ref()
+                .map(|k| k.columns.as_slice())
+                .unwrap_or(&[]);
             ferrodb_api::ErEntity {
                 name: t.name.clone(),
                 kind: Some(table_object_kind(t)),
@@ -1630,9 +1750,14 @@ pub fn er_model(container: &str, content: &Content) -> ferrodb_api::ErModel {
                 .iter()
                 .any(|c| t.column(c).is_none_or(|c| c.nullable));
             let unique_cols = |cols: &[String]| same_columns(cols, &f.columns);
-            let one_to_one = t.primary_key.as_ref().is_some_and(|k| unique_cols(&k.columns))
+            let one_to_one = t
+                .primary_key
+                .as_ref()
+                .is_some_and(|k| unique_cols(&k.columns))
                 || t.uniques.iter().any(|k| unique_cols(&k.columns))
-                || t.indexes.iter().any(|i| i.unique && unique_cols(&i.columns));
+                || t.indexes
+                    .iter()
+                    .any(|i| i.unique && unique_cols(&i.columns));
             relations.push(ferrodb_api::ErRelation {
                 name: f.name.clone(),
                 from: t.name.clone(),

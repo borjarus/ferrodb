@@ -53,12 +53,14 @@ fn core(dir: &Path) -> CoreBackend {
 }
 
 fn run(core: &CoreBackend, s: SessionId, text: &str) {
-    let h = core
-        .queries()
-        .execute(s, Script::new(text), ExecOptions {
+    let h = core.queries().execute(
+        s,
+        Script::new(text),
+        ExecOptions {
             mode: ExecMode::WholeScript,
             ..Default::default()
-        });
+        },
+    );
     let errs: Vec<String> = block_on(async {
         let mut errs = Vec::new();
         while let Ok(ev) = h.events.recv().await {
@@ -93,13 +95,26 @@ fn node(ds: &str, path: &[(ObjectKind, &str)]) -> NodeRef {
 fn sqlite_plans_estimate_and_analyze() {
     let dir = tempfile::tempdir().unwrap();
     let c = core(dir.path());
-    block_on(c.data_sources().save(sqlite("a", dir.path().join("a.db")), SecretValues::new())).unwrap();
+    block_on(
+        c.data_sources()
+            .save(sqlite("a", dir.path().join("a.db")), SecretValues::new()),
+    )
+    .unwrap();
     let s = block_on(c.queries().open_session(&"a".into())).unwrap();
     run(&c, s, SHOP);
     let q = "select c.email, sum(o.total) from orders o join customers c on c.id = o.customer_id \
              where o.note <> 'q' group by c.email order by 2 desc; select 1";
-    let plan = block_on(c.queries().explain(s, Script::new(q), ExplainOptions::default())).unwrap();
-    assert!(plan.statement.starts_with("EXPLAIN QUERY PLAN select c.email"), "{}", plan.statement);
+    let plan = block_on(
+        c.queries()
+            .explain(s, Script::new(q), ExplainOptions::default()),
+    )
+    .unwrap();
+    assert!(
+        plan.statement
+            .starts_with("EXPLAIN QUERY PLAN select c.email"),
+        "{}",
+        plan.statement
+    );
     assert!(!plan.analyzed);
     let ops: Vec<String> = plan
         .root
@@ -123,18 +138,37 @@ fn sqlite_plans_estimate_and_analyze() {
     assert!(plan.execution_ms.is_some());
     // Analyze would run a write: refused; the estimate is fine.
     let del = Script::new("delete from orders");
-    let e = block_on(c.queries().explain(s, del.clone(), ExplainOptions { analyze: true, schema: None }));
+    let e = block_on(c.queries().explain(
+        s,
+        del.clone(),
+        ExplainOptions {
+            analyze: true,
+            schema: None,
+        },
+    ));
     assert!(matches!(e, Err(Error::Unsupported(_))), "{e:?}");
     block_on(c.queries().explain(s, del, ExplainOptions::default())).unwrap();
     let rows: i64 = {
         // Nothing was deleted.
-        let h = c.queries().execute(s, Script::new("select count(*) from orders"), ExecOptions::default());
+        let h = c.queries().execute(
+            s,
+            Script::new("select count(*) from orders"),
+            ExecOptions::default(),
+        );
         block_on(async {
             let mut n = 0;
             while let Ok(ev) = h.events.recv().await {
                 match ev {
-                    QueryEvent::Data { chunk: ResultChunk::Rows(b), .. } => {
-                        n = b.column(0).as_any().downcast_ref::<arrow_array::Int64Array>().unwrap().value(0);
+                    QueryEvent::Data {
+                        chunk: ResultChunk::Rows(b),
+                        ..
+                    } => {
+                        n = b
+                            .column(0)
+                            .as_any()
+                            .downcast_ref::<arrow_array::Int64Array>()
+                            .unwrap()
+                            .value(0);
                     }
                     QueryEvent::Finished => break,
                     _ => {}
@@ -145,7 +179,14 @@ fn sqlite_plans_estimate_and_analyze() {
     };
     assert_eq!(rows, 3);
     // Errors of the database come back as errors.
-    assert!(block_on(c.queries().explain(s, Script::new("select * from nope"), ExplainOptions::default())).is_err());
+    assert!(
+        block_on(c.queries().explain(
+            s,
+            Script::new("select * from nope"),
+            ExplainOptions::default()
+        ))
+        .is_err()
+    );
 }
 
 #[test]
@@ -153,32 +194,74 @@ fn schema_tools_on_sqlite() {
     let dir = tempfile::tempdir().unwrap();
     let c = core(dir.path());
     for id in ["dev", "prod"] {
-        block_on(c.data_sources().save(sqlite(id, dir.path().join(format!("{id}.db"))), SecretValues::new())).unwrap();
+        block_on(c.data_sources().save(
+            sqlite(id, dir.path().join(format!("{id}.db"))),
+            SecretValues::new(),
+        ))
+        .unwrap();
     }
     let dev = block_on(c.queries().open_session(&"dev".into())).unwrap();
     let prod = block_on(c.queries().open_session(&"prod".into())).unwrap();
     run(&c, dev, SHOP);
-    run(&c, dev, "alter table customers add column city text; create table tags (id integer primary key, label text)");
+    run(
+        &c,
+        dev,
+        "alter table customers add column city text; create table tags (id integer primary key, label text)",
+    );
     run(&c, prod, SHOP);
     let dev_main = node("dev", &[(ObjectKind::Schema, "main")]);
     let prod_main = node("prod", &[(ObjectKind::Schema, "main")]);
 
     // ER model: two tables, one relation.
-    let er = block_on(c.metadata().er_model(dev_main.child(ObjectKind::Table, "orders"))).unwrap();
+    let er = block_on(
+        c.metadata()
+            .er_model(dev_main.child(ObjectKind::Table, "orders")),
+    )
+    .unwrap();
     assert_eq!(er.container, "main");
     assert_eq!(er.entities.len(), 3);
     assert_eq!(er.relations.len(), 1);
-    assert_eq!((er.relations[0].from.as_str(), er.relations[0].to.as_str()), ("orders", "customers"));
+    assert_eq!(
+        (er.relations[0].from.as_str(), er.relations[0].to.as_str()),
+        ("orders", "customers")
+    );
 
     // dev → prod: a new table and a new column.
-    let cmp = block_on(c.metadata().compare_schemas(dev_main.clone(), prod_main.clone(), CompareOptions::default())).unwrap();
-    let names: Vec<(DiffKind, &str)> = cmp.items.iter().map(|i| (i.kind, i.name.as_str())).collect();
-    assert_eq!(names, vec![(DiffKind::Added, "tags"), (DiffKind::Changed, "customers")], "{names:?}");
-    assert!(cmp.script.contains("ALTER TABLE main.customers ADD COLUMN city TEXT;"), "{}", cmp.script);
-    let statements: Vec<String> = cmp.items.iter().flat_map(|i| i.statements.clone()).collect();
+    let cmp = block_on(c.metadata().compare_schemas(
+        dev_main.clone(),
+        prod_main.clone(),
+        CompareOptions::default(),
+    ))
+    .unwrap();
+    let names: Vec<(DiffKind, &str)> = cmp
+        .items
+        .iter()
+        .map(|i| (i.kind, i.name.as_str()))
+        .collect();
+    assert_eq!(
+        names,
+        vec![(DiffKind::Added, "tags"), (DiffKind::Changed, "customers")],
+        "{names:?}"
+    );
+    assert!(
+        cmp.script
+            .contains("ALTER TABLE main.customers ADD COLUMN city TEXT;"),
+        "{}",
+        cmp.script
+    );
+    let statements: Vec<String> = cmp
+        .items
+        .iter()
+        .flat_map(|i| i.statements.clone())
+        .collect();
     let n = block_on(c.metadata().apply_script(prod_main.clone(), statements)).unwrap();
     assert_eq!(n, 2);
-    let again = block_on(c.metadata().compare_schemas(dev_main.clone(), prod_main.clone(), CompareOptions::default())).unwrap();
+    let again = block_on(c.metadata().compare_schemas(
+        dev_main.clone(),
+        prod_main.clone(),
+        CompareOptions::default(),
+    ))
+    .unwrap();
     assert!(again.items.is_empty(), "{:?}", again.items);
     // The explorer sees the new table after the refresh.
     let kids = block_on(c.metadata().children(prod_main.clone())).unwrap();
@@ -189,7 +272,11 @@ fn schema_tools_on_sqlite() {
     let mut d = block_on(c.metadata().table_design(orders.clone())).unwrap();
     assert_eq!(d.original.as_deref(), Some("orders"));
     assert_eq!(d.primary_key, vec!["id"]);
-    d.columns.iter_mut().find(|c| c.name == "note").unwrap().name = "comment".into();
+    d.columns
+        .iter_mut()
+        .find(|c| c.name == "note")
+        .unwrap()
+        .name = "comment".into();
     let total = d.columns.iter_mut().find(|c| c.name == "total").unwrap();
     total.nullable = false;
     total.default = Some("0".into());
@@ -201,17 +288,34 @@ fn schema_tools_on_sqlite() {
         ..Default::default()
     });
     let script = block_on(c.metadata().design_script(prod_main.clone(), d.clone())).unwrap();
-    assert!(script.warnings.iter().any(|w| w.contains("rebuilt")), "{:?}", script.warnings);
-    block_on(c.metadata().apply_script(prod_main.clone(), script.statements)).unwrap();
+    assert!(
+        script.warnings.iter().any(|w| w.contains("rebuilt")),
+        "{:?}",
+        script.warnings
+    );
+    block_on(
+        c.metadata()
+            .apply_script(prod_main.clone(), script.statements),
+    )
+    .unwrap();
     let cols: Vec<String> = block_on(c.metadata().children(orders.clone()))
         .unwrap()
         .into_iter()
         .filter(|o| o.kind == ObjectKind::Column)
         .map(|o| o.name)
         .collect();
-    assert_eq!(cols, vec!["id", "customer_id", "total", "comment", "status"]);
+    assert_eq!(
+        cols,
+        vec!["id", "customer_id", "total", "comment", "status"]
+    );
     let d2 = block_on(c.metadata().table_design(orders.clone())).unwrap();
-    assert!(!d2.columns.iter().find(|c| c.name == "total").unwrap().nullable);
+    assert!(
+        !d2.columns
+            .iter()
+            .find(|c| c.name == "total")
+            .unwrap()
+            .nullable
+    );
     // A failing script is rolled back as a whole.
     let bad = vec![
         "alter table main.orders add column x integer".to_owned(),
@@ -225,20 +329,37 @@ fn schema_tools_on_sqlite() {
     let new = TableDesign {
         name: "notes".into(),
         columns: vec![
-            ColumnDesign { name: "id".into(), data_type: "integer".into(), auto_increment: true, ..Default::default() },
-            ColumnDesign { name: "body".into(), data_type: "text".into(), nullable: true, ..Default::default() },
+            ColumnDesign {
+                name: "id".into(),
+                data_type: "integer".into(),
+                auto_increment: true,
+                ..Default::default()
+            },
+            ColumnDesign {
+                name: "body".into(),
+                data_type: "text".into(),
+                nullable: true,
+                ..Default::default()
+            },
         ],
         primary_key: vec!["id".into()],
         ..Default::default()
     };
     let s = block_on(c.metadata().design_script(prod_main.clone(), new)).unwrap();
-    assert!(s.text().contains("id INTEGER PRIMARY KEY AUTOINCREMENT"), "{}", s.text());
+    assert!(
+        s.text().contains("id INTEGER PRIMARY KEY AUTOINCREMENT"),
+        "{}",
+        s.text()
+    );
     block_on(c.metadata().apply_script(prod_main.clone(), s.statements)).unwrap();
     // Read-only sources refuse DDL.
     let mut ro = sqlite("ro", dir.path().join("ro.db"));
     ro.read_only = true;
     block_on(c.data_sources().save(ro, SecretValues::new())).unwrap();
-    let e = block_on(c.metadata().apply_script(node("ro", &[(ObjectKind::Schema, "main")]), vec!["create table t (a int)".into()]));
+    let e = block_on(c.metadata().apply_script(
+        node("ro", &[(ObjectKind::Schema, "main")]),
+        vec!["create table t (a int)".into()],
+    ));
     assert_eq!(e, Err(Error::ReadOnly));
 }
 
@@ -248,29 +369,59 @@ fn duckdb_file_data_source() {
     let csv = dir.path().join("orders.csv");
     std::fs::write(&csv, "id,customer,total\n1,ala,10.5\n2,ola,20\n3,ala,7\n").unwrap();
     let json = dir.path().join("customers.json");
-    std::fs::write(&json, r#"[{"name":"ala","city":"Kraków"},{"name":"ola","city":"Gdańsk"}]"#).unwrap();
+    std::fs::write(
+        &json,
+        r#"[{"name":"ala","city":"Kraków"},{"name":"ola","city":"Gdańsk"}]"#,
+    )
+    .unwrap();
     let c = core(dir.path());
-    block_on(c.data_sources().save(duck("files", &[&csv, &json]), SecretValues::new())).unwrap();
-    let info = c.data_sources().list().into_iter().find(|d| d.config.id == "files".into()).unwrap();
+    block_on(
+        c.data_sources()
+            .save(duck("files", &[&csv, &json]), SecretValues::new()),
+    )
+    .unwrap();
+    let info = c
+        .data_sources()
+        .list()
+        .into_iter()
+        .find(|d| d.config.id == "files".into())
+        .unwrap();
     assert_eq!(info.capabilities.explain, ExplainSupport::Structured);
     // Explorer: schema main with the two files as views and their columns.
     let root = block_on(c.metadata().children(NodeRef::root("files".into()))).unwrap();
     assert_eq!(root[0].name, "main", "{root:?}");
     let objs = block_on(c.metadata().children(root[0].node.clone())).unwrap();
     let names: Vec<&str> = objs.iter().map(|o| o.name.as_str()).collect();
-    assert!(names.contains(&"orders") && names.contains(&"customers"), "{names:?}");
+    assert!(
+        names.contains(&"orders") && names.contains(&"customers"),
+        "{names:?}"
+    );
     let orders = objs.iter().find(|o| o.name == "orders").unwrap();
     let cols = block_on(c.metadata().children(orders.node.clone())).unwrap();
     let cols: Vec<&str> = cols.iter().map(|o| o.name.as_str()).collect();
     assert_eq!(cols, vec!["id", "customer", "total"]);
     // Queries and plans.
     let s = block_on(c.queries().open_session(&"files".into())).unwrap();
-    run(&c, s, "select * from orders o join customers c on c.name = o.customer");
-    let q = Script::new("select c.city, sum(o.total) from orders o join customers c on c.name = o.customer group by 1");
+    run(
+        &c,
+        s,
+        "select * from orders o join customers c on c.name = o.customer",
+    );
+    let q = Script::new(
+        "select c.city, sum(o.total) from orders o join customers c on c.name = o.customer group by 1",
+    );
     let plan = block_on(c.queries().explain(s, q.clone(), ExplainOptions::default())).unwrap();
     assert!(plan.root.len() > 2, "{:#?}", plan.root);
     assert!(plan.statement.starts_with("EXPLAIN (FORMAT JSON)"));
-    let plan = block_on(c.queries().explain(s, q, ExplainOptions { analyze: true, schema: None })).unwrap();
+    let plan = block_on(c.queries().explain(
+        s,
+        q,
+        ExplainOptions {
+            analyze: true,
+            schema: None,
+        },
+    ))
+    .unwrap();
     assert!(plan.analyzed, "{}", plan.raw);
     // Export of a file view works like a table (phase 6 transfer).
     let out = dir.path().join("out.csv");
@@ -301,10 +452,31 @@ fn local_history_persists() {
     {
         let c = core(dir.path());
         let h = c.local_history();
-        let r = block_on(h.record("console:a".into(), "select 1".into(), RevisionReason::Execute, None)).unwrap();
+        let r = block_on(h.record(
+            "console:a".into(),
+            "select 1".into(),
+            RevisionReason::Execute,
+            None,
+        ))
+        .unwrap();
         assert!(r.is_some());
-        assert!(block_on(h.record("console:a".into(), "select 1".into(), RevisionReason::Autosave, None)).unwrap().is_none());
-        block_on(h.record("console:a".into(), "select 2".into(), RevisionReason::Label, Some("before refactor".into()))).unwrap();
+        assert!(
+            block_on(h.record(
+                "console:a".into(),
+                "select 1".into(),
+                RevisionReason::Autosave,
+                None
+            ))
+            .unwrap()
+            .is_none()
+        );
+        block_on(h.record(
+            "console:a".into(),
+            "select 2".into(),
+            RevisionReason::Label,
+            Some("before refactor".into()),
+        ))
+        .unwrap();
     }
     let c = core(dir.path());
     let h = c.local_history();
@@ -322,9 +494,21 @@ fn local_history_persists() {
 #[test]
 fn server_plans_when_available() {
     let cases = [
-        ("FERRODB_TCK_POSTGRES", "postgresql", "select * from pg_class c join pg_namespace n on n.oid = c.relnamespace"),
-        ("FERRODB_TCK_MYSQL", "mysql", "select * from information_schema.tables"),
-        ("FERRODB_TCK_MONGODB", "mongodb", "db.system.version.find({})"),
+        (
+            "FERRODB_TCK_POSTGRES",
+            "postgresql",
+            "select * from pg_class c join pg_namespace n on n.oid = c.relnamespace",
+        ),
+        (
+            "FERRODB_TCK_MYSQL",
+            "mysql",
+            "select * from information_schema.tables",
+        ),
+        (
+            "FERRODB_TCK_MONGODB",
+            "mongodb",
+            "db.system.version.find({})",
+        ),
     ];
     for (var, driver, q) in cases {
         let Ok(url) = std::env::var(var) else {
@@ -342,11 +526,17 @@ fn server_plans_when_available() {
         block_on(c.data_sources().save(cfg, resolved.secrets.clone())).unwrap();
         let s = block_on(c.queries().open_session(&"srv".into())).unwrap();
         for analyze in [false, true] {
-            let p = block_on(c.queries().explain(s, Script::new(q), ExplainOptions { analyze, schema: None }))
-                .unwrap_or_else(|e| panic!("{driver} analyze={analyze}: {e}"));
+            let p = block_on(c.queries().explain(
+                s,
+                Script::new(q),
+                ExplainOptions {
+                    analyze,
+                    schema: None,
+                },
+            ))
+            .unwrap_or_else(|e| panic!("{driver} analyze={analyze}: {e}"));
             assert_eq!(p.analyzed, analyze, "{driver}: {}", p.raw);
             assert!(!p.root.operation.is_empty());
         }
     }
 }
-

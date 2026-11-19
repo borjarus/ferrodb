@@ -73,7 +73,9 @@ impl LocalHistoryPanel {
                 }
             })
         });
-        let label = cx.new(|cx| InputState::new(window, cx).placeholder(t("local-history-label-placeholder")));
+        let label = cx.new(|cx| {
+            InputState::new(window, cx).placeholder(t("local-history-label-placeholder"))
+        });
         let mut this = Self {
             focus: cx.focus_handle(),
             documents: Vec::new(),
@@ -120,7 +122,9 @@ impl LocalHistoryPanel {
     }
 
     fn compare(&mut self, id: i64, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(doc) = self.document.clone() else { return };
+        let Some(doc) = self.document.clone() else {
+            return;
+        };
         let rev = self.revisions.iter().find(|r| r.id == id).cloned();
         let current = current_text(&doc, cx).unwrap_or_default();
         let backend = AppState::backend(cx);
@@ -158,7 +162,9 @@ impl LocalHistoryPanel {
     /// Puts the revision's text back: into the open console of the
     /// document, else a new console (bound to the file for file documents).
     pub fn restore(&mut self, id: i64, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(doc) = self.document.clone() else { return };
+        let Some(doc) = self.document.clone() else {
+            return;
+        };
         let backend = AppState::backend(cx);
         let task = cx
             .background_executor()
@@ -181,7 +187,9 @@ impl LocalHistoryPanel {
                 } else {
                     let path = std::path::PathBuf::from(&doc);
                     let ds = workspace::active_console_source(cx);
-                    if path.exists() && workspace::open_file_console(ds.clone(), path, window, cx).is_ok() {
+                    if path.exists()
+                        && workspace::open_file_console(ds.clone(), path, window, cx).is_ok()
+                    {
                         if let Some(c) = console_of(&doc, cx) {
                             c.update(cx, |c, cx| c.set_text(text, window, cx));
                         }
@@ -208,7 +216,9 @@ impl LocalHistoryPanel {
     }
 
     fn clear(&mut self, cx: &mut Context<Self>) {
-        let Some(doc) = self.document.take() else { return };
+        let Some(doc) = self.document.take() else {
+            return;
+        };
         let backend = AppState::backend(cx);
         let task = cx
             .background_executor()
@@ -265,101 +275,110 @@ impl Panel for LocalHistoryPanel {
 impl Render for LocalHistoryPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
-        let docs = self.documents.iter().enumerate().map(|(i, d)| {
-            let selected = self.document.as_deref() == Some(d.document.as_str());
-            let doc = d.document.clone();
-            h_flex()
-                .id(("lh-doc", i))
-                .px_2()
-                .py_0p5()
-                .gap_2()
-                .when(selected, |x| x.bg(theme.accent))
-                .hover(|x| x.bg(theme.muted))
-                .on_click(cx.listener(move |this, _, _, cx| this.select_document(doc.clone(), cx)))
-                .child(
-                    div()
-                        .flex_1()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .child(document_label(&d.document)),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.muted_foreground)
-                        .child(d.revisions.to_string()),
-                )
-        })
-        .collect::<Vec<_>>();
-        let revs = self.revisions.iter().map(|r| {
-            let id = r.id;
-            let selected = self.selected == Some(id);
-            h_flex()
-                .id(("local-history", id as usize))
-                .gap_2()
-                .px_2()
-                .py_0p5()
-                .when(selected, |d| d.bg(theme.accent))
-                .hover(|s| s.bg(theme.muted))
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.selected = Some(id);
-                    cx.notify();
-                }))
-                .child(
-                    div()
-                        .w(px(64.))
-                        .text_color(theme.muted_foreground)
-                        .child(time_of_day(r.at)),
-                )
-                .child(
-                    div()
-                        .w(px(110.))
-                        .text_color(theme.muted_foreground)
-                        .child(t(reason_label(r.reason))),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .when(r.reason == ferrodb_api::RevisionReason::Label, |d| {
-                            d.font_weight(FontWeight::SEMIBOLD)
-                        })
-                        .child(r.label.clone().unwrap_or_default()),
-                )
-                .child(
-                    div()
-                        .w(px(70.))
-                        .text_xs()
-                        .text_color(theme.muted_foreground)
-                        .child(format!("{} B", r.size)),
-                )
-                .child(
-                    Button::new(("lh-compare", id as usize))
-                        .ghost()
-                        .xsmall()
-                        .icon(icons::Lucide::GitCompare)
-                        .tooltip(t("local-history-compare"))
-                        .on_click(cx.listener(move |this, _, w, cx| this.compare(id, w, cx))),
-                )
-                .child(
-                    Button::new(("lh-restore", id as usize))
-                        .ghost()
-                        .xsmall()
-                        .icon(icons::Lucide::Undo2)
-                        .tooltip(t("local-history-restore"))
-                        .on_click(cx.listener(move |this, _, w, cx| this.restore(id, w, cx))),
-                )
-                .child(
-                    Button::new(("lh-delete", id as usize))
-                        .ghost()
-                        .xsmall()
-                        .icon(icons::Lucide::Trash)
-                        .tooltip(t("local-history-delete"))
-                        .on_click(cx.listener(move |this, _, _, cx| this.delete(id, cx))),
-                )
-        })
-        .collect::<Vec<_>>();
+        let docs = self
+            .documents
+            .iter()
+            .enumerate()
+            .map(|(i, d)| {
+                let selected = self.document.as_deref() == Some(d.document.as_str());
+                let doc = d.document.clone();
+                h_flex()
+                    .id(("lh-doc", i))
+                    .px_2()
+                    .py_0p5()
+                    .gap_2()
+                    .when(selected, |x| x.bg(theme.accent))
+                    .hover(|x| x.bg(theme.muted))
+                    .on_click(
+                        cx.listener(move |this, _, _, cx| this.select_document(doc.clone(), cx)),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .child(document_label(&d.document)),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(d.revisions.to_string()),
+                    )
+            })
+            .collect::<Vec<_>>();
+        let revs = self
+            .revisions
+            .iter()
+            .map(|r| {
+                let id = r.id;
+                let selected = self.selected == Some(id);
+                h_flex()
+                    .id(("local-history", id as usize))
+                    .gap_2()
+                    .px_2()
+                    .py_0p5()
+                    .when(selected, |d| d.bg(theme.accent))
+                    .hover(|s| s.bg(theme.muted))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.selected = Some(id);
+                        cx.notify();
+                    }))
+                    .child(
+                        div()
+                            .w(px(64.))
+                            .text_color(theme.muted_foreground)
+                            .child(time_of_day(r.at)),
+                    )
+                    .child(
+                        div()
+                            .w(px(110.))
+                            .text_color(theme.muted_foreground)
+                            .child(t(reason_label(r.reason))),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .when(r.reason == ferrodb_api::RevisionReason::Label, |d| {
+                                d.font_weight(FontWeight::SEMIBOLD)
+                            })
+                            .child(r.label.clone().unwrap_or_default()),
+                    )
+                    .child(
+                        div()
+                            .w(px(70.))
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(format!("{} B", r.size)),
+                    )
+                    .child(
+                        Button::new(("lh-compare", id as usize))
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::GitCompare)
+                            .tooltip(t("local-history-compare"))
+                            .on_click(cx.listener(move |this, _, w, cx| this.compare(id, w, cx))),
+                    )
+                    .child(
+                        Button::new(("lh-restore", id as usize))
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::Undo2)
+                            .tooltip(t("local-history-restore"))
+                            .on_click(cx.listener(move |this, _, w, cx| this.restore(id, w, cx))),
+                    )
+                    .child(
+                        Button::new(("lh-delete", id as usize))
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::Trash)
+                            .tooltip(t("local-history-delete"))
+                            .on_click(cx.listener(move |this, _, _, cx| this.delete(id, cx))),
+                    )
+            })
+            .collect::<Vec<_>>();
         let empty = self.documents.is_empty();
         v_flex()
             .id("local-history")

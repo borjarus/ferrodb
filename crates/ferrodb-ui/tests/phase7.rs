@@ -90,7 +90,9 @@ impl Harness {
         let ws = self.ws.clone();
         let (ds, text) = (ds.to_owned(), text.to_owned());
         self.with(cx, |w, cx| {
-            ws.update(cx, |ws, cx| ws.add_console(Some(DataSourceId::new(ds)), text, w, cx))
+            ws.update(cx, |ws, cx| {
+                ws.add_console(Some(DataSourceId::new(ds)), text, w, cx)
+            })
         })
     }
 
@@ -119,7 +121,11 @@ fn public(ds: &str) -> NodeRef {
 #[gpui_kit::test]
 async fn plan_modes_and_explain_analyze(cx: &mut TestAppContext) {
     let h = start(cx);
-    let console = h.console(cx, "shop-dev", "select * from orders o join customers c on c.id = o.customer_id");
+    let console = h.console(
+        cx,
+        "shop-dev",
+        "select * from orders o join customers c on c.id = o.customer_id",
+    );
     h.with(cx, |w, cx| console.update(cx, |c, cx| c.explain(w, cx)));
     let plan = h.plan(cx, &console);
     cx.update(|cx| {
@@ -142,7 +148,9 @@ async fn plan_modes_and_explain_analyze(cx: &mut TestAppContext) {
     h.frame(cx);
     h.with(cx, |w, _| assert!(w.find("plan-details").visible()));
     // Explain Analyze adds a second plan with actual numbers.
-    h.with(cx, |w, cx| console.update(cx, |c, cx| c.explain_analyze(w, cx)));
+    h.with(cx, |w, cx| {
+        console.update(cx, |c, cx| c.explain_analyze(w, cx))
+    });
     let analyzed = h.plan(cx, &console);
     cx.update(|cx| {
         let p = analyzed.read(cx);
@@ -155,7 +163,9 @@ async fn plan_modes_and_explain_analyze(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 async fn er_diagram_draws_relations_and_keeps_moved_boxes(cx: &mut TestAppContext) {
     let h = start(cx);
-    h.with(cx, |w, cx| ferrodb_ui::workspace::open_er_diagram(public("shop-dev"), w, cx));
+    h.with(cx, |w, cx| {
+        ferrodb_ui::workspace::open_er_diagram(public("shop-dev"), w, cx)
+    });
     h.frame(cx);
     let view: Entity<ErDiagram> = cx.update(|cx| {
         cx.global::<LastViewDialog>()
@@ -170,7 +180,10 @@ async fn er_diagram_draws_relations_and_keeps_moved_boxes(cx: &mut TestAppContex
         (v.boxes.len(), v.connectors().len(), v.file.clone())
     });
     assert!(tables >= 5, "{tables}");
-    assert!(lines >= 4, "every table but customers references customers: {lines}");
+    assert!(
+        lines >= 4,
+        "every table but customers references customers: {lines}"
+    );
     let file = file.expect("saved in the project");
     assert!(file.starts_with(h.dir.path().join(".ferrodb").join("diagrams")));
     // Move a box and save: the next diagram opens with it there.
@@ -181,10 +194,17 @@ async fn er_diagram_draws_relations_and_keeps_moved_boxes(cx: &mut TestAppContex
         })
     });
     h.with(cx, |w, cx| w.close_dialog(cx));
-    h.with(cx, |w, cx| ferrodb_ui::workspace::open_er_diagram(public("shop-dev"), w, cx));
+    h.with(cx, |w, cx| {
+        ferrodb_ui::workspace::open_er_diagram(public("shop-dev"), w, cx)
+    });
     h.frame(cx);
     let again: Entity<ErDiagram> = cx.update(|cx| {
-        cx.global::<LastViewDialog>().0.clone().unwrap().downcast().unwrap()
+        cx.global::<LastViewDialog>()
+            .0
+            .clone()
+            .unwrap()
+            .downcast()
+            .unwrap()
     });
     cx.update(|cx| {
         let b = &again.read(cx).boxes[0];
@@ -196,13 +216,26 @@ async fn er_diagram_draws_relations_and_keeps_moved_boxes(cx: &mut TestAppContex
 #[gpui_kit::test]
 async fn schema_comparison_dev_vs_prod(cx: &mut TestAppContext) {
     let h = start(cx);
-    h.with(cx, |w, cx| w.dispatch_action(Box::new(actions::CompareSchemas), cx));
+    h.with(cx, |w, cx| {
+        w.dispatch_action(Box::new(actions::CompareSchemas), cx)
+    });
     h.frame(cx);
-    let view = cx.update(|cx| cx.global::<LastSchemaCompare>().0.clone().expect("compare view"));
+    let view = cx.update(|cx| {
+        cx.global::<LastSchemaCompare>()
+            .0
+            .clone()
+            .expect("compare view")
+    });
     cx.update(|cx| {
         let v = view.read(cx);
-        assert_eq!(v.source.as_ref().map(|n| n.data_source.as_str()), Some("shop-dev"));
-        assert_eq!(v.target.as_ref().map(|n| n.data_source.as_str()), Some("shop-prod"));
+        assert_eq!(
+            v.source.as_ref().map(|n| n.data_source.as_str()),
+            Some("shop-dev")
+        );
+        assert_eq!(
+            v.target.as_ref().map(|n| n.data_source.as_str()),
+            Some("shop-prod")
+        );
     });
     h.with(cx, |_, cx| view.update(cx, |v, cx| v.compare(cx)));
     h.wait(cx, 200);
@@ -225,7 +258,9 @@ async fn schema_comparison_dev_vs_prod(cx: &mut TestAppContext) {
 async fn table_editor_generates_alter_for_a_table(cx: &mut TestAppContext) {
     let h = start(cx);
     let orders = public("shop-dev").child(ObjectKind::Table, "orders");
-    h.with(cx, |w, cx| ferrodb_ui::workspace::open_table_editor(Some(orders), w, cx));
+    h.with(cx, |w, cx| {
+        ferrodb_ui::workspace::open_table_editor(Some(orders), w, cx)
+    });
     h.wait(cx, 500);
     let editor = cx.update(|cx| cx.global::<LastTableEditor>().0.clone().expect("editor"));
     cx.update(|cx| {
@@ -245,13 +280,18 @@ async fn table_editor_generates_alter_for_a_table(cx: &mut TestAppContext) {
     h.wait(cx, 500);
     cx.update(|cx| {
         let ddl = editor.read(cx).ddl();
-        assert!(ddl.contains("ALTER COLUMN") && ddl.contains("TYPE varchar(200)"), "{ddl}");
+        assert!(
+            ddl.contains("ALTER COLUMN") && ddl.contains("TYPE varchar(200)"),
+            "{ddl}"
+        );
         assert!(ddl.contains("ADD COLUMN status text"), "{ddl}");
     });
     h.frame(cx);
     h.with(cx, |w, _| assert!(w.find("te-ddl").visible()));
     // A new table in the schema of the selection.
-    h.with(cx, |w, cx| ferrodb_ui::workspace::open_table_editor(Some(public("shop-dev")), w, cx));
+    h.with(cx, |w, cx| {
+        ferrodb_ui::workspace::open_table_editor(Some(public("shop-dev")), w, cx)
+    });
     h.wait(cx, 500);
     let fresh = cx.update(|cx| cx.global::<LastTableEditor>().0.clone().unwrap());
     cx.update(|cx| {
@@ -267,13 +307,19 @@ async fn project_files_open_scripts_in_bound_consoles(cx: &mut TestAppContext) {
     std::fs::create_dir_all(sql.parent().unwrap()).unwrap();
     std::fs::write(&sql, "select 1").unwrap();
     std::fs::write(h.dir.path().join("orders.csv"), "id\n1\n").unwrap();
-    h.with(cx, |w, cx| w.dispatch_action(Box::new(actions::ShowProjectFiles), cx));
+    h.with(cx, |w, cx| {
+        w.dispatch_action(Box::new(actions::ShowProjectFiles), cx)
+    });
     h.frame(cx);
     let panel: Entity<FilesPanel> = h.with(cx, |w, cx| cx.new(|cx| FilesPanel::new(w, cx)));
     let listed = cx.update(|cx| panel.read(cx).listed());
     assert!(listed.contains(&sql), "{listed:?}");
     assert!(listed.iter().any(|p| p.ends_with("orders.csv")));
-    assert!(!listed.iter().any(|p| p.components().any(|c| c.as_os_str() == ".ferrodb")));
+    assert!(
+        !listed
+            .iter()
+            .any(|p| p.components().any(|c| c.as_os_str() == ".ferrodb"))
+    );
     // Opening a script binds the console to the file; saving writes it.
     let sql2 = sql.clone();
     h.with(cx, |w, cx| FilesPanel::open(sql2, w, cx));
@@ -297,7 +343,9 @@ async fn project_files_open_scripts_in_bound_consoles(cx: &mut TestAppContext) {
     // A console without a file is saved under .ferrodb/consoles.
     let plain = h.console(cx, "shop-dev", "select 3");
     h.with(cx, |w, cx| plain.update(cx, |c, cx| c.save_file(w, cx)));
-    let saved = cx.update(|cx| plain.read(cx).file.clone()).expect("bound after save");
+    let saved = cx
+        .update(|cx| plain.read(cx).file.clone())
+        .expect("bound after save");
     assert!(saved.starts_with(h.dir.path().join(".ferrodb").join("consoles")));
     assert_eq!(std::fs::read_to_string(saved).unwrap(), "select 3");
 }
@@ -311,7 +359,9 @@ async fn local_history_lists_revisions_and_restores(cx: &mut TestAppContext) {
     let file = dir.join("q.sql");
     std::fs::write(&file, "select 'v1'").unwrap();
     let f2 = file.clone();
-    h.with(cx, |w, cx| ferrodb_ui::workspace::open_file_console(None, f2, w, cx).unwrap());
+    h.with(cx, |w, cx| {
+        ferrodb_ui::workspace::open_file_console(None, f2, w, cx).unwrap()
+    });
     let console = cx.update(|cx| {
         h.ws.read(cx)
             .consoles()
@@ -328,8 +378,11 @@ async fn local_history_lists_revisions_and_restores(cx: &mut TestAppContext) {
         })
     });
     let doc = cx.update(|cx| console.read(cx).history_document());
-    let panel: Entity<LocalHistoryPanel> = h.with(cx, |w, cx| cx.new(|cx| LocalHistoryPanel::new(w, cx)));
-    h.with(cx, |_, cx| panel.update(cx, |p, cx| p.select_document(doc.clone(), cx)));
+    let panel: Entity<LocalHistoryPanel> =
+        h.with(cx, |w, cx| cx.new(|cx| LocalHistoryPanel::new(w, cx)));
+    h.with(cx, |_, cx| {
+        panel.update(cx, |p, cx| p.select_document(doc.clone(), cx))
+    });
     let (revs, oldest) = cx.update(|cx| {
         let p = panel.read(cx);
         (p.revisions.len(), p.revisions.last().map(|r| r.id))
@@ -337,11 +390,22 @@ async fn local_history_lists_revisions_and_restores(cx: &mut TestAppContext) {
     assert_eq!(revs, 2, "two saves, two revisions");
     // Restoring the first revision puts it back into the open console and
     // keeps the text it replaced.
-    h.with(cx, |w, cx| panel.update(cx, |p, cx| p.restore(oldest.unwrap(), w, cx)));
+    h.with(cx, |w, cx| {
+        panel.update(cx, |p, cx| p.restore(oldest.unwrap(), w, cx))
+    });
     cx.update(|cx| {
-        assert_eq!(console.read(cx).editor().read(cx).value().to_string(), "select 'v1'");
+        assert_eq!(
+            console.read(cx).editor().read(cx).value().to_string(),
+            "select 'v1'"
+        );
     });
     h.with(cx, |_, cx| panel.update(cx, |p, cx| p.reload(cx)));
-    cx.update(|cx| assert_eq!(panel.read(cx).revisions.len(), 2, "same text as the newest: no new revision"));
+    cx.update(|cx| {
+        assert_eq!(
+            panel.read(cx).revisions.len(),
+            2,
+            "same text as the newest: no new revision"
+        )
+    });
     let _ = actions::ShowLocalHistory;
 }

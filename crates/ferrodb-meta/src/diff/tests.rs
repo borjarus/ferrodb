@@ -2,7 +2,9 @@
 //! generated text per dialect, and on SQLite the full loop (introspect →
 //! compare → run the script → compare again: no differences left).
 
-use ferrodb_api::{ColumnDesign, CompareOptions, DiffKind, ForeignKeyDesign, IndexDesign, ObjectKind, TableDesign};
+use ferrodb_api::{
+    ColumnDesign, CompareOptions, DiffKind, ForeignKeyDesign, IndexDesign, ObjectKind, TableDesign,
+};
 use ferrodb_drivers::{CancellationToken, Connection, Registry, ResolvedConfig, sink::collect};
 
 use super::*;
@@ -78,23 +80,58 @@ fn types_and_defaults_normalize() {
 #[test]
 fn postgres_alter_table() {
     let t = Target::new(Dialect::Postgres, "public");
-    let ch = alter_table(&t, &orders_v1(), &orders_v2(), &[], &CompareOptions::default());
+    let ch = alter_table(
+        &t,
+        &orders_v1(),
+        &orders_v2(),
+        &[],
+        &CompareOptions::default(),
+    );
     let s = ch.ordered();
     let text = s.join("\n");
     // Foreign key re-created with the new action: dropped first, added last.
-    assert!(s[0].starts_with("ALTER TABLE public.orders DROP CONSTRAINT orders_customer_fk"), "{text}");
+    assert!(
+        s[0].starts_with("ALTER TABLE public.orders DROP CONSTRAINT orders_customer_fk"),
+        "{text}"
+    );
     assert!(s.last().unwrap().contains("ADD CONSTRAINT orders_customer_fk FOREIGN KEY (customer_id) REFERENCES public.customers (id) ON DELETE CASCADE"), "{text}");
     assert!(text.contains("DROP INDEX public.ix_note;"), "{text}");
-    assert!(text.contains("ALTER TABLE public.orders DROP COLUMN note;"), "{text}");
-    assert!(text.contains("ALTER TABLE public.orders ADD COLUMN status varchar(20);"), "{text}");
-    assert!(text.contains("ALTER COLUMN total TYPE numeric(10,2) USING total::numeric(10,2);"), "{text}");
+    assert!(
+        text.contains("ALTER TABLE public.orders DROP COLUMN note;"),
+        "{text}"
+    );
+    assert!(
+        text.contains("ALTER TABLE public.orders ADD COLUMN status varchar(20);"),
+        "{text}"
+    );
+    assert!(
+        text.contains("ALTER COLUMN total TYPE numeric(10,2) USING total::numeric(10,2);"),
+        "{text}"
+    );
     assert!(text.contains("ALTER COLUMN total SET NOT NULL;"), "{text}");
     assert!(text.contains("ALTER COLUMN total SET DEFAULT 0;"), "{text}");
-    assert!(text.contains("CREATE INDEX ix_status ON public.orders (status);"), "{text}");
-    assert!(ch.warnings.iter().any(|w| w.contains("dropping column orders.note")));
-    assert!(ch.details.iter().any(|d| d.starts_with("column total: type integer → numeric(10,2)")));
+    assert!(
+        text.contains("CREATE INDEX ix_status ON public.orders (status);"),
+        "{text}"
+    );
+    assert!(
+        ch.warnings
+            .iter()
+            .any(|w| w.contains("dropping column orders.note"))
+    );
+    assert!(
+        ch.details
+            .iter()
+            .any(|d| d.starts_with("column total: type integer → numeric(10,2)"))
+    );
     // Nothing to do between equal tables.
-    let same = alter_table(&t, &orders_v1(), &orders_v1(), &[], &CompareOptions::default());
+    let same = alter_table(
+        &t,
+        &orders_v1(),
+        &orders_v1(),
+        &[],
+        &CompareOptions::default(),
+    );
     assert!(same.is_empty(), "{:?}", same);
 }
 
@@ -113,11 +150,28 @@ fn mysql_alter_and_rename() {
         &CompareOptions::default(),
     );
     let text = ch.ordered().join("\n");
-    assert!(text.contains("RENAME TABLE `shop`.`orders` TO `shop`.`purchase`;"), "{text}");
-    assert!(text.contains("ALTER TABLE `shop`.`purchase` RENAME COLUMN `customer_id` TO `client_id`;"), "{text}");
-    assert!(text.contains("ALTER TABLE `shop`.`purchase` MODIFY COLUMN `total` numeric(10,2) NOT NULL DEFAULT 0;"), "{text}");
-    assert!(text.contains("DROP FOREIGN KEY `orders_customer_fk`"), "{text}");
-    assert!(text.contains("DROP INDEX `ix_note` ON `shop`.`orders`"), "{text}");
+    assert!(
+        text.contains("RENAME TABLE `shop`.`orders` TO `shop`.`purchase`;"),
+        "{text}"
+    );
+    assert!(
+        text.contains("ALTER TABLE `shop`.`purchase` RENAME COLUMN `customer_id` TO `client_id`;"),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            "ALTER TABLE `shop`.`purchase` MODIFY COLUMN `total` numeric(10,2) NOT NULL DEFAULT 0;"
+        ),
+        "{text}"
+    );
+    assert!(
+        text.contains("DROP FOREIGN KEY `orders_customer_fk`"),
+        "{text}"
+    );
+    assert!(
+        text.contains("DROP INDEX `ix_note` ON `shop`.`orders`"),
+        "{text}"
+    );
     // The renamed column is not dropped and re-added.
     assert!(!text.contains("DROP COLUMN `customer_id`"), "{text}");
     assert!(!text.contains("ADD COLUMN `client_id`"), "{text}");
@@ -146,7 +200,10 @@ fn customers() -> Table {
 fn compare_orders_script() {
     let mut payments = Table {
         name: "payments".into(),
-        columns: vec![col("id", "integer", false), col("order_id", "integer", false)],
+        columns: vec![
+            col("id", "integer", false),
+            col("order_id", "integer", false),
+        ],
         primary_key: Some(Key {
             name: None,
             columns: vec!["id".into()],
@@ -201,7 +258,10 @@ fn compare_orders_script() {
     assert!(kinds.contains(&(DiffKind::Changed, "big")), "{kinds:?}");
     assert!(!kinds.iter().any(|(_, n)| *n == "customers"), "{kinds:?}");
     let s = &r.script;
-    let pos = |needle: &str| s.find(needle).unwrap_or_else(|| panic!("{needle} not in\n{s}"));
+    let pos = |needle: &str| {
+        s.find(needle)
+            .unwrap_or_else(|| panic!("{needle} not in\n{s}"))
+    };
     // Order: drop FK / view before altering, create table before its FK.
     assert!(pos("DROP VIEW public.big") < pos("ALTER TABLE public.orders DROP COLUMN note"));
     assert!(pos("CREATE TABLE public.payments") < pos("ADD CONSTRAINT payments_order_fk"));
@@ -221,7 +281,11 @@ fn compare_orders_script() {
     assert!(r.warnings.iter().any(|w| w.contains("legacy")));
     // Comparing a schema with itself finds nothing.
     let same = compare(side(&src), side(&src), &CompareOptions::default());
-    assert!(same.items.is_empty() && same.script.is_empty(), "{:?}", same.items);
+    assert!(
+        same.items.is_empty() && same.script.is_empty(),
+        "{:?}",
+        same.items
+    );
 }
 
 #[test]
@@ -241,7 +305,11 @@ fn compare_into_another_schema_renames() {
         },
         &CompareOptions::default(),
     );
-    assert!(r.script.contains("CREATE TABLE prod.customers"), "{}", r.script);
+    assert!(
+        r.script.contains("CREATE TABLE prod.customers"),
+        "{}",
+        r.script
+    );
     assert!(!r.script.contains("dev."), "{}", r.script);
 }
 
@@ -270,7 +338,11 @@ fn design_round_trip_and_validation() {
     // A new table named like an existing one is refused.
     let mut dup = d.clone();
     dup.original = None;
-    assert!(design_script(Dialect::Postgres, "public", &c, &dup).unwrap_err().contains("already exists"));
+    assert!(
+        design_script(Dialect::Postgres, "public", &c, &dup)
+            .unwrap_err()
+            .contains("already exists")
+    );
     let mut bad = d.clone();
     bad.columns[0].data_type.clear();
     assert!(design_script(Dialect::Postgres, "public", &c, &bad).is_err());
@@ -298,16 +370,26 @@ fn design_round_trip_and_validation() {
         }],
         ..Default::default()
     };
-    let s = design_script(Dialect::Postgres, "public", &c, &fresh).unwrap().text();
-    assert!(s.contains("id integer GENERATED BY DEFAULT AS IDENTITY NOT NULL"), "{s}");
-    assert!(s.contains("CREATE UNIQUE INDEX ix_tags_label ON public.tags (label);"), "{s}");
+    let s = design_script(Dialect::Postgres, "public", &c, &fresh)
+        .unwrap()
+        .text();
+    assert!(
+        s.contains("id integer GENERATED BY DEFAULT AS IDENTITY NOT NULL"),
+        "{s}"
+    );
+    assert!(
+        s.contains("CREATE UNIQUE INDEX ix_tags_label ON public.tags (label);"),
+        "{s}"
+    );
     fresh.foreign_keys.push(ForeignKeyDesign {
         columns: vec!["id".into()],
         ref_table: "customers".into(),
         ref_columns: vec!["id".into()],
         ..Default::default()
     });
-    let s = design_script(Dialect::MySql, "shop", &c, &fresh).unwrap().text();
+    let s = design_script(Dialect::MySql, "shop", &c, &fresh)
+        .unwrap()
+        .text();
     assert!(s.contains("`id` integer NOT NULL AUTO_INCREMENT"), "{s}");
     assert!(s.contains("REFERENCES `shop`.`customers` (`id`)"), "{s}");
 }
@@ -366,10 +448,18 @@ async fn sqlite_migration_end_to_end() {
         content: c,
     };
     let r = compare(side(&src), side(&tgt), &CompareOptions::default());
-    assert!(r.warnings.iter().any(|w| w.contains("rebuilt")), "{:?}", r.warnings);
+    assert!(
+        r.warnings.iter().any(|w| w.contains("rebuilt")),
+        "{:?}",
+        r.warnings
+    );
     let orders = r.items.iter().find(|i| i.name == "orders").unwrap();
     assert_eq!(orders.kind, DiffKind::Changed);
-    assert!(orders.detail.contains("column note dropped"), "{}", orders.detail);
+    assert!(
+        orders.detail.contains("column note dropped"),
+        "{}",
+        orders.detail
+    );
     run(a.as_mut(), &split(&r.script)).await;
 
     // The target now matches the source.
@@ -378,7 +468,11 @@ async fn sqlite_migration_end_to_end() {
     assert!(
         again.items.is_empty(),
         "left after migration: {:#?}\nscript was:\n{}",
-        again.items.iter().map(|i| (&i.name, &i.detail)).collect::<Vec<_>>(),
+        again
+            .items
+            .iter()
+            .map(|i| (&i.name, &i.detail))
+            .collect::<Vec<_>>(),
         r.script
     );
     // Rows survived the rebuild; the new column got its default.
@@ -394,7 +488,14 @@ async fn sqlite_migration_end_to_end() {
     assert_eq!(rows[0].int("s"), Some(210));
     // AUTOINCREMENT is kept.
     let orders = tgt2.table("orders").unwrap();
-    assert!(orders.server_sql.as_deref().unwrap().to_uppercase().contains("AUTOINCREMENT"));
+    assert!(
+        orders
+            .server_sql
+            .as_deref()
+            .unwrap()
+            .to_uppercase()
+            .contains("AUTOINCREMENT")
+    );
 }
 
 #[tokio::test]

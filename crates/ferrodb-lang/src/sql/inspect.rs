@@ -83,8 +83,8 @@ fn lexical(doc: &Document<'_>, out: &mut Vec<Diag>) {
         let text = t.text(src);
         let msg = match t.kind {
             TokenKind::String => {
-                let closed = if text.starts_with('$') {
-                    let tag_end = text[1..].find('$').map_or(0, |i| i + 2);
+                let closed = if let Some(stripped) = text.strip_prefix('$') {
+                    let tag_end = stripped.find('$').map_or(0, |i| i + 2);
                     text.len() >= tag_end * 2 && text.ends_with(&text[..tag_end])
                 } else {
                     let q = text.rfind('\'').unwrap_or(0);
@@ -108,7 +108,8 @@ fn lexical(doc: &Document<'_>, out: &mut Vec<Diag>) {
         };
         if let Some(m) = msg {
             out.push(Diag {
-                range: t.range.start..(t.range.start + text.chars().next().map_or(1, char::len_utf8)),
+                range: t.range.start
+                    ..(t.range.start + text.chars().next().map_or(1, char::len_utf8)),
                 severity: Severity::Error,
                 message: m.into(),
                 fixes: Vec::new(),
@@ -120,15 +121,13 @@ fn lexical(doc: &Document<'_>, out: &mut Vec<Diag>) {
         for t in &s.toks {
             match (t.kind, t.text(src)) {
                 (TokenKind::Punct, "(") => open.push(t),
-                (TokenKind::Punct, ")") => {
-                    if open.pop().is_none() {
-                        out.push(Diag {
-                            range: t.range.clone(),
-                            severity: Severity::Error,
-                            message: "Unmatched ')'".into(),
-                            fixes: vec![fix("Remove ')'", vec![edit(t.range.clone(), "")])],
-                        });
-                    }
+                (TokenKind::Punct, ")") if open.pop().is_none() => {
+                    out.push(Diag {
+                        range: t.range.clone(),
+                        severity: Severity::Error,
+                        message: "Unmatched ')'".into(),
+                        fixes: vec![fix("Remove ')'", vec![edit(t.range.clone(), "")])],
+                    });
                 }
                 _ => {}
             }
@@ -188,13 +187,67 @@ fn checkable(s: &StmtAnalysis, src: &str) -> bool {
 
 /// First words of statements in any supported dialect.
 const STATEMENT_WORDS: &[&str] = &[
-    "abort", "alter", "analyze", "attach", "begin", "call", "checkpoint", "close", "cluster",
-    "comment", "commit", "copy", "create", "deallocate", "declare", "delete", "describe",
-    "detach", "discard", "do", "drop", "end", "exec", "execute", "explain", "fetch", "flush",
-    "grant", "handler", "insert", "kill", "listen", "load", "lock", "merge", "move", "notify",
-    "optimize", "pragma", "prepare", "reindex", "release", "rename", "repair", "replace",
-    "reset", "revoke", "rollback", "savepoint", "select", "set", "show", "start", "table",
-    "truncate", "unlisten", "update", "use", "vacuum", "values", "with",
+    "abort",
+    "alter",
+    "analyze",
+    "attach",
+    "begin",
+    "call",
+    "checkpoint",
+    "close",
+    "cluster",
+    "comment",
+    "commit",
+    "copy",
+    "create",
+    "deallocate",
+    "declare",
+    "delete",
+    "describe",
+    "detach",
+    "discard",
+    "do",
+    "drop",
+    "end",
+    "exec",
+    "execute",
+    "explain",
+    "fetch",
+    "flush",
+    "grant",
+    "handler",
+    "insert",
+    "kill",
+    "listen",
+    "load",
+    "lock",
+    "merge",
+    "move",
+    "notify",
+    "optimize",
+    "pragma",
+    "prepare",
+    "reindex",
+    "release",
+    "rename",
+    "repair",
+    "replace",
+    "reset",
+    "revoke",
+    "rollback",
+    "savepoint",
+    "select",
+    "set",
+    "show",
+    "start",
+    "table",
+    "truncate",
+    "unlisten",
+    "update",
+    "use",
+    "vacuum",
+    "values",
+    "with",
 ];
 
 /// A typo in the first word (`selec`): the statement cannot run at all.
@@ -203,7 +256,10 @@ fn statement_word(doc: &Document<'_>, s: &StmtAnalysis, out: &mut Vec<Diag>) {
         return;
     };
     let w = t.text(doc.text).to_ascii_lowercase();
-    if STATEMENT_WORDS.contains(&w.as_str()) || doc.dialect().is_keyword(&w) || doc.dialect().is_soft_keyword(&w) {
+    if STATEMENT_WORDS.contains(&w.as_str())
+        || doc.dialect().is_keyword(&w)
+        || doc.dialect().is_soft_keyword(&w)
+    {
         return;
     }
     let Some(best) = STATEMENT_WORDS
@@ -218,8 +274,14 @@ fn statement_word(doc: &Document<'_>, s: &StmtAnalysis, out: &mut Vec<Diag>) {
     out.push(Diag {
         range: t.range.clone(),
         severity: Severity::Error,
-        message: format!("Unknown statement '{}'; did you mean {upper}?", t.text(doc.text)),
-        fixes: vec![fix(format!("Change to {upper}"), vec![edit(t.range.clone(), upper.clone())])],
+        message: format!(
+            "Unknown statement '{}'; did you mean {upper}?",
+            t.text(doc.text)
+        ),
+        fixes: vec![fix(
+            format!("Change to {upper}"),
+            vec![edit(t.range.clone(), upper.clone())],
+        )],
     });
 }
 
@@ -231,14 +293,19 @@ fn syntax(doc: &Document<'_>, s: &StmtAnalysis, out: &mut Vec<Diag>) {
     if !checkable(s, doc.text) {
         return;
     }
-    let Some(dialect) = sp_dialect(parser) else { return };
+    let Some(dialect) = sp_dialect(parser) else {
+        return;
+    };
     let body = s.span.body.clone();
     let text = &doc.text[body.clone()];
     let Err(e) = Parser::parse_sql(&*dialect, text) else {
         return;
     };
     let msg = e.to_string();
-    let msg = msg.strip_prefix("sql parser error: ").unwrap_or(&msg).to_owned();
+    let msg = msg
+        .strip_prefix("sql parser error: ")
+        .unwrap_or(&msg)
+        .to_owned();
     let (message, loc) = match msg.rfind(" at Line: ") {
         Some(i) => (msg[..i].to_owned(), parse_location(&msg[i..])),
         None => (msg.clone(), None),
@@ -262,7 +329,9 @@ fn syntax(doc: &Document<'_>, s: &StmtAnalysis, out: &mut Vec<Diag>) {
 }
 
 fn tidy(m: &str) -> String {
-    let m = m.replace("Expected: ", "Expected ").replace(", found: ", ", found ");
+    let m = m
+        .replace("Expected: ", "Expected ")
+        .replace(", found: ", ", found ");
     let mut c = m.chars();
     match c.next() {
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
@@ -322,12 +391,10 @@ fn semantic(doc: &Document<'_>, si: usize, out: &mut Vec<Diag>) {
                 };
                 let fixes = suggestions
                     .iter()
-                    .map(|sug| {
-                        CodeAction {
-                            title: format!("Change to {sug}"),
-                            edits: vec![edit(id.range.clone(), sug.clone())],
-                            preferred: true,
-                        }
+                    .map(|sug| CodeAction {
+                        title: format!("Change to {sug}"),
+                        edits: vec![edit(id.range.clone(), sug.clone())],
+                        preferred: true,
                     })
                     .collect();
                 let mut message = format!("Unknown {kind} '{}'", id.text);
@@ -345,7 +412,12 @@ fn semantic(doc: &Document<'_>, si: usize, out: &mut Vec<Diag>) {
                 let id = r.parts.last().expect("non-empty");
                 let fixes = owners
                     .iter()
-                    .map(|o| fix(format!("Qualify as {o}.{}", id.text), vec![edit(id.range.start..id.range.start, format!("{o}."))]))
+                    .map(|o| {
+                        fix(
+                            format!("Qualify as {o}.{}", id.text),
+                            vec![edit(id.range.start..id.range.start, format!("{o}."))],
+                        )
+                    })
                     .collect();
                 out.push(Diag {
                     range: id.range.clone(),
@@ -372,8 +444,15 @@ fn semantic(doc: &Document<'_>, si: usize, out: &mut Vec<Diag>) {
     }
     // UPDATE / DELETE without WHERE.
     if matches!(p.kind, StmtKind::Update | StmtKind::Delete) && !p.has_where {
-        let first = s.toks.first().map_or(s.span.body.clone(), |t| t.range.clone());
-        let what = if p.kind == StmtKind::Update { "UPDATE" } else { "DELETE" };
+        let first = s
+            .toks
+            .first()
+            .map_or(s.span.body.clone(), |t| t.range.clone());
+        let what = if p.kind == StmtKind::Update {
+            "UPDATE"
+        } else {
+            "DELETE"
+        };
         out.push(Diag {
             range: first,
             severity: Severity::Warning,
@@ -479,9 +558,7 @@ fn remove_cte(doc: &Document<'_>, s: &StmtAnalysis, scope: usize, ci: usize) -> 
 pub fn code_actions(doc: &Document<'_>, range: Range<usize>) -> Vec<CodeAction> {
     let mut out: Vec<CodeAction> = diagnostics(doc)
         .into_iter()
-        .filter(|d| {
-            d.range.start <= range.end && range.start <= d.range.end
-        })
+        .filter(|d| d.range.start <= range.end && range.start <= d.range.end)
         .flat_map(|d| d.fixes)
         .collect();
     out.extend(expand_star(doc, range.start));
@@ -505,7 +582,9 @@ fn expand_star(doc: &Document<'_>, offset: usize) -> Option<CodeAction> {
             for (i, src) in scope.sources.iter().enumerate() {
                 let exposed = src.exposed().map(|e| e.text.clone());
                 if let Some(q) = star
-                    && !exposed.as_deref().is_some_and(|e| d.is_same(&d.fold(e), &q.name(d)))
+                    && !exposed
+                        .as_deref()
+                        .is_some_and(|e| d.is_same(&d.fold(e), &q.name(d)))
                 {
                     continue;
                 }
@@ -615,15 +694,32 @@ mod tests {
     #[test]
     fn errors_and_inspections() {
         let m = shop("public");
-        let d = diags("select totl from orders where status = null", "postgresql", &m);
-        assert!(d.contains(&("totl".into(), "Unknown column 'totl'; did you mean total?".into())), "{d:?}");
+        let d = diags(
+            "select totl from orders where status = null",
+            "postgresql",
+            &m,
+        );
+        assert!(
+            d.contains(&(
+                "totl".into(),
+                "Unknown column 'totl'; did you mean total?".into()
+            )),
+            "{d:?}"
+        );
         assert!(d.iter().any(|x| x.0 == "= null"));
         let d = diags("delete from orders", "postgresql", &m);
         assert!(d[0].1.contains("without WHERE"));
         let d = diags("select * from orders o, customers o", "postgresql", &m);
         assert!(d.iter().any(|x| x.1.contains("Duplicate")));
-        let d = diags("insert into orders (id, total) values (1)", "postgresql", &m);
-        assert!(d.iter().any(|x| x.1 == "Expected 2 values, found 1"), "{d:?}");
+        let d = diags(
+            "insert into orders (id, total) values (1)",
+            "postgresql",
+            &m,
+        );
+        assert!(
+            d.iter().any(|x| x.1 == "Expected 2 values, found 1"),
+            "{d:?}"
+        );
         let d = diags("with unused as (select 1) select 2", "postgresql", &m);
         assert!(d.iter().any(|x| x.1.contains("never used")));
         let d = diags("select 'abc from orders", "postgresql", &m);
@@ -633,7 +729,11 @@ mod tests {
         let d = diags("selec 1", "postgresql", &m);
         assert_eq!(d.len(), 1, "{d:?}");
         assert_eq!(d[0].0, "selec");
-        let d = diags("select id from orders o join customers c on true", "postgresql", &m);
+        let d = diags(
+            "select id from orders o join customers c on true",
+            "postgresql",
+            &m,
+        );
         assert!(d.iter().any(|x| x.1.contains("ambiguous")));
     }
 
@@ -643,9 +743,15 @@ mod tests {
         let sql = "select totl from orders where status = null";
         let doc = Document::analyze(sql, "postgresql", &m, None);
         let a = code_actions(&doc, 8..8);
-        assert_eq!(apply(sql, &a[0]), "select total from orders where status = null");
+        assert_eq!(
+            apply(sql, &a[0]),
+            "select total from orders where status = null"
+        );
         let a = code_actions(&doc, 38..38);
-        assert_eq!(apply(sql, &a[0]), "select totl from orders where status IS NULL");
+        assert_eq!(
+            apply(sql, &a[0]),
+            "select totl from orders where status IS NULL"
+        );
         let sql = "with a as (select 1), b as (select 2) select * from a";
         let doc = Document::analyze(sql, "postgresql", &m, None);
         let a = code_actions(&doc, 23..23);
@@ -656,9 +762,15 @@ mod tests {
         let sql = "select * from orders o join customers c on c.id = o.customer_id";
         let doc = Document::analyze(sql, "postgresql", &m, None);
         let a = code_actions(&doc, 7..7);
-        assert!(apply(sql, &a[0]).starts_with("select o.id, o.customer_id"), "{a:?}");
+        assert!(
+            apply(sql, &a[0]).starts_with("select o.id, o.customer_id"),
+            "{a:?}"
+        );
         let sql = "select id from orders o join customers c on true";
         let doc = Document::analyze(sql, "postgresql", &m, None);
-        assert_eq!(apply(sql, &code_actions(&doc, 7..7)[0]), "select o.id from orders o join customers c on true");
+        assert_eq!(
+            apply(sql, &code_actions(&doc, 7..7)[0]),
+            "select o.id from orders o join customers c on true"
+        );
     }
 }

@@ -16,8 +16,8 @@ use std::{
 
 use duckdb::{AccessMode, Config, InterruptHandle};
 use ferrodb_api::{
-    AuthMethod, DriverCategory, DriverDescriptor, DriverId, Error, HierarchySpec,
-    ObjectKind, QueryError, Result, SqlDialectId,
+    AuthMethod, DriverCategory, DriverDescriptor, DriverId, Error, HierarchySpec, ObjectKind,
+    QueryError, Result, SqlDialectId,
 };
 use tokio::sync::oneshot;
 
@@ -157,7 +157,12 @@ impl Driver for DuckDbDriver {
             caps,
             vec![
                 property("file", "Database file (empty = in memory)", None, false),
-                property("files", "Data files (CSV, Parquet, JSON; one per line)", None, false),
+                property(
+                    "files",
+                    "Data files (CSV, Parquet, JSON; one per line)",
+                    None,
+                    false,
+                ),
             ],
             None,
             "duckdb:{file}",
@@ -304,9 +309,17 @@ fn first_word(text: &str) -> String {
     // Skip leading comments.
     loop {
         if let Some(rest) = s.strip_prefix("--") {
-            s = rest.split_once('\n').map(|(_, r)| r).unwrap_or("").trim_start();
+            s = rest
+                .split_once('\n')
+                .map(|(_, r)| r)
+                .unwrap_or("")
+                .trim_start();
         } else if let Some(rest) = s.strip_prefix("/*") {
-            s = rest.split_once("*/").map(|(_, r)| r).unwrap_or("").trim_start();
+            s = rest
+                .split_once("*/")
+                .map(|(_, r)| r)
+                .unwrap_or("")
+                .trim_start();
         } else {
             break;
         }
@@ -347,7 +360,10 @@ fn execute_blocking(
     );
     if !returns_rows {
         let n = stmt.execute([]).map_err(map_err)?;
-        let dml = matches!(word.as_str(), "insert" | "update" | "delete" | "merge" | "copy");
+        let dml = matches!(
+            word.as_str(),
+            "insert" | "update" | "delete" | "merge" | "copy"
+        );
         return Ok(ExecSummary {
             affected: dml.then_some(n as u64),
             results: 0,
@@ -477,11 +493,22 @@ mod tests {
         assert_eq!(view_name(Path::new("C:/x/Sales 2025.csv")), "sales_2025");
         assert_eq!(view_name(Path::new("/d/2025.parquet")), "t_2025");
         assert_eq!(view_name(Path::new("/d/a.csv.gz")), "a");
-        assert!(reader(Path::new("a.parquet")).unwrap().starts_with("read_parquet("));
-        assert!(reader(Path::new("a.csv.gz")).unwrap().starts_with("read_csv("));
+        assert!(
+            reader(Path::new("a.parquet"))
+                .unwrap()
+                .starts_with("read_parquet(")
+        );
+        assert!(
+            reader(Path::new("a.csv.gz"))
+                .unwrap()
+                .starts_with("read_csv(")
+        );
         assert!(reader(Path::new("a.tsv")).unwrap().contains("delim"));
         assert!(reader(Path::new("a.doc")).is_err());
-        assert_eq!(data_files(Some("a.csv; b.json\nc.parquet\n")), vec!["a.csv", "b.json", "c.parquet"]);
+        assert_eq!(
+            data_files(Some("a.csv; b.json\nc.parquet\n")),
+            vec!["a.csv", "b.json", "c.parquet"]
+        );
     }
 
     #[tokio::test]
@@ -490,7 +517,11 @@ mod tests {
         let csv = dir.path().join("Orders.csv");
         std::fs::write(&csv, "id,customer,total\n1,ala,10.5\n2,ola,20\n3,ala,7\n").unwrap();
         let json = dir.path().join("customers.json");
-        std::fs::write(&json, r#"[{"name":"ala","city":"Kraków"},{"name":"ola","city":"Gdańsk"}]"#).unwrap();
+        std::fs::write(
+            &json,
+            r#"[{"name":"ala","city":"Kraków"},{"name":"ola","city":"Gdańsk"}]"#,
+        )
+        .unwrap();
         let files = format!("{}\n{}", csv.display(), json.display());
         let mut c = DuckDbDriver
             .connect(&ResolvedConfig::new("duckdb").with("files", files))
@@ -510,23 +541,44 @@ mod tests {
         assert_eq!((city.value(0), n.value(0)), ("Kraków", 2));
         // DML on a table reports the affected rows; a big result is cut
         // into sink-sized batches.
-        collect(c.as_mut(), "create table t as select * from range(5000) r(i)", CancellationToken::new())
-            .await
-            .unwrap();
-        let out = collect(c.as_mut(), "delete from t where i < 10", CancellationToken::new())
-            .await
-            .unwrap();
+        collect(
+            c.as_mut(),
+            "create table t as select * from range(5000) r(i)",
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let out = collect(
+            c.as_mut(),
+            "delete from t where i < 10",
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
         assert_eq!(out.summary.affected, Some(10));
         let out = collect(c.as_mut(), "select * from t", CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(out.results[0].num_rows(), 4990);
-        assert!(out.results[0].batches.iter().all(|b| b.num_rows() <= ResultSink::BATCH_ROWS));
-        let err = collect(c.as_mut(), "select * from missing", CancellationToken::new())
-            .await
-            .unwrap_err();
+        assert!(
+            out.results[0]
+                .batches
+                .iter()
+                .all(|b| b.num_rows() <= ResultSink::BATCH_ROWS)
+        );
+        let err = collect(
+            c.as_mut(),
+            "select * from missing",
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(err, Error::Query(_)), "{err:?}");
-        assert!(c.server_version().starts_with("DuckDB v"), "{}", c.server_version());
+        assert!(
+            c.server_version().starts_with("DuckDB v"),
+            "{}",
+            c.server_version()
+        );
         assert_eq!(c.current_schema().await.unwrap().as_deref(), Some("main"));
         // Missing files are reported at connect.
         let e = DuckDbDriver
@@ -538,7 +590,11 @@ mod tests {
     #[tokio::test]
     async fn cancel_interrupts() {
         let mut c = DuckDbDriver
-            .connect(&ResolvedConfig::new("duckdb").with("file", ":memory:").with("files", ""))
+            .connect(
+                &ResolvedConfig::new("duckdb")
+                    .with("file", ":memory:")
+                    .with("files", ""),
+            )
             .await;
         // An in-memory database needs a data file or a file name.
         assert!(c.is_err());

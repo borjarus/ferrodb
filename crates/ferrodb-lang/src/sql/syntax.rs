@@ -159,7 +159,9 @@ pub enum Role {
     /// `ORDER BY` / `GROUP BY` / `HAVING`: select aliases are visible.
     SortColumn,
     /// Name of a table source (`sources[source]` of the scope).
-    Table { source: usize },
+    Table {
+        source: usize,
+    },
     /// Table named in DDL (`ALTER TABLE x`, `DROP TABLE x`): no check.
     DdlTable,
     Function,
@@ -283,25 +285,114 @@ pub fn names_eq(a: &str, b: &str, d: &Dialect) -> bool {
 
 /// Words that end a source and are never its alias.
 const NOT_ALIAS: &[&str] = &[
-    "where", "group", "order", "having", "limit", "offset", "union", "intersect", "except",
-    "minus", "join", "inner", "left", "right", "full", "cross", "natural", "outer", "lateral",
-    "straight_join", "on", "using", "set", "values", "select", "from", "into", "for", "fetch",
-    "window", "returning", "tablesample", "force", "ignore", "use", "partition", "with", "do",
-    "then", "when", "else", "end", "and", "or", "not", "as", "default", "qualify",
+    "where",
+    "group",
+    "order",
+    "having",
+    "limit",
+    "offset",
+    "union",
+    "intersect",
+    "except",
+    "minus",
+    "join",
+    "inner",
+    "left",
+    "right",
+    "full",
+    "cross",
+    "natural",
+    "outer",
+    "lateral",
+    "straight_join",
+    "on",
+    "using",
+    "set",
+    "values",
+    "select",
+    "from",
+    "into",
+    "for",
+    "fetch",
+    "window",
+    "returning",
+    "tablesample",
+    "force",
+    "ignore",
+    "use",
+    "partition",
+    "with",
+    "do",
+    "then",
+    "when",
+    "else",
+    "end",
+    "and",
+    "or",
+    "not",
+    "as",
+    "default",
+    "qualify",
 ];
 
 /// Soft keywords that start a keyword phrase when next to another keyword.
 const PHRASE_WORDS: &[&str] = &[
-    "nulls", "first", "last", "unbounded", "preceding", "following", "current", "row",
-    "rows", "range", "groups", "nothing", "conflict", "only", "ties", "exclude", "others",
-    "no", "action", "cascade", "restrict", "duplicate", "key", "zone", "time", "local",
+    "nulls",
+    "first",
+    "last",
+    "unbounded",
+    "preceding",
+    "following",
+    "current",
+    "row",
+    "rows",
+    "range",
+    "groups",
+    "nothing",
+    "conflict",
+    "only",
+    "ties",
+    "exclude",
+    "others",
+    "no",
+    "action",
+    "cascade",
+    "restrict",
+    "duplicate",
+    "key",
+    "zone",
+    "time",
+    "local",
 ];
 
 /// Words after which an expression starts (an identifier there is a name).
 const EXPR_START: &[&str] = &[
-    "select", "where", "and", "or", "on", "by", "set", "when", "then", "else", "not", "having",
-    "distinct", "returning", "in", "is", "like", "between", "case", "all", "any", "some",
-    "exists", "using", "values", "as",
+    "select",
+    "where",
+    "and",
+    "or",
+    "on",
+    "by",
+    "set",
+    "when",
+    "then",
+    "else",
+    "not",
+    "having",
+    "distinct",
+    "returning",
+    "in",
+    "is",
+    "like",
+    "between",
+    "case",
+    "all",
+    "any",
+    "some",
+    "exists",
+    "using",
+    "values",
+    "as",
 ];
 
 /// Parses the statement whose significant tokens are `toks` (absolute
@@ -461,7 +552,13 @@ impl<'a> Parser<'a> {
         self.out.marks.push(Mark { pos, scope, clause });
     }
 
-    fn push_ref(&mut self, parts: Vec<Ident>, scope: usize, role: Role, trailing_dot: bool) -> usize {
+    fn push_ref(
+        &mut self,
+        parts: Vec<Ident>,
+        scope: usize,
+        role: Role,
+        trailing_dot: bool,
+    ) -> usize {
         self.out.refs.push(NameRef {
             parts,
             scope,
@@ -568,8 +665,10 @@ impl<'a> Parser<'a> {
                 }
                 "on" => {
                     // `ON CONFLICT (…) DO UPDATE SET …` / `ON DUPLICATE KEY UPDATE …`
-                    if let Some(SourceKind::Table(parts)) =
-                        self.out.scopes[root].sources.first().map(|s| s.kind.clone())
+                    if let Some(SourceKind::Table(parts)) = self.out.scopes[root]
+                        .sources
+                        .first()
+                        .map(|s| s.kind.clone())
                     {
                         let excluded = Ident {
                             text: "excluded".into(),
@@ -648,7 +747,9 @@ impl<'a> Parser<'a> {
     fn update(&mut self, root: usize) {
         self.out.kind = StmtKind::Update;
         let mut i = 1;
-        while self.is_word(i, "only") || self.is_word(i, "low_priority") || self.is_word(i, "ignore")
+        while self.is_word(i, "only")
+            || self.is_word(i, "low_priority")
+            || self.is_word(i, "ignore")
         {
             i += 1;
         }
@@ -705,7 +806,9 @@ impl<'a> Parser<'a> {
             alias = Some(a);
             next += 1;
         }
-        let end = self.tok(next.saturating_sub(1)).map_or(start, |t| t.range.end);
+        let end = self
+            .tok(next.saturating_sub(1))
+            .map_or(start, |t| t.range.end);
         self.out.scopes[scope].sources.push(Source {
             kind: SourceKind::Table(parts),
             alias,
@@ -740,8 +843,19 @@ impl<'a> Parser<'a> {
             }
             if matches!(
                 w.as_str(),
-                "function" | "procedure" | "trigger" | "schema" | "database" | "sequence"
-                    | "type" | "extension" | "event" | "role" | "user" | "domain" | "policy"
+                "function"
+                    | "procedure"
+                    | "trigger"
+                    | "schema"
+                    | "database"
+                    | "sequence"
+                    | "type"
+                    | "extension"
+                    | "event"
+                    | "role"
+                    | "user"
+                    | "domain"
+                    | "policy"
             ) {
                 self.out.kind = StmtKind::Ddl;
                 return;
@@ -779,19 +893,27 @@ impl<'a> Parser<'a> {
                             let w = self.word(next).unwrap_or_default();
                             let constraint = matches!(
                                 w.as_str(),
-                                "constraint" | "primary" | "unique" | "foreign" | "check"
-                                    | "key" | "index" | "exclude" | "like" | "fulltext"
+                                "constraint"
+                                    | "primary"
+                                    | "unique"
+                                    | "foreign"
+                                    | "check"
+                                    | "key"
+                                    | "index"
+                                    | "exclude"
+                                    | "like"
+                                    | "fulltext"
                                     | "spatial"
                             );
                             if !constraint && let Some(c) = self.ident(next) {
                                 columns.push(c);
                             }
-                        } else if self.is_word(next, "references") {
-                            if let Some((parts, trailing, n)) = self.qualified(next + 1) {
-                                self.push_ref(parts, root, Role::DdlTable, trailing);
-                                next = n;
-                                continue;
-                            }
+                        } else if self.is_word(next, "references")
+                            && let Some((parts, trailing, n)) = self.qualified(next + 1)
+                        {
+                            self.push_ref(parts, root, Role::DdlTable, trailing);
+                            next = n;
+                            continue;
                         }
                         next += 1;
                     }
@@ -922,7 +1044,9 @@ impl<'a> Parser<'a> {
         };
         self.query_loop(&mut st, nested);
         self.finish_item(&mut st);
-        let end = self.tok(self.i.saturating_sub(1)).map_or(self.end_pos(), |t| t.range.end);
+        let end = self
+            .tok(self.i.saturating_sub(1))
+            .map_or(self.end_pos(), |t| t.range.end);
         if nested {
             self.out.scopes[scope].range.end = end;
         }
@@ -1071,7 +1195,12 @@ impl<'a> Parser<'a> {
                         self.after_source(st, SourceKind::Function(f), start);
                     } else {
                         let sidx = self.out.scopes[st.scope].sources.len();
-                        self.push_ref(parts.clone(), st.scope, Role::Table { source: sidx }, trailing);
+                        self.push_ref(
+                            parts.clone(),
+                            st.scope,
+                            Role::Table { source: sidx },
+                            trailing,
+                        );
                         self.i = next;
                         self.after_source(st, SourceKind::Table(parts), start);
                     }
@@ -1125,7 +1254,10 @@ impl<'a> Parser<'a> {
                 true
             }
             "from" if top && !st.in_extract => {
-                if self.word(i.wrapping_sub(1)).is_some_and(|p| p == "distinct" || p == "is") {
+                if self
+                    .word(i.wrapping_sub(1))
+                    .is_some_and(|p| p == "distinct" || p == "is")
+                {
                     return false;
                 }
                 self.set_clause(st, Clause::From, i);
@@ -1209,7 +1341,17 @@ impl<'a> Parser<'a> {
                 }
                 true
             }
-            "for" if top && matches!(st.clause, Clause::Where | Clause::Limit | Clause::OrderBy | Clause::From | Clause::Join) => {
+            "for"
+                if top
+                    && matches!(
+                        st.clause,
+                        Clause::Where
+                            | Clause::Limit
+                            | Clause::OrderBy
+                            | Clause::From
+                            | Clause::Join
+                    ) =>
+            {
                 // FOR UPDATE / SHARE
                 self.set_clause(st, Clause::Other, i);
                 true
@@ -1263,7 +1405,9 @@ impl<'a> Parser<'a> {
             self.i += 1;
         }
         loop {
-            let Some(name) = self.ident(self.i) else { return };
+            let Some(name) = self.ident(self.i) else {
+                return;
+            };
             let start = name.range.start;
             self.i += 1;
             let mut columns = Vec::new();
@@ -1317,7 +1461,11 @@ impl<'a> Parser<'a> {
         let mut depth = 0;
         while self.i < self.toks.len() {
             let w = self.word(self.i).unwrap_or_default();
-            if depth == 0 && matches!(w.as_str(), "from" | "where" | "returning" | "on" | "order" | "limit")
+            if depth == 0
+                && matches!(
+                    w.as_str(),
+                    "from" | "where" | "returning" | "on" | "order" | "limit"
+                )
             {
                 return;
             }
@@ -1337,7 +1485,8 @@ impl<'a> Parser<'a> {
                 self.i += 1;
                 continue;
             }
-            if item_start && let Some((parts, trailing, next)) = self.qualified(self.i)
+            if item_start
+                && let Some((parts, trailing, next)) = self.qualified(self.i)
                 && self.is_punct(next, "=")
             {
                 self.push_ref(parts, scope, Role::TargetColumn, trailing);
@@ -1442,14 +1591,16 @@ impl<'a> Parser<'a> {
         // Soft keyword phrases: `NULLS FIRST`, `ROWS UNBOUNDED PRECEDING`…
         if PHRASE_WORDS.contains(&w.as_str()) || self.d.is_soft_keyword(&w) {
             let prev_kw = prev.and_then(|p| self.word(p)).is_some_and(|pw| {
-                (self.d.is_keyword(&pw) || self.d.is_soft_keyword(&pw) || PHRASE_WORDS.contains(&pw.as_str()))
+                (self.d.is_keyword(&pw)
+                    || self.d.is_soft_keyword(&pw)
+                    || PHRASE_WORDS.contains(&pw.as_str()))
                     && !EXPR_START.contains(&pw.as_str())
             });
-            let next_kw = self.word(next).is_some_and(|nw| {
-                self.d.is_keyword(&nw) || PHRASE_WORDS.contains(&nw.as_str())
-            });
-            let prev_ident_and_phrase =
-                PHRASE_WORDS.contains(&w.as_str()) && prev.is_some_and(|p| self.ident(p).is_some() || self.is_punct(p, ")"));
+            let next_kw = self
+                .word(next)
+                .is_some_and(|nw| self.d.is_keyword(&nw) || PHRASE_WORDS.contains(&nw.as_str()));
+            let prev_ident_and_phrase = PHRASE_WORDS.contains(&w.as_str())
+                && prev.is_some_and(|p| self.ident(p).is_some() || self.is_punct(p, ")"));
             if prev_kw || (next_kw && PHRASE_WORDS.contains(&w.as_str())) || prev_ident_and_phrase {
                 return true;
             }
@@ -1467,7 +1618,9 @@ impl<'a> Parser<'a> {
         }
         // Trim a trailing `,` / clause keyword already consumed.
         let mut last = end - 1;
-        while last > start && (self.is_punct(last, ",") || self.word(last).is_some_and(|w| w == "from")) {
+        while last > start
+            && (self.is_punct(last, ",") || self.word(last).is_some_and(|w| w == "from"))
+        {
             last -= 1;
         }
         let range = self.toks[start].range.start..self.toks[last].range.end;
@@ -1483,8 +1636,16 @@ impl<'a> Parser<'a> {
                 && !self.is_punct(before, ".")
                 && !self.is_punct(before, "::")
                 && (self.tok(before).is_some_and(|t| {
-                    matches!(t.kind, TokenKind::Word | TokenKind::QuotedIdent | TokenKind::String | TokenKind::Number)
-                        && !self.word(before).is_some_and(|w| self.d.is_keyword(&w) && !matches!(w.as_str(), "end" | "null" | "true" | "false"))
+                    matches!(
+                        t.kind,
+                        TokenKind::Word
+                            | TokenKind::QuotedIdent
+                            | TokenKind::String
+                            | TokenKind::Number
+                    ) && !self.word(before).is_some_and(|w| {
+                        self.d.is_keyword(&w)
+                            && !matches!(w.as_str(), "end" | "null" | "true" | "false")
+                    })
                 }) || self.is_punct(before, ")")
                     || self.is_punct(before, "*"));
             if explicit || implicit {
@@ -1506,7 +1667,12 @@ impl<'a> Parser<'a> {
                 matches!(self.out.refs[r].role, Role::Column)
                     && rr.start == range.start
                     && (alias.is_some() || rr.end == range.end)
-                    && (alias.is_none() || self.toks[start + 1..=last].iter().take_while(|t| t.range.end <= rr.end).count() > 0)
+                    && (alias.is_none()
+                        || self.toks[start + 1..=last]
+                            .iter()
+                            .take_while(|t| t.range.end <= rr.end)
+                            .count()
+                            > 0)
             });
         let star = self.out.refs[refs_now.clone()]
             .iter()
@@ -1537,7 +1703,10 @@ impl<'a> Parser<'a> {
         let (op_end, negated) = if self.is_punct(i, "=") {
             // Not part of `<=`, `>=`, `!=`.
             if i > 0
-                && (self.is_punct(i - 1, "<") || self.is_punct(i - 1, ">") || self.is_punct(i - 1, "!") || self.is_punct(i - 1, ":"))
+                && (self.is_punct(i - 1, "<")
+                    || self.is_punct(i - 1, ">")
+                    || self.is_punct(i - 1, "!")
+                    || self.is_punct(i - 1, ":"))
                 && self.toks[i - 1].range.end == self.toks[i].range.start
             {
                 return;
@@ -1560,19 +1729,24 @@ impl<'a> Parser<'a> {
         let mut j = op_start;
         while j > 0 {
             j -= 1;
-            if self.is_word(j, "set") || self.is_punct(j, ",") && self.out.kind == StmtKind::Update {
+            if self.is_word(j, "set") || self.is_punct(j, ",") && self.out.kind == StmtKind::Update
+            {
                 if self.is_word(j, "set") || self.is_punct(j, ",") {
                     // Assignment if only a name sits between.
-                    let between = (j + 1..op_start).all(|k| {
-                        self.ident(k).is_some() || self.is_punct(k, ".")
-                    });
+                    let between =
+                        (j + 1..op_start).all(|k| self.ident(k).is_some() || self.is_punct(k, "."));
                     if between {
                         return;
                     }
                 }
                 break;
             }
-            if self.word(j).is_some_and(|w| matches!(w.as_str(), "where" | "on" | "having" | "when" | "and" | "or")) {
+            if self.word(j).is_some_and(|w| {
+                matches!(
+                    w.as_str(),
+                    "where" | "on" | "having" | "when" | "and" | "or"
+                )
+            }) {
                 break;
             }
         }
@@ -1658,10 +1832,20 @@ mod tests {
         let cte_scope = p.scopes[0].ctes[0].scope;
         assert!(p.scopes[cte_scope].cte_body);
         // The subquery in FROM is a source with alias x.
-        assert!(matches!(p.scopes[0].sources[0].kind, SourceKind::Subquery(_)));
+        assert!(matches!(
+            p.scopes[0].sources[0].kind,
+            SourceKind::Subquery(_)
+        ));
         // The union branch shares the CTEs.
-        let branch = p.scopes.iter().position(|s| s.cte_owner == Some(0)).unwrap();
-        assert_eq!(p.find_cte(branch, "big", Dialect::get("postgresql")), Some((0, 0)));
+        let branch = p
+            .scopes
+            .iter()
+            .position(|s| s.cte_owner == Some(0))
+            .unwrap();
+        assert_eq!(
+            p.find_cte(branch, "big", Dialect::get("postgresql")),
+            Some((0, 0))
+        );
     }
 
     #[test]
@@ -1698,7 +1882,10 @@ mod tests {
 
     #[test]
     fn null_comparisons() {
-        let p = parse_sql("select * from t where a = null or b <> null and c is null", "postgresql");
+        let p = parse_sql(
+            "select * from t where a = null or b <> null and c is null",
+            "postgresql",
+        );
         assert_eq!(p.null_comparisons.len(), 2);
         assert!(!p.null_comparisons[0].2);
         assert!(p.null_comparisons[1].2);
@@ -1722,7 +1909,10 @@ mod tests {
         let c = p.created.unwrap();
         assert_eq!(c.name[0].text, "tmp_x");
         assert_eq!(
-            c.columns.iter().map(|c| c.text.as_str()).collect::<Vec<_>>(),
+            c.columns
+                .iter()
+                .map(|c| c.text.as_str())
+                .collect::<Vec<_>>(),
             vec!["id", "name"]
         );
     }

@@ -22,7 +22,11 @@ use super::{
 pub fn symbol_at(doc: &Document<'_>, offset: usize) -> Option<(usize, Symbol, Range<usize>)> {
     if let Some((si, ri, pi)) = doc.ref_at(offset) {
         let sym = doc.stmts[si].refs[ri].parts[pi].clone()?;
-        return Some((si, sym, doc.stmts[si].parsed.refs[ri].parts[pi].range.clone()));
+        return Some((
+            si,
+            sym,
+            doc.stmts[si].parsed.refs[ri].parts[pi].range.clone(),
+        ));
     }
     let si = doc.statement_at(offset)?;
     definitions(doc, si)
@@ -41,7 +45,13 @@ fn definitions(doc: &Document<'_>, si: usize) -> Vec<(Range<usize>, Symbol)> {
             if let Some(a) = &src.alias
                 && !a.range.is_empty()
             {
-                out.push((a.range.clone(), Symbol::Alias { scope: sc, source: i }));
+                out.push((
+                    a.range.clone(),
+                    Symbol::Alias {
+                        scope: sc,
+                        source: i,
+                    },
+                ));
             }
         }
         for (ci, c) in scope.ctes.iter().enumerate() {
@@ -99,8 +109,14 @@ fn same(a: &Symbol, b: &Symbol, doc: &Document<'_>) -> bool {
     };
     match (a, b) {
         (
-            Symbol::Table { schema: s1, name: n1 },
-            Symbol::Table { schema: s2, name: n2 },
+            Symbol::Table {
+                schema: s1,
+                name: n1,
+            },
+            Symbol::Table {
+                schema: s2,
+                name: n2,
+            },
         ) => d.is_same(n1, n2) && eq_opt(s1, s2),
         (
             Symbol::Column {
@@ -173,13 +189,19 @@ pub fn declaration(doc: &Document<'_>, offset: usize) -> Option<Declaration> {
                 _ => return None,
             }
         }
-        Symbol::Cte { scope, idx } => Declaration::Local(p.scopes[scope].ctes[idx].name.range.clone()),
+        Symbol::Cte { scope, idx } => {
+            Declaration::Local(p.scopes[scope].ctes[idx].name.range.clone())
+        }
         Symbol::CteColumn { scope, idx, col } => {
             Declaration::Local(p.scopes[scope].ctes[idx].columns[col].range.clone())
         }
         Symbol::Output { scope, idx } => {
             let o = &p.scopes[scope].outputs[idx];
-            Declaration::Local(o.alias.as_ref().map_or(o.range.clone(), |a| a.range.clone()))
+            Declaration::Local(
+                o.alias
+                    .as_ref()
+                    .map_or(o.range.clone(), |a| a.range.clone()),
+            )
         }
         Symbol::Table { schema, name } => match local_table(&schema, &name) {
             Some(l) => Declaration::Local(l.decl.clone()),
@@ -308,12 +330,18 @@ pub fn hover(doc: &Document<'_>, offset: usize) -> Option<Hover> {
             }
             None => format!("**{table}.{column}**"),
         },
-        Symbol::Table { schema, name } => {
-            table_hover(doc, schema, name).unwrap_or_else(|| format!("**{name}** — table of this script"))
-        }
+        Symbol::Table { schema, name } => table_hover(doc, schema, name)
+            .unwrap_or_else(|| format!("**{name}** — table of this script")),
         Symbol::Alias { scope, source } => {
             let src = &p.scopes[*scope].sources[*source];
-            match (&src.kind, doc.stmts[si].sources.get(&(*scope, *source)).copied().flatten()) {
+            match (
+                &src.kind,
+                doc.stmts[si]
+                    .sources
+                    .get(&(*scope, *source))
+                    .copied()
+                    .flatten(),
+            ) {
                 (_, Some(super::resolve::TableTarget::Db(id))) => {
                     let m = doc.env.model;
                     table_hover(doc, &Some(m.schema_name(id).to_owned()), &m.table(id).name)?
@@ -465,14 +493,27 @@ pub fn structure(doc: &Document<'_>) -> Vec<StructureItem> {
                 (Some(c), _) => format!(
                     "CREATE {} {}",
                     if c.view { "VIEW" } else { "TABLE" },
-                    c.name.iter().map(|x| x.text.as_str()).collect::<Vec<_>>().join(".")
+                    c.name
+                        .iter()
+                        .map(|x| x.text.as_str())
+                        .collect::<Vec<_>>()
+                        .join(".")
                 ),
-                (None, StmtKind::Select | StmtKind::Insert | StmtKind::Update | StmtKind::Delete) => {
+                (
+                    None,
+                    StmtKind::Select | StmtKind::Insert | StmtKind::Update | StmtKind::Delete,
+                ) => {
                     let tables: Vec<String> = p
                         .refs
                         .iter()
                         .filter(|r| matches!(r.role, Role::Table { .. }))
-                        .map(|r| r.parts.iter().map(|x| x.text.as_str()).collect::<Vec<_>>().join("."))
+                        .map(|r| {
+                            r.parts
+                                .iter()
+                                .map(|x| x.text.as_str())
+                                .collect::<Vec<_>>()
+                                .join(".")
+                        })
                         .collect();
                     let verb = match p.kind {
                         StmtKind::Insert => "INSERT",
@@ -491,20 +532,23 @@ pub fn structure(doc: &Document<'_>) -> Vec<StructureItem> {
             if label.chars().count() > 80 {
                 label = label.chars().take(79).collect::<String>() + "…";
             }
-            let first = s.toks.first().map_or(s.span.body.clone(), |t| t.range.clone());
+            let first = s
+                .toks
+                .first()
+                .map_or(s.span.body.clone(), |t| t.range.clone());
             StructureItem {
                 label,
                 detail: s.span.title.clone(),
                 kind: StructureKind::Statement,
                 range: s.span.range.clone(),
                 selection: first,
-                children: scope_children(doc, s, 0),
+                children: scope_children(s, 0),
             }
         })
         .collect()
 }
 
-fn scope_children(doc: &Document<'_>, s: &super::document::StmtAnalysis, scope: usize) -> Vec<StructureItem> {
+fn scope_children(s: &super::document::StmtAnalysis, scope: usize) -> Vec<StructureItem> {
     let p = &s.parsed;
     let sc = &p.scopes[scope];
     let mut out = Vec::new();
@@ -515,7 +559,7 @@ fn scope_children(doc: &Document<'_>, s: &super::document::StmtAnalysis, scope: 
             kind: StructureKind::Cte,
             range: c.range.clone(),
             selection: c.name.range.clone(),
-            children: scope_children(doc, s, c.scope),
+            children: scope_children(s, c.scope),
         });
     }
     for src in &sc.sources {
@@ -524,7 +568,11 @@ fn scope_children(doc: &Document<'_>, s: &super::document::StmtAnalysis, scope: 
         }
         match &src.kind {
             SourceKind::Table(parts) => out.push(StructureItem {
-                label: parts.iter().map(|x| x.text.as_str()).collect::<Vec<_>>().join("."),
+                label: parts
+                    .iter()
+                    .map(|x| x.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("."),
                 detail: src.alias.as_ref().map(|a| a.text.clone()),
                 kind: StructureKind::Table,
                 range: src.range.clone(),
@@ -536,8 +584,11 @@ fn scope_children(doc: &Document<'_>, s: &super::document::StmtAnalysis, scope: 
                 detail: src.alias.as_ref().map(|a| a.text.clone()),
                 kind: StructureKind::Query,
                 range: src.range.clone(),
-                selection: src.alias.as_ref().map_or(src.range.clone(), |a| a.range.clone()),
-                children: scope_children(doc, s, *q),
+                selection: src
+                    .alias
+                    .as_ref()
+                    .map_or(src.range.clone(), |a| a.range.clone()),
+                children: scope_children(s, *q),
             }),
             SourceKind::Function(f) => out.push(StructureItem {
                 label: format!("{}()", f.text),
@@ -573,12 +624,18 @@ mod tests {
         let sql = "select o.id from orders o where o.total > 0 order by o.id";
         let doc = Document::analyze(sql, "postgresql", &m, None);
         let e = rename(&doc, 24, "ord").unwrap();
-        assert_eq!(apply(sql, &e), "select ord.id from orders ord where ord.total > 0 order by ord.id");
+        assert_eq!(
+            apply(sql, &e),
+            "select ord.id from orders ord where ord.total > 0 order by ord.id"
+        );
         let sql = "with t as (select 1 x) select x from t; select * from t";
         let doc = Document::analyze(sql, "postgresql", &m, None);
         let e = rename(&doc, 5, "Big").unwrap();
         // Local to its statement; quoted because PostgreSQL folds case.
-        assert_eq!(apply(sql, &e), "with \"Big\" as (select 1 x) select x from \"Big\"; select * from t");
+        assert_eq!(
+            apply(sql, &e),
+            "with \"Big\" as (select 1 x) select x from \"Big\"; select * from t"
+        );
         let sql = "select total from orders; update orders set total = 1 where total > 2";
         let doc = Document::analyze(sql, "postgresql", &m, None);
         let e = rename(&doc, 8, "amount").unwrap();
@@ -587,7 +644,10 @@ mod tests {
         let sql = "select sum(total) s from orders order by s";
         let doc = Document::analyze(sql, "postgresql", &m, None);
         let e = rename(&doc, 41, "summa").unwrap();
-        assert_eq!(apply(sql, &e), "select sum(total) summa from orders order by summa");
+        assert_eq!(
+            apply(sql, &e),
+            "select sum(total) summa from orders order by summa"
+        );
     }
 
     #[test]
@@ -598,7 +658,11 @@ mod tests {
         assert_eq!(declaration(&doc, 7), Some(Declaration::Local(27..28)));
         assert_eq!(
             declaration(&doc, 10),
-            Some(Declaration::Object(vec!["public".into(), "orders".into(), "total".into()]))
+            Some(Declaration::Object(vec![
+                "public".into(),
+                "orders".into(),
+                "total".into()
+            ]))
         );
         let sql = "create table tmp (a int); select a from tmp";
         let doc = Document::analyze(sql, "postgresql", &m, None);
@@ -614,7 +678,10 @@ mod tests {
         assert!(h.contents.contains("`numeric`"), "{}", h.contents);
         let s = signature_help(&doc, 31).unwrap();
         assert_eq!(s.active_parameter, 1);
-        assert_eq!(s.signatures[s.active_signature].label, "round(x numeric, digits int) -> numeric");
+        assert_eq!(
+            s.signatures[s.active_signature].label,
+            "round(x numeric, digits int) -> numeric"
+        );
         let sig = &s.signatures[1];
         assert_eq!(&sig.label[sig.parameters[1].clone()], "digits int");
         let sql = "-- Big orders\nwith t as (select * from orders) select * from t join customers c on true;\ninsert into orders (id) values (1)";

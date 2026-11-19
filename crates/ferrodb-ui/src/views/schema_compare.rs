@@ -104,7 +104,10 @@ impl SchemaCompareView {
             let mut out = Vec::new();
             for (id, name) in sources {
                 let m = backend.metadata();
-                let root = m.children(NodeRef::root(id.clone())).await.unwrap_or_default();
+                let root = m
+                    .children(NodeRef::root(id.clone()))
+                    .await
+                    .unwrap_or_default();
                 let mut found = Vec::new();
                 for o in root.iter().take(20) {
                     if matches!(o.kind, ObjectKind::Database) {
@@ -236,7 +239,9 @@ impl SchemaCompareView {
                     it.source_ddl.clone().unwrap_or_default(),
                     it.target_ddl.clone().unwrap_or_default(),
                 );
-                cx.new(|cx| DiffView::new(t("compare-target"), &b, t("compare-source"), &a, "sql", cx))
+                cx.new(|cx| {
+                    DiffView::new(t("compare-target"), &b, t("compare-source"), &a, "sql", cx)
+                })
             });
         cx.notify();
     }
@@ -302,7 +307,13 @@ impl SchemaCompareView {
         .detach();
     }
 
-    fn picker(&self, id: &'static str, current: &Option<NodeRef>, source: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    fn picker(
+        &self,
+        id: &'static str,
+        current: &Option<NodeRef>,
+        source: bool,
+        cx: &Context<Self>,
+    ) -> AnyElement {
         let label_text = current
             .as_ref()
             .map(|n| {
@@ -339,6 +350,7 @@ impl SchemaCompareView {
                     })
                 })
             })
+            .into_any_element()
     }
 }
 
@@ -409,34 +421,46 @@ impl Render for SchemaCompareView {
         } else {
             String::new()
         };
-        let list = items.iter().enumerate().map(|(i, it)| {
-            let color = match it.kind {
-                DiffKind::Added => theme.success,
-                DiffKind::Removed => theme.danger,
-                DiffKind::Changed => theme.warning,
-            };
-            h_flex()
-                .id(("compare-item", i))
-                .px_2()
-                .py_0p5()
-                .gap_2()
-                .when(self.selected == Some(i), |d| d.bg(theme.accent))
-                .hover(|d| d.bg(theme.muted))
-                .on_click(cx.listener(move |this, _, _, cx| this.select(i, cx)))
-                .child(div().w(px(14.)).text_color(color).child(kind_label(it.kind)))
-                .child(icons::object_icon(it.object_kind).xsmall())
-                .child(div().font_weight(FontWeight::SEMIBOLD).child(it.name.clone()))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .overflow_hidden()
-                        .text_xs()
-                        .text_color(theme.muted_foreground)
-                        .child(it.detail.clone()),
-                )
-        })
-        .collect::<Vec<_>>();
+        let list = items
+            .iter()
+            .enumerate()
+            .map(|(i, it)| {
+                let color = match it.kind {
+                    DiffKind::Added => theme.success,
+                    DiffKind::Removed => theme.danger,
+                    DiffKind::Changed => theme.warning,
+                };
+                h_flex()
+                    .id(("compare-item", i))
+                    .px_2()
+                    .py_0p5()
+                    .gap_2()
+                    .when(self.selected == Some(i), |d| d.bg(theme.accent))
+                    .hover(|d| d.bg(theme.muted))
+                    .on_click(cx.listener(move |this, _, _, cx| this.select(i, cx)))
+                    .child(
+                        div()
+                            .w(px(14.))
+                            .text_color(color)
+                            .child(kind_label(it.kind)),
+                    )
+                    .child(icons::object_icon(it.object_kind).xsmall())
+                    .child(
+                        div()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(it.name.clone()),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(it.detail.clone()),
+                    )
+            })
+            .collect::<Vec<_>>();
         let has_script = !script.trim().is_empty();
         v_flex()
             .id("schema-compare")
@@ -611,7 +635,9 @@ mod tests {
         let c = container_of(&n);
         assert_eq!(c.name(), Some("public"));
         assert_eq!(label(&c), "shop / public");
-        let s = split_script("ALTER TABLE a ADD b int;\nCREATE TRIGGER t AFTER INSERT ON a BEGIN\n  UPDATE a SET b = 1;\nEND;\nDROP VIEW v;\n");
+        let s = split_script(
+            "ALTER TABLE a ADD b int;\nCREATE TRIGGER t AFTER INSERT ON a BEGIN\n  UPDATE a SET b = 1;\nEND;\nDROP VIEW v;\n",
+        );
         assert_eq!(s.len(), 3);
         assert!(s[1].starts_with("CREATE TRIGGER") && s[1].ends_with("END;"));
     }

@@ -6,8 +6,8 @@
 pub mod analyze;
 pub mod complete;
 pub mod dialect;
-pub mod format;
 pub mod document;
+pub mod format;
 pub mod inspect;
 pub mod lexer;
 pub mod matcher;

@@ -28,9 +28,8 @@ use bson::Bson;
 use ferrodb_api::{
     ApplyReport, BoxFuture, CancelHandle, ChangeSet, DataSourceConfig, DataSourceId, Error,
     ExecOptions, ExecutionPlan, ExplainOptions, HistoryEntry, KeyValue, NodeRef, NoticeLevel,
-    ObjectKind, QueryError,
-    QueryEvent, QueryHandle, QueryId, QueryService, Result, ResultChunk, ResultId, ResultShape,
-    Script, ServerNotice, SessionId, SessionInfo, TxMode,
+    ObjectKind, QueryError, QueryEvent, QueryHandle, QueryId, QueryService, Result, ResultChunk,
+    ResultId, ResultShape, Script, ServerNotice, SessionId, SessionInfo, TxMode,
 };
 use ferrodb_drivers::{CancellationToken, Connection, Request, ResultSink, SinkEvent};
 use ferrodb_lang::{
@@ -374,7 +373,11 @@ impl Actor {
         let stmt = crate::explain::first_statement(&script.text, &self.ctx.dialect, self.ctx.mql)
             .ok_or_else(|| Error::Other("nothing to explain".into()))?;
         let ex = crate::explain::request(&self.ctx.dialect, self.ctx.mql, &stmt, opts.analyze)?;
-        if let Some(schema) = opts.schema.clone().filter(|s| !s.is_empty() && !self.ctx.mql) {
+        if let Some(schema) = opts
+            .schema
+            .clone()
+            .filter(|s| !s.is_empty() && !self.ctx.mql)
+        {
             let current = self.session.status().schema.clone();
             if current.as_deref() != Some(schema.as_str()) {
                 self.internal(Op::SetSchema(&schema)).await?;
