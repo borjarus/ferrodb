@@ -8,6 +8,11 @@
 //! - `FERRODB_TCK_MYSQL=mysql://root:ferrodb@localhost:53306/tck`
 //! - `FERRODB_TCK_MARIADB=mariadb://root:ferrodb@localhost:53307/tck`
 //! - `FERRODB_TCK_MONGODB=mongodb://localhost:57017/tck?directConnection=true`
+//! - `FERRODB_TCK_SQLSERVER=sqlserver://sa:Ferrodb#2026@localhost:56233/master`
+//! - `FERRODB_TCK_COCKROACH=postgres://root@localhost:56257/defaultdb?ssl.mode=disable`
+//! - `FERRODB_TCK_GREENPLUM=postgres://gpadmin@localhost:56254/postgres?ssl.mode=disable`
+//! - cloud only (nightly CI with secrets): `FERRODB_TCK_AZURESQL=sqlserver://user:pw@srv.database.windows.net:1433/db`,
+//!   `FERRODB_TCK_REDSHIFT=redshift://user:pw@cluster.xxx.region.redshift.amazonaws.com:5439/dev`
 //!
 //! Each report is also written to `target/tck/<driver>.md`.
 
@@ -75,6 +80,54 @@ fn mongodb() {
         "TCK failed for mongodb:
 {md}"
     );
+}
+
+#[test]
+fn sqlserver() {
+    if let Some(cfg) = from_env("FERRODB_TCK_SQLSERVER", "sqlserver") {
+        check("sqlserver", cfg, profiles::sqlserver());
+    }
+}
+
+/// Azure SQL with a SQL login, or with Microsoft Entra ID when
+/// `FERRODB_TCK_AZURESQL_ENTRA=1` (token from the Azure CLI or the
+/// `entra.*` properties in the URL query).
+#[test]
+fn azuresql() {
+    if let Some(mut cfg) = from_env("FERRODB_TCK_AZURESQL", "azuresql") {
+        cfg.tls = ferrodb_net::TlsMode::VerifyFull;
+        if std::env::var("FERRODB_TCK_AZURESQL_ENTRA").is_ok() {
+            cfg = cfg.with("auth", "EntraId");
+        }
+        check("azuresql", cfg, profiles::sqlserver());
+    }
+}
+
+#[test]
+fn cockroachdb() {
+    if let Some(cfg) = from_env("FERRODB_TCK_COCKROACH", "cockroachdb") {
+        check("cockroachdb", cfg, profiles::cockroachdb());
+    }
+}
+
+#[test]
+fn greenplum() {
+    if let Some(cfg) = from_env("FERRODB_TCK_GREENPLUM", "greenplum") {
+        check("greenplum", cfg, profiles::postgresql_derivative());
+    }
+}
+
+/// Redshift with a password, or IAM credentials when
+/// `FERRODB_TCK_REDSHIFT_IAM=1` (AWS profile / environment).
+#[test]
+fn redshift() {
+    if let Some(mut cfg) = from_env("FERRODB_TCK_REDSHIFT", "redshift") {
+        cfg.tls = ferrodb_net::TlsMode::Require;
+        if std::env::var("FERRODB_TCK_REDSHIFT_IAM").is_ok() {
+            cfg = cfg.with("auth", "AwsIam");
+        }
+        check("redshift", cfg, profiles::postgresql_derivative());
+    }
 }
 
 #[test]

@@ -10,10 +10,12 @@ publish = false
 [features]
 default = ["sqlite", "pgwire", "mysql", "mongodb"]
 sqlite = ["dep:rusqlite"]
-pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls"]
+pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls", "dep:tokio-rustls", "dep:ring"]
 mysql = ["dep:mysql_async"]
 mongodb = ["dep:mongodb"]
 duckdb = ["dep:duckdb"]
+# SQL Server and Azure SQL (TDS, `tiberius`, rustls).
+tds = ["dep:tiberius", "dep:tokio-rustls", "dep:ring", "tokio-util/compat"]
 
 [dependencies]
 ferrodb-api.workspace = true
@@ -22,7 +24,8 @@ ferrodb-lang.workspace = true
 bson.workspace = true
 futures.workspace = true
 bytes.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["process"] }
+serde_json.workspace = true
 tokio-util.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
@@ -35,6 +38,10 @@ tokio-postgres-rustls = { workspace = true, optional = true }
 mysql_async = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
 duckdb = { workspace = true, optional = true }
+tiberius = { workspace = true, optional = true }
+# HTTPS calls for cloud authentication (Redshift IAM, Microsoft Entra ID).
+tokio-rustls = { workspace = true, optional = true }
+ring = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

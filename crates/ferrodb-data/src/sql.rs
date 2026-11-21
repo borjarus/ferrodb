@@ -12,6 +12,8 @@ pub enum Family {
     Postgres,
     MySql,
     Sqlite,
+    /// SQL Server / Azure SQL (T-SQL).
+    SqlServer,
     Other,
 }
 
@@ -37,6 +39,7 @@ impl Sql {
             "postgresql" | "greenplum" | "cockroachdb" | "redshift" | "duckdb" => Family::Postgres,
             "mysql" | "mariadb" => Family::MySql,
             "sqlite" => Family::Sqlite,
+            "tsql" | "sqlserver" | "azuresql" => Family::SqlServer,
             _ => Family::Other,
         };
         Self {
@@ -58,7 +61,11 @@ impl Sql {
     }
 
     fn string(&self, s: &str) -> String {
-        let mut out = String::with_capacity(s.len() + 2);
+        let mut out = String::with_capacity(s.len() + 3);
+        // T-SQL: Unicode literals keep non-Latin text intact.
+        if self.family == Family::SqlServer {
+            out.push('N');
+        }
         out.push('\'');
         for ch in s.chars() {
             match ch {
@@ -75,7 +82,7 @@ impl Sql {
         match v {
             Value::Null => "NULL".into(),
             Value::Bool(b) => match self.family {
-                Family::Sqlite => if *b { "1" } else { "0" }.into(),
+                Family::Sqlite | Family::SqlServer => if *b { "1" } else { "0" }.into(),
                 _ => if *b { "TRUE" } else { "FALSE" }.into(),
             },
             Value::Int(i) => i.to_string(),
@@ -95,13 +102,15 @@ impl Sql {
             }
             Value::Bytes(b) => match self.family {
                 Family::Postgres => format!("'\\x{}'::bytea", hex(b)),
+                Family::SqlServer => format!("0x{}", hex(b)),
                 _ => format!("X'{}'", hex(b)),
             },
-            Value::Date(d) => self.string(&format_date(*d)),
-            Value::Time(t) => self.string(&format_time(*t)),
+            // Dates and times are ASCII: no `N` prefix, no escapes.
+            Value::Date(d) => format!("'{}'", format_date(*d)),
+            Value::Time(t) => format!("'{}'", format_time(*t)),
             Value::Timestamp { micros, tz } => {
                 let keep_tz = *tz && self.family == Family::Postgres;
-                self.string(&format_timestamp(*micros, keep_tz))
+                format!("'{}'", format_timestamp(*micros, keep_tz))
             }
             other => self.string(&other.to_text().unwrap_or_default()),
         }
@@ -165,8 +174,14 @@ impl Sql {
             .map(|(c, v)| format!("{} = {}", self.ident(c), self.literal(v)))
             .collect::<Vec<_>>()
             .join(", ");
+        // T-SQL limits with `TOP (1)` after the verb.
+        let top = if one && self.family == Family::SqlServer {
+            "TOP (1) "
+        } else {
+            ""
+        };
         let mut s = format!(
-            "UPDATE {table} SET {assignments} WHERE {}",
+            "UPDATE {top}{table} SET {assignments} WHERE {}",
             self.conditions(key)
         );
         if one && self.family == Family::MySql {
@@ -176,15 +191,79 @@ impl Sql {
     }
 
     pub fn delete(&self, table: &str, key: &[(String, Value)], one: bool) -> String {
-        let mut s = format!("DELETE FROM {table} WHERE {}", self.conditions(key));
+        let top = if one && self.family == Family::SqlServer {
+            "TOP (1) "
+        } else {
+            ""
+        };
+        let mut s = format!("DELETE {top}FROM {table} WHERE {}", self.conditions(key));
         if one && self.family == Family::MySql {
             s.push_str(" LIMIT 1");
         }
         s
     }
 
+    /// A single-row `INSERT` of an edited result. SQL Server refuses
+    /// explicit values for an `IDENTITY` column unless `IDENTITY_INSERT`
+    /// is on: the statement turns it on (and off again) when one of
+    /// `columns` is the table's identity column.
+    pub fn insert_row(&self, table: &str, columns: &[String], values: Vec<Value>) -> String {
+        let insert = self.insert(table, columns, &[values]);
+        if self.family != Family::SqlServer || columns.is_empty() {
+            return insert;
+        }
+        let names = columns
+            .iter()
+            .map(|c| self.string(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let obj = self.string(table);
+        format!(
+            "DECLARE @ii bit = CASE WHEN EXISTS (SELECT 1 FROM sys.identity_columns \
+             WHERE object_id = OBJECT_ID({obj}) AND name IN ({names})) THEN 1 ELSE 0 END; \
+             IF @ii = 1 SET IDENTITY_INSERT {table} ON; \
+             {insert}; \
+             IF @ii = 1 SET IDENTITY_INSERT {table} OFF"
+        )
+    }
+
+    /// `INSERT … OUTPUT INSERTED.*` / `RETURNING *`: the inserted row as
+    /// the database completed it (defaults, identity). `None` where the
+    /// database cannot return it (Redshift, MySQL, SQL Server tables with
+    /// triggers are not detected here).
+    pub fn insert_returning(
+        &self,
+        table: &str,
+        columns: &[String],
+        values: Vec<Value>,
+        dialect: &str,
+    ) -> Option<String> {
+        let insert = self.insert(table, columns, &[values]);
+        match self.family {
+            Family::SqlServer => {
+                let at = insert.find(") VALUES ")? + 1;
+                Some(format!(
+                    "{} OUTPUT INSERTED.*{}",
+                    &insert[..at],
+                    &insert[at..]
+                ))
+            }
+            Family::Postgres if dialect != "redshift" => Some(format!("{insert} RETURNING *")),
+            Family::Sqlite => Some(format!("{insert} RETURNING *")),
+            _ => None,
+        }
+    }
+
     pub fn select_all(&self, table: &str) -> String {
         format!("SELECT * FROM {table}")
+    }
+
+    /// `SELECT TOP (n) * FROM t` / `SELECT * FROM t LIMIT n`.
+    pub fn select_top(&self, table: &str, n: u64) -> String {
+        match self.family {
+            Family::SqlServer => format!("SELECT TOP ({n}) * FROM {table}"),
+            _ => format!("SELECT * FROM {table} LIMIT {n}"),
+        }
     }
 
     pub fn truncate(&self, table: &str) -> String {
@@ -226,6 +305,18 @@ impl Sql {
                 T::Time => "time(6)".into(),
                 T::Timestamp { .. } => "datetime(6)".into(),
                 T::Json => "json".into(),
+            },
+            Family::SqlServer => match c.ty {
+                T::Bool => "bit".into(),
+                T::Int => "bigint".into(),
+                T::Float => "float".into(),
+                T::Decimal => format!("decimal{}", dec("(38,10)")),
+                T::Text | T::Any | T::Json => "nvarchar(max)".into(),
+                T::Bytes => "varbinary(max)".into(),
+                T::Date => "date".into(),
+                T::Time => "time(6)".into(),
+                T::Timestamp { tz: false } => "datetime2(6)".into(),
+                T::Timestamp { tz: true } => "datetimeoffset(6)".into(),
             },
             Family::Sqlite => match c.ty {
                 T::Bool => "BOOLEAN".into(),
@@ -399,6 +490,65 @@ mod tests {
             ddl,
             "CREATE TABLE t (\n  id bigint,\n  amount numeric(10,2)\n)"
         );
+    }
+
+    #[test]
+    fn sql_server_statements() {
+        let ms = Sql::new("tsql");
+        assert_eq!(ms.family, Family::SqlServer);
+        assert_eq!(
+            ms.literal(&Value::Text("zażółć it's".into())),
+            "N'zażółć it''s'"
+        );
+        assert_eq!(ms.literal(&Value::Bool(true)), "1");
+        assert_eq!(ms.literal(&Value::Bytes(vec![1, 255])), "0x01ff");
+        assert_eq!(ms.literal(&Value::Date(0)), "'1970-01-01'");
+        let t = ms.qualified(Some("dbo"), "order");
+        assert_eq!(t, "dbo.[order]");
+        assert_eq!(
+            ms.update(
+                &t,
+                &[("v".into(), Value::Int(1))],
+                &[("id".into(), Value::Int(7))],
+                true
+            ),
+            "UPDATE TOP (1) dbo.[order] SET v = 1 WHERE id = 7"
+        );
+        assert_eq!(
+            ms.delete(&t, &[("id".into(), Value::Int(7))], true),
+            "DELETE TOP (1) FROM dbo.[order] WHERE id = 7"
+        );
+        let ins = ms.insert_row(&t, &["id".into()], vec![Value::Int(5)]);
+        assert!(ins.contains("SET IDENTITY_INSERT dbo.[order] ON"), "{ins}");
+        assert!(ins.contains("name IN (N'id')"), "{ins}");
+        assert!(
+            ins.contains("INSERT INTO dbo.[order] (id) VALUES (5);"),
+            "{ins}"
+        );
+        assert_eq!(
+            ms.insert_returning(&t, &["v".into()], vec![Value::Int(1)], "tsql")
+                .as_deref(),
+            Some("INSERT INTO dbo.[order] (v) OUTPUT INSERTED.* VALUES (1)")
+        );
+        assert_eq!(
+            Sql::new("redshift").insert_returning(
+                "t",
+                &["a".into()],
+                vec![Value::Int(1)],
+                "redshift"
+            ),
+            None
+        );
+        assert_eq!(ms.select_top("t", 10), "SELECT TOP (10) * FROM t");
+        let ddl = ms.create_table(
+            "t",
+            &[ColumnDef {
+                name: "s".into(),
+                ty: ValueType::Text,
+                decimal: None,
+            }],
+        );
+        assert_eq!(ddl, "CREATE TABLE t (\n  s nvarchar(max)\n)");
     }
 
     #[test]

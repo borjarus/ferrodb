@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 ferrodb-api.workspace = true
-ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb"] }
+ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb", "tds"] }
 ferrodb-lang.workspace = true
 bson.workspace = true
 futures.workspace = true

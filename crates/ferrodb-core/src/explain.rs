@@ -23,6 +23,12 @@ pub(crate) enum Format {
     SqliteRows,
     DuckJson,
     Mongo,
+    /// SQL Server XML showplan (one document per statement row).
+    MssqlXml,
+    /// CockroachDB `EXPLAIN (VERBOSE)` tree text.
+    CrdbText,
+    /// PostgreSQL text format (Redshift).
+    PgText,
 }
 
 /// What the session runs for a plan.
@@ -89,6 +95,48 @@ pub(crate) fn request(dialect: &str, mql: bool, stmt: &str, analyze: bool) -> Re
             Format::MySqlJson,
         ),
         "sqlite" => (format!("EXPLAIN QUERY PLAN {stmt}"), Format::SqliteRows),
+        "cockroachdb" => (
+            if analyze {
+                format!("EXPLAIN ANALYZE (VERBOSE) {stmt}")
+            } else {
+                format!("EXPLAIN (VERBOSE) {stmt}")
+            },
+            Format::CrdbText,
+        ),
+        "redshift" => {
+            if analyze {
+                return Err(Error::Unsupported(
+                    "Redshift has no EXPLAIN ANALYZE; use the estimated plan (actual figures are \
+                     in SVL_QUERY_SUMMARY after a run)"
+                        .into(),
+                ));
+            }
+            (format!("EXPLAIN {stmt}"), Format::PgText)
+        }
+        // The SET options must be alone in their batch: the driver runs
+        // them around the statement (native call `explain`).
+        "tsql" => {
+            let statement = format!(
+                "SET {} ON;\n{stmt}",
+                if analyze {
+                    "STATISTICS XML"
+                } else {
+                    "SHOWPLAN_XML"
+                }
+            );
+            return Ok(Explain {
+                request: Request::native(
+                    "explain",
+                    &[
+                        ("statement", stmt.as_str()),
+                        ("analyze", if analyze { "true" } else { "false" }),
+                    ],
+                ),
+                statement,
+                format: Format::MssqlXml,
+                measure: None,
+            });
+        }
         "duckdb" => (
             if analyze {
                 format!("EXPLAIN (ANALYZE, FORMAT JSON) {stmt}")
@@ -251,6 +299,15 @@ pub(crate) fn parse(format: Format, out: &CollectedOutput) -> Result<ExecutionPl
         Format::MySqlJson => plan::mysql_json(&first_column(out).join("\n")).map_err(bad),
         Format::MySqlTree => plan::mysql_tree(&first_column(out).join("\n")).map_err(bad),
         Format::DuckJson => plan::duckdb_json(&last_column(out).join("\n")).map_err(bad),
+        Format::MssqlXml => {
+            let plans = first_column(out);
+            let first = plans
+                .first()
+                .ok_or_else(|| Error::Other("the server returned no plan".into()))?;
+            plan::sqlserver_xml(first).map_err(bad)
+        }
+        Format::CrdbText => plan::cockroach_text(&first_column(out).join("\n")).map_err(bad),
+        Format::PgText => plan::postgres_text(&first_column(out).join("\n")).map_err(bad),
         Format::SqliteRows => {
             let rows: Vec<(i64, i64, String)> = ferrodb_meta::rows::rows(&out.results)
                 .iter()
@@ -308,7 +365,21 @@ mod tests {
         assert!(e.measure.is_some());
         assert!(request("postgresql", false, "delete from t", true).is_err());
         assert!(request("postgresql", false, "delete from t", false).is_ok());
-        assert!(request("tsql", false, "select 1", false).is_err());
+        assert!(request("hiveql", false, "select 1", false).is_err());
+        let e = request("tsql", false, "select 1;", true).unwrap();
+        assert_eq!(e.format, Format::MssqlXml);
+        assert_eq!(e.statement, "SET STATISTICS XML ON;\nselect 1");
+        assert_eq!(e.request.arg("analyze"), Some("true"));
+        assert_eq!(e.request.arg("statement"), Some("select 1"));
+        let e = request("cockroachdb", false, "select 1", true).unwrap();
+        assert_eq!(e.statement, "EXPLAIN ANALYZE (VERBOSE) select 1");
+        assert!(request("redshift", false, "select 1", true).is_err());
+        assert_eq!(
+            request("redshift", false, "select 1", false)
+                .unwrap()
+                .format,
+            Format::PgText
+        );
         assert_eq!(
             first_statement("select 1; select 2", "postgresql", false).as_deref(),
             Some("select 1")

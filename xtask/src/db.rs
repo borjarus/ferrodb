@@ -43,6 +43,33 @@ const CONTAINERS: &[Container] = &[
         &[],
         &["--replSet", "rs0", "--bind_ip_all"],
     ),
+    // Phase 8 (native variants). SQL Server needs about 2 GB.
+    (
+        "ferrodb-tck-mssql",
+        "mcr.microsoft.com/mssql/server:2022-latest",
+        "56233:1433",
+        &[
+            "ACCEPT_EULA=Y",
+            "MSSQL_SA_PASSWORD=Ferrodb#2026",
+            "MSSQL_MEMORY_LIMIT_MB=2048",
+        ],
+        &[],
+    ),
+    (
+        "ferrodb-tck-cockroach",
+        "cockroachdb/cockroach:latest",
+        "56257:26257",
+        &[],
+        &["start-single-node", "--insecure"],
+    ),
+    // Greenplum 7 single host, 2 segments, trust authentication.
+    (
+        "ferrodb-tck-greenplum",
+        "andruche/greenplum:7",
+        "56254:5432",
+        &[],
+        &[],
+    ),
     (
         "ferrodb-tck-ssh",
         "linuxserver/openssh-server:latest",
@@ -181,6 +208,18 @@ pub fn env_vars() -> Vec<(String, String)> {
         (
             "FERRODB_TCK_MONGODB".into(),
             format!("mongodb://{h}:57017/tck?directConnection=true"),
+        ),
+        (
+            "FERRODB_TCK_SQLSERVER".into(),
+            format!("sqlserver://sa:Ferrodb#2026@{h}:56233/master"),
+        ),
+        (
+            "FERRODB_TCK_COCKROACH".into(),
+            format!("postgres://root@{h}:56257/defaultdb?ssl.mode=disable"),
+        ),
+        (
+            "FERRODB_TCK_GREENPLUM".into(),
+            format!("postgres://gpadmin@{h}:56254/postgres?ssl.mode=disable"),
         ),
         (
             "FERRODB_TEST_SSH".into(),

@@ -15,7 +15,7 @@ duckdb = ["ferrodb-drivers/duckdb"]
 [dependencies]
 ferrodb-api.workspace = true
 ferrodb-lang.workspace = true
-ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb"] }
+ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb", "tds"] }
 ferrodb-meta.workspace = true
 ferrodb-data.workspace = true
 bson = { workspace = true, features = ["serde", "serde_json-1"] }
