@@ -51,6 +51,13 @@ fn sqlparser_dialect(dialect: &str) -> Box<dyn Dialect> {
         "mysql" | "mariadb" => Box::new(MySqlDialect {}),
         "sqlite" => Box::new(SQLiteDialect {}),
         "duckdb" => Box::new(sqlparser::dialect::DuckDbDialect {}),
+        "tsql" | "sybase" | "sqlserver" | "azuresql" => {
+            Box::new(sqlparser::dialect::MsSqlDialect {})
+        }
+        "snowflake" => Box::new(sqlparser::dialect::SnowflakeDialect {}),
+        "googlesql" | "bigquery" => Box::new(sqlparser::dialect::BigQueryDialect {}),
+        "clickhouse" => Box::new(sqlparser::dialect::ClickHouseDialect {}),
+        "hiveql" => Box::new(sqlparser::dialect::HiveDialect {}),
         _ => Box::new(GenericDialect {}),
     }
 }
@@ -221,16 +228,145 @@ pub fn statement_risk(stmt: &str, dialect: &str, all_modifications: bool) -> Opt
 }
 
 /// Dangerous statements of a script.
+///
+/// T-SQL batches and PL/SQL blocks hold several statements in one (often
+/// without `;` in T-SQL): every `UPDATE` / `DELETE` inside is checked on
+/// its own.
 pub fn risks(src: &str, dialect: &str, all_modifications: bool) -> Vec<Risk> {
-    split(src, &Flavor::for_dialect(dialect))
-        .into_iter()
-        .filter_map(|s| {
-            statement_risk(s.text(src), dialect, all_modifications).map(|kind| Risk {
+    let flavor = Flavor::for_dialect(dialect);
+    let mut out = Vec::new();
+    for s in split(src, &flavor) {
+        let text = s.text(src);
+        let risk = statement_risk(text, dialect, all_modifications);
+        let nested = if flavor.go_batches || flavor.plsql {
+            embedded_risks(text, &flavor)
+        } else {
+            Vec::new()
+        };
+        // The statement itself is the UPDATE/DELETE: the nested check has it.
+        let covered = nested.iter().any(|(r, _)| r.start == 0)
+            || (risk == Some(RiskKind::Modification) && !nested.is_empty());
+        if let Some(kind) = risk
+            && !covered
+        {
+            out.push(Risk {
                 kind,
-                range: s.body,
-            })
-        })
-        .collect()
+                range: s.body.clone(),
+            });
+        }
+        out.extend(nested.into_iter().map(|(r, kind)| Risk {
+            kind,
+            range: s.body.start + r.start..s.body.start + r.end,
+        }));
+    }
+    out
+}
+
+/// Words that start another statement inside a batch or a block.
+const BOUNDARY: &[&str] = &[
+    "select",
+    "insert",
+    "update",
+    "delete",
+    "merge",
+    "declare",
+    "exec",
+    "execute",
+    "if",
+    "while",
+    "begin",
+    "end",
+    "return",
+    "print",
+    "raiserror",
+    "throw",
+    "commit",
+    "rollback",
+    "create",
+    "alter",
+    "drop",
+    "truncate",
+    "open",
+    "fetch",
+    "close",
+    "deallocate",
+    "waitfor",
+    "else",
+    "elsif",
+    "exception",
+    "loop",
+    "go",
+    "use",
+    "grant",
+    "revoke",
+];
+
+/// Words before `UPDATE` / `DELETE` that make them part of something else
+/// (`AFTER UPDATE`, `FOR UPDATE`, `ON DELETE CASCADE`, `INSTEAD OF DELETE`…).
+const NOT_A_STATEMENT_AFTER: &[&str] = &[
+    "after", "before", "of", "or", "for", "on", "instead", "key", "grant", "revoke",
+];
+
+/// `UPDATE` / `DELETE` statements without a top-level `WHERE` inside `stmt`:
+/// (range in `stmt`, kind).
+fn embedded_risks(stmt: &str, flavor: &Flavor) -> Vec<(std::ops::Range<usize>, RiskKind)> {
+    let toks: Vec<Token> = tokenize(stmt, flavor)
+        .into_iter()
+        .filter(|t| !t.is_trivia())
+        .collect();
+    let is = |i: usize, w: &str| toks.get(i).is_some_and(|t| t.is_word(stmt, w));
+    let mut out = Vec::new();
+    for i in 0..toks.len() {
+        let kind = if is(i, "delete") {
+            RiskKind::DeleteAll
+        } else if is(i, "update") {
+            RiskKind::UpdateAll
+        } else {
+            continue;
+        };
+        // `IF UPDATE(col)` in triggers, `GRANT UPDATE ON`…
+        if toks.get(i + 1).is_some_and(|t| t.text(stmt) == "(") || is(i + 1, "on") {
+            continue;
+        }
+        if i > 0 {
+            let p = &toks[i - 1];
+            if p.text(stmt) == ","
+                || NOT_A_STATEMENT_AFTER.iter().any(|w| p.is_word(stmt, w))
+                // `WHEN MATCHED THEN UPDATE SET …` of MERGE.
+                || (p.is_word(stmt, "then")
+                    && toks[i.saturating_sub(4)..i].iter().any(|t| t.is_word(stmt, "matched")))
+            {
+                continue;
+            }
+        }
+        let mut depth = 0i32;
+        let mut end = i + 1;
+        let mut has_where = false;
+        while end < toks.len() {
+            let t = &toks[end];
+            match t.text(stmt) {
+                "(" => depth += 1,
+                ")" => depth -= 1,
+                ";" if depth <= 0 => break,
+                _ => {}
+            }
+            if depth <= 0 && t.kind == TokenKind::Word {
+                if t.is_word(stmt, "where") {
+                    has_where = true;
+                }
+                // `UPDATE t SET …`: SET belongs to it; other statement words end it.
+                if BOUNDARY.iter().any(|w| t.is_word(stmt, w)) {
+                    break;
+                }
+            }
+            end += 1;
+        }
+        if !has_where {
+            let last = &toks[end - 1];
+            out.push((toks[i].range.start..last.range.end, kind));
+        }
+    }
+    out
 }
 
 #[cfg(test)]

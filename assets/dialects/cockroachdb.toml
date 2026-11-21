@@ -1,0 +1,579 @@
+# CockroachDB 24.x/25.x (distributed SQL, PostgreSQL wire-compatible): CockroachDB additions on
+# top of the PostgreSQL dialect, minus the PostgreSQL types it does not implement.
+id = "cockroachdb"
+name = "CockroachDB"
+inherits = "postgresql"
+default_schema = "public"
+parser = ""  # AS OF SYSTEM TIME, UPSERT… break the PostgreSQL parser
+
+keywords = ["family", "index", "nothing"]
+
+soft_keywords = [
+  "backup", "bucket_count", "cancel", "changefeed", "configure", "covering", "experimental",
+  "export", "families", "global", "hash", "import", "inject", "inverted", "invisible", "job",
+  "jobs", "kv", "locality", "pause", "queries", "ranges", "region", "regional", "regions",
+  "relocate", "restore", "resume", "scatter", "schedule", "schedules", "scrub", "sessions",
+  "sharded", "split", "splits", "statistics", "stored", "storing", "survival", "survive",
+  "system", "tenant", "trace", "unsplit", "upsert", "virtual", "visible", "zone", "zones",
+]
+
+types = [
+  "box2d", "bytes", "geography", "geometry", "int2vector", "int64", "name", "oidvector",
+  "pg_lsn", "refcursor", "regnamespace", "regproc", "regprocedure", "regrole", "regtype",
+  "serial2", "serial4", "serial8", "string", "varbit", "vector",
+]
+
+removed_types = [
+  "box", "cidr", "circle", "daterange", "int4range", "int8range", "line", "lseg", "macaddr",
+  "money", "numrange", "path", "point", "polygon", "tsrange", "tstzrange", "xml",
+]
+
+[[functions]]
+name = "unique_rowid"
+signatures = ["unique_rowid() -> int"]
+doc = "Unique 64-bit id from the insert timestamp and node id (default of `SERIAL`)."
+
+[[functions]]
+name = "unordered_unique_rowid"
+signatures = ["unordered_unique_rowid() -> int"]
+doc = "Unique 64-bit id with the bits reversed, spreading writes across ranges."
+
+[[functions]]
+name = "gen_random_ulid"
+signatures = ["gen_random_ulid() -> uuid"]
+doc = "Random ULID, returned as a UUID."
+
+[[functions]]
+name = "uuid_v4"
+signatures = ["uuid_v4() -> bytes"]
+doc = "Random version 4 UUID as 16 bytes."
+
+[[functions]]
+name = "uuid_generate_v4"
+signatures = ["uuid_generate_v4() -> uuid"]
+doc = "Random version 4 UUID (uuid-ossp compatible alias)."
+
+[[functions]]
+name = "to_uuid"
+signatures = ["to_uuid(val string) -> bytes"]
+doc = "Bytes of a UUID given as text."
+
+[[functions]]
+name = "from_uuid"
+signatures = ["from_uuid(val bytes) -> string"]
+doc = "Text form of a 16-byte UUID."
+
+[[functions]]
+name = "uuid_to_ulid"
+signatures = ["uuid_to_ulid(val uuid) -> string"]
+doc = "UUID formatted as a ULID string."
+
+[[functions]]
+name = "ulid_to_uuid"
+signatures = ["ulid_to_uuid(val string) -> uuid"]
+doc = "ULID string converted to a UUID."
+
+[[functions]]
+name = "cluster_logical_timestamp"
+signatures = ["cluster_logical_timestamp() -> decimal"]
+doc = "HLC timestamp of the current transaction."
+
+[[functions]]
+name = "statement_timestamp"
+signatures = ["statement_timestamp() -> timestamptz"]
+doc = "Start time of the current statement."
+
+[[functions]]
+name = "transaction_timestamp"
+signatures = ["transaction_timestamp() -> timestamptz"]
+doc = "Start time of the current transaction."
+
+[[functions]]
+name = "clock_timestamp"
+signatures = ["clock_timestamp() -> timestamptz"]
+doc = "Current wall-clock time (changes during the statement)."
+
+[[functions]]
+name = "follower_read_timestamp"
+signatures = ["follower_read_timestamp() -> timestamptz"]
+doc = "Timestamp recent enough for follower reads (`AS OF SYSTEM TIME`)."
+
+[[functions]]
+name = "with_min_timestamp"
+signatures = ["with_min_timestamp(min_timestamp timestamptz) -> timestamptz", "with_min_timestamp(min_timestamp timestamptz, nearest_only bool) -> timestamptz"]
+doc = "Bounded-staleness read: data at least as fresh as the timestamp (`AS OF SYSTEM TIME`)."
+
+[[functions]]
+name = "with_max_staleness"
+signatures = ["with_max_staleness(max_staleness interval) -> timestamptz", "with_max_staleness(max_staleness interval, nearest_only bool) -> timestamptz"]
+doc = "Bounded-staleness read: data at most this stale (`AS OF SYSTEM TIME`)."
+
+[[functions]]
+name = "experimental_strftime"
+signatures = ["experimental_strftime(input timestamp, extract_format string) -> string"]
+doc = "Formats a timestamp with a strftime format."
+
+[[functions]]
+name = "experimental_strptime"
+signatures = ["experimental_strptime(input string, format string) -> timestamptz"]
+doc = "Parses a timestamp with a strptime format."
+
+[[functions]]
+name = "make_date"
+signatures = ["make_date(year int, month int, day int) -> date"]
+doc = "Date from year, month and day."
+
+[[functions]]
+name = "make_timestamp"
+signatures = ["make_timestamp(year int, month int, day int, hour int, min int, sec float) -> timestamp"]
+doc = "Timestamp from its fields."
+
+[[functions]]
+name = "make_timestamptz"
+signatures = ["make_timestamptz(year int, month int, day int, hour int, min int, sec float) -> timestamptz", "make_timestamptz(year int, month int, day int, hour int, min int, sec float, timezone string) -> timestamptz"]
+doc = "Timestamp with time zone from its fields."
+
+[[functions]]
+name = "timezone"
+signatures = ["timezone(timezone string, value timestamptz) -> timestamp", "timezone(timezone string, value timestamp) -> timestamptz"]
+doc = "Converts between time zones (same as `AT TIME ZONE`)."
+
+[[functions]]
+name = "to_english"
+signatures = ["to_english(val int) -> string"]
+doc = "Spells out the digits of an integer in English (`one-two-three`)."
+
+[[functions]]
+name = "crc32c"
+signatures = ["crc32c(value string, ...) -> int", "crc32c(value bytes, ...) -> int"]
+doc = "CRC-32 checksum (Castagnoli polynomial)."
+
+[[functions]]
+name = "crc32ieee"
+signatures = ["crc32ieee(value string, ...) -> int", "crc32ieee(value bytes, ...) -> int"]
+doc = "CRC-32 checksum (IEEE polynomial)."
+
+[[functions]]
+name = "fnv32"
+signatures = ["fnv32(value string, ...) -> int", "fnv32(value bytes, ...) -> int"]
+doc = "32-bit FNV-1 hash."
+
+[[functions]]
+name = "fnv32a"
+signatures = ["fnv32a(value string, ...) -> int", "fnv32a(value bytes, ...) -> int"]
+doc = "32-bit FNV-1a hash."
+
+[[functions]]
+name = "fnv64"
+signatures = ["fnv64(value string, ...) -> int", "fnv64(value bytes, ...) -> int"]
+doc = "64-bit FNV-1 hash."
+
+[[functions]]
+name = "fnv64a"
+signatures = ["fnv64a(value string, ...) -> int", "fnv64a(value bytes, ...) -> int"]
+doc = "64-bit FNV-1a hash."
+
+[[functions]]
+name = "md5"
+signatures = ["md5(value string, ...) -> string", "md5(value bytes, ...) -> string"]
+doc = "MD5 hash as hex text."
+
+[[functions]]
+name = "sha1"
+signatures = ["sha1(value string, ...) -> string", "sha1(value bytes, ...) -> string"]
+doc = "SHA-1 hash as hex text."
+
+[[functions]]
+name = "sha224"
+signatures = ["sha224(value string, ...) -> string", "sha224(value bytes, ...) -> string"]
+doc = "SHA-224 hash as hex text."
+
+[[functions]]
+name = "sha256"
+signatures = ["sha256(value string, ...) -> string", "sha256(value bytes, ...) -> string"]
+doc = "SHA-256 hash as hex text."
+
+[[functions]]
+name = "sha384"
+signatures = ["sha384(value string, ...) -> string", "sha384(value bytes, ...) -> string"]
+doc = "SHA-384 hash as hex text."
+
+[[functions]]
+name = "sha512"
+signatures = ["sha512(value string, ...) -> string", "sha512(value bytes, ...) -> string"]
+doc = "SHA-512 hash as hex text."
+
+[[functions]]
+name = "to_hex"
+signatures = ["to_hex(val int) -> string", "to_hex(val bytes) -> string"]
+doc = "Hexadecimal text of an integer or bytes."
+
+[[functions]]
+name = "encode"
+signatures = ["encode(data bytes, format string) -> string"]
+doc = "Bytes encoded as `hex`, `escape` or `base64` text."
+
+[[functions]]
+name = "decode"
+signatures = ["decode(text string, format string) -> bytes"]
+doc = "Bytes decoded from `hex`, `escape` or `base64` text."
+
+[[functions]]
+name = "decompress"
+signatures = ["decompress(data bytes, codec string) -> bytes"]
+doc = "Decompresses bytes (`gzip`, `lz4`, `snappy`, `zstd`)."
+
+[[functions]]
+name = "levenshtein"
+signatures = ["levenshtein(source string, target string) -> int"]
+doc = "Levenshtein edit distance."
+
+[[functions]]
+name = "soundex"
+signatures = ["soundex(source string) -> string"]
+doc = "Soundex code of a string."
+
+[[functions]]
+name = "difference"
+signatures = ["difference(source string, target string) -> int"]
+doc = "Number of matching Soundex code characters (0-4)."
+
+[[functions]]
+name = "similarity"
+signatures = ["similarity(left string, right string) -> float"]
+doc = "Trigram similarity between 0 and 1 (`pg_trgm`)."
+
+[[functions]]
+name = "show_trgm"
+signatures = ["show_trgm(input string) -> string[]"]
+doc = "Trigrams of a string."
+
+[[functions]]
+name = "regexp_extract"
+signatures = ["regexp_extract(input string, regex string) -> string"]
+doc = "First substring matching the regular expression."
+
+[[functions]]
+name = "regexp_split_to_array"
+signatures = ["regexp_split_to_array(string string, pattern string) -> string[]", "regexp_split_to_array(string string, pattern string, flags string) -> string[]"]
+doc = "Splits a string by a regular expression into an array."
+
+[[functions]]
+name = "regexp_split_to_table"
+signatures = ["regexp_split_to_table(string string, pattern string) -> setof string", "regexp_split_to_table(string string, pattern string, flags string) -> setof string"]
+doc = "Splits a string by a regular expression into rows."
+
+[[functions]]
+name = "from_ip"
+signatures = ["from_ip(val bytes) -> string"]
+doc = "IP address text from its byte form."
+
+[[functions]]
+name = "to_ip"
+signatures = ["to_ip(val string) -> bytes"]
+doc = "Byte form of an IP address text."
+
+[[functions]]
+name = "array_append"
+signatures = ["array_append(array anyarray, elem anyelement) -> anyarray"]
+doc = "Array with the element appended."
+
+[[functions]]
+name = "array_prepend"
+signatures = ["array_prepend(elem anyelement, array anyarray) -> anyarray"]
+doc = "Array with the element prepended."
+
+[[functions]]
+name = "array_cat"
+signatures = ["array_cat(left anyarray, right anyarray) -> anyarray"]
+doc = "Concatenation of two arrays."
+
+[[functions]]
+name = "array_remove"
+signatures = ["array_remove(array anyarray, elem anyelement) -> anyarray"]
+doc = "Array with every occurrence of the element removed."
+
+[[functions]]
+name = "array_replace"
+signatures = ["array_replace(array anyarray, toreplace anyelement, replacewith anyelement) -> anyarray"]
+doc = "Array with occurrences of a value replaced."
+
+[[functions]]
+name = "array_position"
+signatures = ["array_position(array anyarray, elem anyelement) -> int"]
+doc = "Index of the first occurrence of the element."
+
+[[functions]]
+name = "array_positions"
+signatures = ["array_positions(array anyarray, elem anyelement) -> int[]"]
+doc = "Indexes of every occurrence of the element."
+
+[[functions]]
+name = "array_to_string"
+signatures = ["array_to_string(input anyarray, delim string) -> string", "array_to_string(input anyarray, delim string, null_str string) -> string"]
+doc = "Array elements joined with a delimiter."
+
+[[functions]]
+name = "string_to_array"
+signatures = ["string_to_array(str string, delimiter string) -> string[]", "string_to_array(str string, delimiter string, null string) -> string[]"]
+doc = "Splits a string into an array."
+
+[[functions]]
+name = "array_lower"
+signatures = ["array_lower(input anyarray, array_dimension int) -> int"]
+doc = "Lower bound of an array dimension."
+
+[[functions]]
+name = "array_upper"
+signatures = ["array_upper(input anyarray, array_dimension int) -> int"]
+doc = "Upper bound of an array dimension."
+
+[[functions]]
+name = "cardinality"
+signatures = ["cardinality(input anyarray) -> int"]
+doc = "Total number of elements in an array."
+
+[[functions]]
+name = "json_typeof"
+signatures = ["json_typeof(val jsonb) -> string"]
+doc = "Type of the outermost JSON value."
+
+[[functions]]
+name = "jsonb_typeof"
+signatures = ["jsonb_typeof(val jsonb) -> string"]
+doc = "Type of the outermost JSON value."
+
+[[functions]]
+name = "jsonb_pretty"
+signatures = ["jsonb_pretty(val jsonb) -> string"]
+doc = "Indented text of a JSON value."
+
+[[functions]]
+name = "jsonb_set"
+signatures = ["jsonb_set(val jsonb, path string[], to jsonb) -> jsonb", "jsonb_set(val jsonb, path string[], to jsonb, create_missing bool) -> jsonb"]
+doc = "JSON with the value at the path replaced."
+
+[[functions]]
+name = "jsonb_insert"
+signatures = ["jsonb_insert(target jsonb, path string[], new_val jsonb) -> jsonb", "jsonb_insert(target jsonb, path string[], new_val jsonb, insert_after bool) -> jsonb"]
+doc = "JSON with a value inserted at the path."
+
+[[functions]]
+name = "jsonb_strip_nulls"
+signatures = ["jsonb_strip_nulls(from_json jsonb) -> jsonb"]
+doc = "JSON with null-valued object fields removed."
+
+[[functions]]
+name = "jsonb_build_array"
+signatures = ["jsonb_build_array(value any, ...) -> jsonb"]
+doc = "JSON array from the arguments."
+
+[[functions]]
+name = "json_build_object"
+signatures = ["json_build_object(key string, value any, ...) -> jsonb"]
+doc = "JSON object from alternating keys and values."
+
+[[functions]]
+name = "to_json"
+signatures = ["to_json(val any) -> jsonb"]
+doc = "Value converted to JSON."
+
+[[functions]]
+name = "to_jsonb"
+signatures = ["to_jsonb(val any) -> jsonb"]
+doc = "Value converted to JSON."
+
+[[functions]]
+name = "jsonb_object_keys"
+signatures = ["jsonb_object_keys(input jsonb) -> setof string"]
+doc = "Keys of the outermost JSON object."
+
+[[functions]]
+name = "jsonb_each"
+signatures = ["jsonb_each(input jsonb) -> setof record"]
+doc = "Key/value pairs of the outermost JSON object."
+
+[[functions]]
+name = "jsonb_array_length"
+signatures = ["jsonb_array_length(json jsonb) -> int"]
+doc = "Number of elements of a JSON array."
+
+[[functions]]
+name = "jsonb_exists_any"
+signatures = ["jsonb_exists_any(json jsonb, array string[]) -> bool"]
+doc = "Whether any of the strings is a top-level key of the object."
+
+[[functions]]
+name = "jsonb_object_agg"
+signatures = ["jsonb_object_agg(keys string, values any) -> jsonb"]
+doc = "Aggregates key/value pairs into a JSON object."
+
+[[functions]]
+name = "concat_agg"
+signatures = ["concat_agg(value string) -> string", "concat_agg(value bytes) -> bytes"]
+doc = "Concatenation of the input values (aggregate)."
+
+[[functions]]
+name = "sum_int"
+signatures = ["sum_int(value int) -> int"]
+doc = "Sum of integers, returned as an integer (aggregate)."
+
+[[functions]]
+name = "xor_agg"
+signatures = ["xor_agg(value int) -> int", "xor_agg(value bytes) -> bytes"]
+doc = "Bitwise XOR of the input values (aggregate)."
+
+[[functions]]
+name = "count_rows"
+signatures = ["count_rows() -> int"]
+doc = "Number of rows (aggregate, like `count(*)`)."
+
+[[functions]]
+name = "bool_and"
+signatures = ["bool_and(value bool) -> bool"]
+doc = "True when all inputs are true (aggregate)."
+
+[[functions]]
+name = "bool_or"
+signatures = ["bool_or(value bool) -> bool"]
+doc = "True when any input is true (aggregate)."
+
+[[functions]]
+name = "percentile_cont"
+signatures = ["percentile_cont(fraction float) -> float"]
+doc = "Continuous percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "percentile_disc"
+signatures = ["percentile_disc(fraction float) -> anyelement"]
+doc = "Discrete percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "gateway_region"
+signatures = ["gateway_region() -> string"]
+doc = "Region of the node the session is connected to."
+
+[[functions]]
+name = "default_to_database_primary_region"
+signatures = ["default_to_database_primary_region(val string) -> string"]
+doc = "The region if it is a database region, otherwise the primary region."
+
+[[functions]]
+name = "rehome_row"
+signatures = ["rehome_row() -> crdb_internal_region"]
+doc = "Region of the gateway node, used to re-home `REGIONAL BY ROW` rows."
+
+[[functions]]
+name = "current_database"
+signatures = ["current_database() -> string"]
+doc = "Name of the current database."
+
+[[functions]]
+name = "current_schemas"
+signatures = ["current_schemas(include_pg_catalog bool) -> string[]"]
+doc = "Schemas of the search path."
+
+[[functions]]
+name = "version"
+signatures = ["version() -> string"]
+doc = "CockroachDB version string."
+
+[[functions]]
+name = "pg_sleep"
+signatures = ["pg_sleep(seconds float) -> bool"]
+doc = "Sleeps for the given number of seconds."
+
+[[functions]]
+name = "to_tsvector"
+signatures = ["to_tsvector(text string) -> tsvector", "to_tsvector(config string, text string) -> tsvector"]
+doc = "Text reduced to a full-text search document."
+
+[[functions]]
+name = "to_tsquery"
+signatures = ["to_tsquery(text string) -> tsquery", "to_tsquery(config string, text string) -> tsquery"]
+doc = "Text converted to a full-text search query."
+
+[[functions]]
+name = "plainto_tsquery"
+signatures = ["plainto_tsquery(text string) -> tsquery", "plainto_tsquery(config string, text string) -> tsquery"]
+doc = "Plain text converted to a full-text query (AND of words)."
+
+[[functions]]
+name = "phraseto_tsquery"
+signatures = ["phraseto_tsquery(text string) -> tsquery", "phraseto_tsquery(config string, text string) -> tsquery"]
+doc = "Plain text converted to a phrase full-text query."
+
+[[functions]]
+name = "ts_rank"
+signatures = ["ts_rank(vector tsvector, query tsquery) -> float4"]
+doc = "Relevance rank of a document for a full-text query."
+
+[[functions]]
+name = "st_geomfromtext"
+signatures = ["st_geomfromtext(str string) -> geometry", "st_geomfromtext(str string, srid int) -> geometry"]
+doc = "Geometry from its WKT representation."
+
+[[functions]]
+name = "st_astext"
+signatures = ["st_astext(geometry geometry) -> string"]
+doc = "WKT representation of a geometry."
+
+[[functions]]
+name = "st_asgeojson"
+signatures = ["st_asgeojson(geometry geometry) -> string"]
+doc = "GeoJSON representation of a geometry."
+
+[[functions]]
+name = "st_makepoint"
+signatures = ["st_makepoint(x float, y float) -> geometry"]
+doc = "Point geometry from coordinates."
+
+[[functions]]
+name = "st_setsrid"
+signatures = ["st_setsrid(geometry geometry, srid int) -> geometry"]
+doc = "Geometry with the SRID set."
+
+[[functions]]
+name = "st_transform"
+signatures = ["st_transform(geometry geometry, srid int) -> geometry"]
+doc = "Geometry reprojected to another SRID."
+
+[[functions]]
+name = "st_x"
+signatures = ["st_x(geometry geometry) -> float"]
+doc = "X coordinate of a point."
+
+[[functions]]
+name = "st_y"
+signatures = ["st_y(geometry geometry) -> float"]
+doc = "Y coordinate of a point."
+
+[[functions]]
+name = "st_area"
+signatures = ["st_area(geometry geometry) -> float"]
+doc = "Area of a geometry."
+
+[[functions]]
+name = "st_distance"
+signatures = ["st_distance(geometry_a geometry, geometry_b geometry) -> float"]
+doc = "Distance between two geometries."
+
+[[functions]]
+name = "st_dwithin"
+signatures = ["st_dwithin(geometry_a geometry, geometry_b geometry, distance float) -> bool"]
+doc = "Whether the geometries are within the distance."
+
+[[functions]]
+name = "st_contains"
+signatures = ["st_contains(geometry_a geometry, geometry_b geometry) -> bool"]
+doc = "Whether the first geometry contains the second."
+
+[[functions]]
+name = "st_intersects"
+signatures = ["st_intersects(geometry_a geometry, geometry_b geometry) -> bool"]
+doc = "Whether the geometries intersect."
+
+[[functions]]
+name = "st_buffer"
+signatures = ["st_buffer(geometry geometry, distance float) -> geometry"]
+doc = "Geometry grown by the distance."

@@ -24,3 +24,8 @@ pub use dialect::Dialect;
 pub use lexer::Flavor;
 pub use params::{OffsetMap, parameters, substitute};
 pub use split::{Statement, split};
+
+#[cfg(test)]
+mod dialect_corpus_tests;
+#[cfg(test)]
+mod levela_tests;

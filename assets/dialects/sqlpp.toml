@@ -1,0 +1,1244 @@
+# Couchbase SQL++ (N1QL) for Couchbase Server 7.6.
+# Standalone dialect (JSON documents, not SQL): nothing is inherited.
+id = "sqlpp"
+name = "SQL++"
+identifier_quote = '`'
+case_folding = "none"
+parser = ""
+
+keywords = [
+  "advise", "all", "alter", "analyze", "and", "any", "array", "as", "asc", "at", "begin",
+  "between", "binary", "boolean", "break", "bucket", "build", "by", "call", "case", "cast",
+  "cluster", "collate", "collection", "commit", "committed", "connect", "continue",
+  "correlated", "cover", "create", "current", "database", "dataset", "datastore", "declare",
+  "decrement", "delete", "derived", "desc", "describe", "distinct", "do", "drop", "each",
+  "element", "else", "end", "escape", "every", "except", "exclude", "execute", "exists",
+  "explain", "false", "fetch", "filter", "first", "flatten", "flatten_keys", "flush",
+  "following", "for", "force", "from", "fts", "function", "golang", "grant", "group", "groups",
+  "gsi", "hash", "having", "if", "ignore", "ilike", "in", "include", "increment", "index",
+  "infer", "inline", "inner", "insert", "intersect", "into", "is", "isolation", "javascript",
+  "join", "key", "keys", "keyspace", "known", "language", "last", "left", "let", "letting",
+  "level", "like", "limit", "lsm", "map", "mapping", "matched", "materialized", "merge",
+  "minus", "missing", "namespace", "nest", "nl", "no", "not", "not_a_token", "nth_value",
+  "null", "nulls", "number", "object", "offset", "on", "option", "options", "or", "order",
+  "others", "outer", "over", "parse", "partition", "password", "path", "pool", "preceding",
+  "prepare", "primary", "private", "privilege", "probe", "procedure", "public", "range", "raw",
+  "read", "realm", "recursive", "reduce", "rename", "replace", "respect", "restart", "restrict",
+  "return", "returning", "revoke", "right", "role", "roles", "rollback", "row", "rows",
+  "satisfies", "savepoint", "schema", "scope", "select", "self", "semi", "set", "show", "some",
+  "start", "statistics", "string", "system", "then", "ties", "to", "tran", "transaction",
+  "trigger", "true", "truncate", "unbounded", "under", "union", "unique", "unknown", "unnest",
+  "unset", "update", "upsert", "use", "user", "users", "using", "validate", "value", "valued",
+  "values", "via", "view", "when", "where", "while", "window", "with", "within", "work", "xor",
+]
+
+soft_keywords = [
+  "meta", "sequence", "next", "prev", "nextval", "prevval", "maxvalue", "minvalue", "cycle",
+  "cache", "defer_build", "num_replica", "nodes", "replica", "num_partition", "query_context",
+  "scan_consistency", "not_bounded", "request_plus", "statement_plus", "at_plus",
+  "durability_level", "txtimeout", "tximplicit", "use_cbo", "use_fts", "ordinality", "default",
+]
+
+types = [
+  "missing", "null", "boolean", "number", "string", "array", "object", "binary",
+]
+
+[[functions]]
+name = "array_agg"
+signatures = ["array_agg(expression any) -> array"]
+doc = "Array of the non-MISSING values in the group."
+
+[[functions]]
+name = "avg"
+signatures = ["avg(expression number) -> number"]
+doc = "Arithmetic mean of the numeric values in the group."
+
+[[functions]]
+name = "count"
+signatures = ["count(*) -> number", "count(expression any) -> number"]
+doc = "Number of items (or non-NULL, non-MISSING values) in the group."
+
+[[functions]]
+name = "countn"
+signatures = ["countn(expression any) -> number"]
+doc = "Number of numeric values in the group."
+
+[[functions]]
+name = "max"
+signatures = ["max(expression any) -> any"]
+doc = "Largest non-NULL, non-MISSING value in the group (N1QL collation)."
+
+[[functions]]
+name = "mean"
+signatures = ["mean(expression number) -> number"]
+doc = "Arithmetic mean of the numeric values (alias of `avg`)."
+
+[[functions]]
+name = "median"
+signatures = ["median(expression number) -> number"]
+doc = "Median of the numeric values in the group."
+
+[[functions]]
+name = "min"
+signatures = ["min(expression any) -> any"]
+doc = "Smallest non-NULL, non-MISSING value in the group (N1QL collation)."
+
+[[functions]]
+name = "stddev"
+signatures = ["stddev(expression number) -> number"]
+doc = "Corrected sample standard deviation of the numeric values."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(expression number) -> number"]
+doc = "Population standard deviation of the numeric values."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(expression number) -> number"]
+doc = "Sample standard deviation of the numeric values."
+
+[[functions]]
+name = "sum"
+signatures = ["sum(expression number) -> number"]
+doc = "Sum of the numeric values in the group."
+
+[[functions]]
+name = "variance"
+signatures = ["variance(expression number) -> number"]
+doc = "Corrected sample variance of the numeric values."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(expression number) -> number"]
+doc = "Population variance of the numeric values."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(expression number) -> number"]
+doc = "Sample variance of the numeric values."
+
+[[functions]]
+name = "variance_pop"
+signatures = ["variance_pop(expression number) -> number"]
+doc = "Population variance (alias of `var_pop`)."
+
+[[functions]]
+name = "variance_samp"
+signatures = ["variance_samp(expression number) -> number"]
+doc = "Sample variance (alias of `var_samp`)."
+
+[[functions]]
+name = "array_append"
+signatures = ["array_append(arr array, value any, ...) -> array"]
+doc = "Array with the values appended."
+
+[[functions]]
+name = "array_avg"
+signatures = ["array_avg(arr array) -> number"]
+doc = "Average of the numeric elements."
+
+[[functions]]
+name = "array_binary_search"
+signatures = ["array_binary_search(arr array, value any) -> number"]
+doc = "Position of the value in a sorted array (binary search), or -1."
+
+[[functions]]
+name = "array_concat"
+signatures = ["array_concat(arr1 array, arr2 array, ...) -> array"]
+doc = "Concatenation of the arrays."
+
+[[functions]]
+name = "array_contains"
+signatures = ["array_contains(arr array, value any) -> boolean"]
+doc = "True if the array contains the value."
+
+[[functions]]
+name = "array_count"
+signatures = ["array_count(arr array) -> number"]
+doc = "Number of non-NULL elements."
+
+[[functions]]
+name = "array_distinct"
+signatures = ["array_distinct(arr array) -> array"]
+doc = "Array with duplicates removed."
+
+[[functions]]
+name = "array_except"
+signatures = ["array_except(arr1 array, arr2 array, ...) -> array"]
+doc = "Elements of the first array not present in the others."
+
+[[functions]]
+name = "array_flatten"
+signatures = ["array_flatten(arr array, depth number) -> array"]
+doc = "Array with nested arrays flattened to the given depth (-1 = fully)."
+
+[[functions]]
+name = "array_ifnull"
+signatures = ["array_ifnull(arr array) -> any"]
+doc = "First non-NULL element of the array."
+
+[[functions]]
+name = "array_insert"
+signatures = ["array_insert(arr array, pos number, value any, ...) -> array"]
+doc = "Array with the values inserted at the position."
+
+[[functions]]
+name = "array_intersect"
+signatures = ["array_intersect(arr1 array, arr2 array, ...) -> array"]
+doc = "Elements present in all arrays."
+
+[[functions]]
+name = "array_length"
+signatures = ["array_length(arr array) -> number"]
+doc = "Number of elements."
+
+[[functions]]
+name = "array_max"
+signatures = ["array_max(arr array) -> any"]
+doc = "Largest non-NULL element."
+
+[[functions]]
+name = "array_min"
+signatures = ["array_min(arr array) -> any"]
+doc = "Smallest non-NULL element."
+
+[[functions]]
+name = "array_move"
+signatures = ["array_move(arr array, from number, to number) -> array"]
+doc = "Array with the element moved from one position to another."
+
+[[functions]]
+name = "array_position"
+signatures = ["array_position(arr array, value any) -> number"]
+doc = "First zero-based position of the value, or -1."
+
+[[functions]]
+name = "array_prepend"
+signatures = ["array_prepend(value any, arr array) -> array"]
+doc = "Array with the value(s) prepended (values come before the array)."
+
+[[functions]]
+name = "array_put"
+signatures = ["array_put(arr array, value any, ...) -> array"]
+doc = "Array with the values appended if not already present."
+
+[[functions]]
+name = "array_range"
+signatures = ["array_range(start number, end number) -> array", "array_range(start number, end number, step number) -> array"]
+doc = "Array of numbers from start (inclusive) to end (exclusive)."
+
+[[functions]]
+name = "array_remove"
+signatures = ["array_remove(arr array, value any, ...) -> array"]
+doc = "Array with all occurrences of the values removed."
+
+[[functions]]
+name = "array_repeat"
+signatures = ["array_repeat(value any, n number) -> array"]
+doc = "Array with the value repeated n times."
+
+[[functions]]
+name = "array_replace"
+signatures = ["array_replace(arr array, old any, new any) -> array", "array_replace(arr array, old any, new any, max number) -> array"]
+doc = "Array with occurrences of a value replaced (at most max times)."
+
+[[functions]]
+name = "array_reverse"
+signatures = ["array_reverse(arr array) -> array"]
+doc = "Array with the elements in reverse order."
+
+[[functions]]
+name = "array_sort"
+signatures = ["array_sort(arr array) -> array"]
+doc = "Array sorted in N1QL collation order."
+
+[[functions]]
+name = "array_star"
+signatures = ["array_star(arr array) -> object"]
+doc = "Converts an array of objects into an object of arrays."
+
+[[functions]]
+name = "array_sum"
+signatures = ["array_sum(arr array) -> number"]
+doc = "Sum of the numeric elements."
+
+[[functions]]
+name = "array_symdiff"
+signatures = ["array_symdiff(arr1 array, arr2 array, ...) -> array"]
+doc = "Elements present in exactly one of the arrays."
+
+[[functions]]
+name = "array_symdiff1"
+signatures = ["array_symdiff1(arr1 array, arr2 array, ...) -> array"]
+doc = "Elements present in exactly one of the arrays (alias of `array_symdiff`)."
+
+[[functions]]
+name = "array_symdiffn"
+signatures = ["array_symdiffn(arr1 array, arr2 array, ...) -> array"]
+doc = "Elements present in an odd number of the arrays."
+
+[[functions]]
+name = "array_union"
+signatures = ["array_union(arr1 array, arr2 array, ...) -> array"]
+doc = "Union of the arrays without duplicates."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(expr1 any, expr2 any, ...) -> any"]
+doc = "Largest non-NULL, non-MISSING argument."
+
+[[functions]]
+name = "least"
+signatures = ["least(expr1 any, expr2 any, ...) -> any"]
+doc = "Smallest non-NULL, non-MISSING argument."
+
+[[functions]]
+name = "ifmissing"
+signatures = ["ifmissing(expr1 any, expr2 any, ...) -> any"]
+doc = "First non-MISSING argument."
+
+[[functions]]
+name = "ifmissingornull"
+signatures = ["ifmissingornull(expr1 any, expr2 any, ...) -> any"]
+doc = "First argument that is neither MISSING nor NULL."
+
+[[functions]]
+name = "ifnull"
+signatures = ["ifnull(expr1 any, expr2 any, ...) -> any"]
+doc = "First non-NULL argument."
+
+[[functions]]
+name = "missingif"
+signatures = ["missingif(expr1 any, expr2 any) -> any"]
+doc = "MISSING if the arguments are equal, else the first one."
+
+[[functions]]
+name = "nullif"
+signatures = ["nullif(expr1 any, expr2 any) -> any"]
+doc = "NULL if the arguments are equal, else the first one."
+
+[[functions]]
+name = "nvl"
+signatures = ["nvl(expr any, replacement any) -> any"]
+doc = "Replacement if the expression is NULL or MISSING, else the expression."
+
+[[functions]]
+name = "nvl2"
+signatures = ["nvl2(expr any, value1 any, value2 any) -> any"]
+doc = "value1 if the expression is neither NULL nor MISSING, else value2."
+
+[[functions]]
+name = "decode"
+signatures = ["decode(expr any, search any, result any, ...) -> any"]
+doc = "Result paired with the first search value equal to the expression (optional default last)."
+
+[[functions]]
+name = "ifinf"
+signatures = ["ifinf(expr1 any, expr2 any, ...) -> any"]
+doc = "First argument that is not +/-Infinity."
+
+[[functions]]
+name = "ifnan"
+signatures = ["ifnan(expr1 any, expr2 any, ...) -> any"]
+doc = "First argument that is not NaN."
+
+[[functions]]
+name = "ifnanorinf"
+signatures = ["ifnanorinf(expr1 any, expr2 any, ...) -> any"]
+doc = "First argument that is neither NaN nor +/-Infinity."
+
+[[functions]]
+name = "nanif"
+signatures = ["nanif(expr1 any, expr2 any) -> any"]
+doc = "NaN if the arguments are equal, else the first one."
+
+[[functions]]
+name = "neginfif"
+signatures = ["neginfif(expr1 any, expr2 any) -> any"]
+doc = "-Infinity if the arguments are equal, else the first one."
+
+[[functions]]
+name = "posinfif"
+signatures = ["posinfif(expr1 any, expr2 any) -> any"]
+doc = "+Infinity if the arguments are equal, else the first one."
+
+[[functions]]
+name = "clock_local"
+signatures = ["clock_local() -> string", "clock_local(fmt string) -> string"]
+doc = "Current system time in the local time zone, as a string."
+
+[[functions]]
+name = "clock_millis"
+signatures = ["clock_millis() -> number"]
+doc = "Current system time in milliseconds since the Unix epoch (changes during the query)."
+
+[[functions]]
+name = "clock_str"
+signatures = ["clock_str() -> string", "clock_str(fmt string) -> string"]
+doc = "Current system time as a string (changes during the query)."
+
+[[functions]]
+name = "clock_tz"
+signatures = ["clock_tz(tz string) -> string", "clock_tz(tz string, fmt string) -> string"]
+doc = "Current system time in the given time zone."
+
+[[functions]]
+name = "clock_utc"
+signatures = ["clock_utc() -> string", "clock_utc(fmt string) -> string"]
+doc = "Current system time in UTC."
+
+[[functions]]
+name = "date_add_millis"
+signatures = ["date_add_millis(date number, n number, part string) -> number"]
+doc = "Adds n units of the part to an epoch-millis date."
+
+[[functions]]
+name = "date_add_str"
+signatures = ["date_add_str(date string, n number, part string) -> string"]
+doc = "Adds n units of the part to a date string."
+
+[[functions]]
+name = "date_diff_abs_millis"
+signatures = ["date_diff_abs_millis(date1 number, date2 number, part string) -> number"]
+doc = "Absolute difference of two epoch-millis dates in the given part."
+
+[[functions]]
+name = "date_diff_abs_str"
+signatures = ["date_diff_abs_str(date1 string, date2 string, part string) -> number"]
+doc = "Absolute difference of two date strings in the given part."
+
+[[functions]]
+name = "date_diff_millis"
+signatures = ["date_diff_millis(date1 number, date2 number, part string) -> number"]
+doc = "Difference date1 - date2 of epoch-millis dates in the given part."
+
+[[functions]]
+name = "date_diff_str"
+signatures = ["date_diff_str(date1 string, date2 string, part string) -> number"]
+doc = "Difference date1 - date2 of date strings in the given part."
+
+[[functions]]
+name = "date_format_str"
+signatures = ["date_format_str(date string, fmt string) -> string"]
+doc = "Date string reformatted with the format."
+
+[[functions]]
+name = "date_part_millis"
+signatures = ["date_part_millis(date number, part string) -> number", "date_part_millis(date number, part string, tz string) -> number"]
+doc = "Component (year, month, day, hour...) of an epoch-millis date."
+
+[[functions]]
+name = "date_part_str"
+signatures = ["date_part_str(date string, part string) -> number"]
+doc = "Component (year, month, day, hour...) of a date string."
+
+[[functions]]
+name = "date_range_millis"
+signatures = ["date_range_millis(start number, end number, part string) -> array", "date_range_millis(start number, end number, part string, n number) -> array"]
+doc = "Array of epoch-millis dates from start to end by n units of the part."
+
+[[functions]]
+name = "date_range_str"
+signatures = ["date_range_str(start string, end string, part string) -> array", "date_range_str(start string, end string, part string, n number) -> array"]
+doc = "Array of date strings from start to end by n units of the part."
+
+[[functions]]
+name = "date_trunc_millis"
+signatures = ["date_trunc_millis(date number, part string) -> number"]
+doc = "Epoch-millis date truncated to the part."
+
+[[functions]]
+name = "date_trunc_str"
+signatures = ["date_trunc_str(date string, part string) -> string"]
+doc = "Date string truncated to the part."
+
+[[functions]]
+name = "duration_to_str"
+signatures = ["duration_to_str(duration number) -> string"]
+doc = "Nanosecond duration as a string such as `1h2m3.5s`."
+
+[[functions]]
+name = "millis"
+signatures = ["millis(date string) -> number"]
+doc = "Date string converted to epoch milliseconds (alias of `str_to_millis`)."
+
+[[functions]]
+name = "millis_to_local"
+signatures = ["millis_to_local(date number) -> string", "millis_to_local(date number, fmt string) -> string"]
+doc = "Epoch milliseconds as a local time string."
+
+[[functions]]
+name = "millis_to_str"
+signatures = ["millis_to_str(date number) -> string", "millis_to_str(date number, fmt string) -> string"]
+doc = "Epoch milliseconds as a date string."
+
+[[functions]]
+name = "millis_to_tz"
+signatures = ["millis_to_tz(date number, tz string) -> string", "millis_to_tz(date number, tz string, fmt string) -> string"]
+doc = "Epoch milliseconds as a date string in the time zone."
+
+[[functions]]
+name = "millis_to_utc"
+signatures = ["millis_to_utc(date number) -> string", "millis_to_utc(date number, fmt string) -> string"]
+doc = "Epoch milliseconds as a UTC date string."
+
+[[functions]]
+name = "millis_to_zone_name"
+signatures = ["millis_to_zone_name(date number, tz string) -> string", "millis_to_zone_name(date number, tz string, fmt string) -> string"]
+doc = "Epoch milliseconds as a date string in the time zone (alias of `millis_to_tz`)."
+
+[[functions]]
+name = "now_local"
+signatures = ["now_local() -> string", "now_local(fmt string) -> string"]
+doc = "Statement start time as a local time string."
+
+[[functions]]
+name = "now_millis"
+signatures = ["now_millis() -> number"]
+doc = "Statement start time in epoch milliseconds (constant during the query)."
+
+[[functions]]
+name = "now_str"
+signatures = ["now_str() -> string", "now_str(fmt string) -> string"]
+doc = "Statement start time as a date string."
+
+[[functions]]
+name = "now_tz"
+signatures = ["now_tz(tz string) -> string", "now_tz(tz string, fmt string) -> string"]
+doc = "Statement start time in the time zone."
+
+[[functions]]
+name = "now_utc"
+signatures = ["now_utc() -> string", "now_utc(fmt string) -> string"]
+doc = "Statement start time in UTC."
+
+[[functions]]
+name = "str_to_duration"
+signatures = ["str_to_duration(duration string) -> number"]
+doc = "Duration string such as `1h30m` converted to nanoseconds."
+
+[[functions]]
+name = "str_to_millis"
+signatures = ["str_to_millis(date string) -> number"]
+doc = "Date string converted to epoch milliseconds."
+
+[[functions]]
+name = "str_to_tz"
+signatures = ["str_to_tz(date string, tz string) -> string"]
+doc = "Date string converted to the time zone."
+
+[[functions]]
+name = "str_to_utc"
+signatures = ["str_to_utc(date string) -> string"]
+doc = "Date string converted to UTC."
+
+[[functions]]
+name = "str_to_zone_name"
+signatures = ["str_to_zone_name(date string, tz string) -> string"]
+doc = "Date string converted to the time zone (alias of `str_to_tz`)."
+
+[[functions]]
+name = "weekday_millis"
+signatures = ["weekday_millis(date number) -> string", "weekday_millis(date number, tz string) -> string"]
+doc = "Day of the week (e.g. `Monday`) of an epoch-millis date."
+
+[[functions]]
+name = "weekday_str"
+signatures = ["weekday_str(date string) -> string"]
+doc = "Day of the week (e.g. `Monday`) of a date string."
+
+[[functions]]
+name = "decode_json"
+signatures = ["decode_json(json string) -> any"]
+doc = "Parses a JSON-encoded string into a value."
+
+[[functions]]
+name = "encode_json"
+signatures = ["encode_json(value any) -> string"]
+doc = "JSON encoding of the value as a string."
+
+[[functions]]
+name = "encoded_size"
+signatures = ["encoded_size(value any) -> number"]
+doc = "Number of bytes of the JSON encoding of the value."
+
+[[functions]]
+name = "poly_length"
+signatures = ["poly_length(value any) -> number"]
+doc = "Length of a string, array or object (number of characters, elements or fields)."
+
+[[functions]]
+name = "meta"
+signatures = ["meta() -> object", "meta(keyspace_alias any) -> object"]
+doc = "Metadata of the document (`id`, `cas`, `expiration`, `flags`, `type`)."
+
+[[functions]]
+name = "base64"
+signatures = ["base64(value any) -> string"]
+doc = "Base64 encoding of the value (alias of `base64_encode`)."
+
+[[functions]]
+name = "base64_encode"
+signatures = ["base64_encode(value any) -> string"]
+doc = "Base64 encoding of the value."
+
+[[functions]]
+name = "base64_decode"
+signatures = ["base64_decode(value string) -> any"]
+doc = "Value decoded from a base64 string."
+
+[[functions]]
+name = "uuid"
+signatures = ["uuid() -> string"]
+doc = "New random version 4 UUID string."
+
+[[functions]]
+name = "version"
+signatures = ["version() -> string"]
+doc = "Version of the Query service."
+
+[[functions]]
+name = "min_version"
+signatures = ["min_version() -> string"]
+doc = "Minimum version of the Query service across the cluster."
+
+[[functions]]
+name = "ds_version"
+signatures = ["ds_version() -> string"]
+doc = "Version of Couchbase Server."
+
+[[functions]]
+name = "current_users"
+signatures = ["current_users() -> array"]
+doc = "Users authenticated for the current statement."
+
+[[functions]]
+name = "abort"
+signatures = ["abort(message string) -> any"]
+doc = "Stops the statement with the given error message."
+
+[[functions]]
+name = "evaluate"
+signatures = ["evaluate(statement string) -> any"]
+doc = "Executes a SELECT statement given as a string and returns its result."
+
+[[functions]]
+name = "bitand"
+signatures = ["bitand(int1 number, int2 number, ...) -> number"]
+doc = "Bitwise AND of the integers."
+
+[[functions]]
+name = "bitor"
+signatures = ["bitor(int1 number, int2 number, ...) -> number"]
+doc = "Bitwise OR of the integers."
+
+[[functions]]
+name = "bitxor"
+signatures = ["bitxor(int1 number, int2 number, ...) -> number"]
+doc = "Bitwise XOR of the integers."
+
+[[functions]]
+name = "bitnot"
+signatures = ["bitnot(value number) -> number"]
+doc = "Bitwise NOT of the integer."
+
+[[functions]]
+name = "bitshift"
+signatures = ["bitshift(value number, shift number) -> number", "bitshift(value number, shift number, rotate boolean) -> number"]
+doc = "Integer shifted (or rotated) left by a positive or right by a negative amount."
+
+[[functions]]
+name = "bitset"
+signatures = ["bitset(value number, positions any) -> number"]
+doc = "Integer with the bits at the 1-based positions set."
+
+[[functions]]
+name = "bitclear"
+signatures = ["bitclear(value number, positions any) -> number"]
+doc = "Integer with the bits at the 1-based positions cleared."
+
+[[functions]]
+name = "isbitset"
+signatures = ["isbitset(value number, positions any) -> boolean", "isbitset(value number, positions any, all boolean) -> boolean"]
+doc = "True if the bits at the positions are set."
+
+[[functions]]
+name = "bittest"
+signatures = ["bittest(value number, positions any) -> boolean", "bittest(value number, positions any, all boolean) -> boolean"]
+doc = "True if the bits at the positions are set (alias of `isbitset`)."
+
+[[functions]]
+name = "abs"
+signatures = ["abs(value number) -> number"]
+doc = "Absolute value."
+
+[[functions]]
+name = "acos"
+signatures = ["acos(value number) -> number"]
+doc = "Arc cosine in radians."
+
+[[functions]]
+name = "asin"
+signatures = ["asin(value number) -> number"]
+doc = "Arc sine in radians."
+
+[[functions]]
+name = "atan"
+signatures = ["atan(value number) -> number"]
+doc = "Arc tangent in radians."
+
+[[functions]]
+name = "atan2"
+signatures = ["atan2(y number, x number) -> number"]
+doc = "Arc tangent of y/x in radians."
+
+[[functions]]
+name = "ceil"
+signatures = ["ceil(value number) -> number"]
+doc = "Smallest integer not less than the value."
+
+[[functions]]
+name = "cos"
+signatures = ["cos(value number) -> number"]
+doc = "Cosine of an angle in radians."
+
+[[functions]]
+name = "degrees"
+signatures = ["degrees(value number) -> number"]
+doc = "Radians converted to degrees."
+
+[[functions]]
+name = "e"
+signatures = ["e() -> number"]
+doc = "Euler's number e."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(value number) -> number"]
+doc = "e raised to the power of the value."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(value number) -> number"]
+doc = "Largest integer not greater than the value."
+
+[[functions]]
+name = "ln"
+signatures = ["ln(value number) -> number"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log"
+signatures = ["log(value number) -> number"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "pi"
+signatures = ["pi() -> number"]
+doc = "The constant pi."
+
+[[functions]]
+name = "power"
+signatures = ["power(base number, exponent number) -> number"]
+doc = "Base raised to the exponent."
+
+[[functions]]
+name = "radians"
+signatures = ["radians(value number) -> number"]
+doc = "Degrees converted to radians."
+
+[[functions]]
+name = "random"
+signatures = ["random() -> number", "random(seed number) -> number"]
+doc = "Pseudo-random number in [0, 1)."
+
+[[functions]]
+name = "round"
+signatures = ["round(value number) -> number", "round(value number, digits number) -> number"]
+doc = "Value rounded to the given number of digits."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(value number) -> number"]
+doc = "-1, 0 or 1 according to the sign."
+
+[[functions]]
+name = "sin"
+signatures = ["sin(value number) -> number"]
+doc = "Sine of an angle in radians."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(value number) -> number"]
+doc = "Square root."
+
+[[functions]]
+name = "tan"
+signatures = ["tan(value number) -> number"]
+doc = "Tangent of an angle in radians."
+
+[[functions]]
+name = "trunc"
+signatures = ["trunc(value number) -> number", "trunc(value number, digits number) -> number"]
+doc = "Value truncated to the given number of digits."
+
+[[functions]]
+name = "object_add"
+signatures = ["object_add(obj object, name string, value any) -> object"]
+doc = "Object with a new attribute added (no change if it exists)."
+
+[[functions]]
+name = "object_concat"
+signatures = ["object_concat(obj1 object, obj2 object, ...) -> object"]
+doc = "Union of the attributes of the objects."
+
+[[functions]]
+name = "object_field"
+signatures = ["object_field(obj object, path string) -> any"]
+doc = "Value of the attribute at the path."
+
+[[functions]]
+name = "object_inner_pairs"
+signatures = ["object_inner_pairs(obj object) -> array"]
+doc = "Array of name/value pairs, NULL and MISSING values included, unwrapping nested objects."
+
+[[functions]]
+name = "object_inner_values"
+signatures = ["object_inner_values(obj object) -> array"]
+doc = "Array of the attribute values, unwrapping nested objects."
+
+[[functions]]
+name = "object_length"
+signatures = ["object_length(obj object) -> number"]
+doc = "Number of attributes."
+
+[[functions]]
+name = "object_names"
+signatures = ["object_names(obj object) -> array"]
+doc = "Array of the attribute names."
+
+[[functions]]
+name = "object_pairs"
+signatures = ["object_pairs(obj object) -> array"]
+doc = "Array of `{name, val}` pairs of the attributes."
+
+[[functions]]
+name = "object_paths"
+signatures = ["object_paths(obj object) -> array", "object_paths(obj object, options object) -> array"]
+doc = "Array of the paths of all attributes, nested ones included."
+
+[[functions]]
+name = "object_put"
+signatures = ["object_put(obj object, name string, value any) -> object"]
+doc = "Object with the attribute added or replaced."
+
+[[functions]]
+name = "object_remove"
+signatures = ["object_remove(obj object, name string, ...) -> object"]
+doc = "Object with the attributes removed."
+
+[[functions]]
+name = "object_rename"
+signatures = ["object_rename(obj object, old string, new string) -> object"]
+doc = "Object with an attribute renamed."
+
+[[functions]]
+name = "object_replace"
+signatures = ["object_replace(obj object, old any, new any) -> object"]
+doc = "Object with all attribute values equal to old replaced by new."
+
+[[functions]]
+name = "object_unwrap"
+signatures = ["object_unwrap(obj object) -> any"]
+doc = "Value of the single attribute of the object."
+
+[[functions]]
+name = "object_values"
+signatures = ["object_values(obj object) -> array"]
+doc = "Array of the attribute values."
+
+[[functions]]
+name = "pairs"
+signatures = ["pairs(value any) -> array"]
+doc = "Array of all name/value pairs of the value, nested ones included."
+
+[[functions]]
+name = "regexp_contains"
+signatures = ["regexp_contains(str string, pattern string) -> boolean"]
+doc = "True if the string contains a match of the regular expression."
+
+[[functions]]
+name = "regexp_like"
+signatures = ["regexp_like(str string, pattern string) -> boolean"]
+doc = "True if the whole string matches the regular expression."
+
+[[functions]]
+name = "regexp_matches"
+signatures = ["regexp_matches(str string, pattern string) -> array"]
+doc = "Array of all substrings matching the regular expression."
+
+[[functions]]
+name = "regexp_position"
+signatures = ["regexp_position(str string, pattern string) -> number"]
+doc = "Zero-based position of the first match, or -1."
+
+[[functions]]
+name = "regexp_position1"
+signatures = ["regexp_position1(str string, pattern string) -> number"]
+doc = "One-based position of the first match, or 0."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(str string, pattern string, repl string) -> string", "regexp_replace(str string, pattern string, repl string, n number) -> string"]
+doc = "String with matches of the regular expression replaced (at most n)."
+
+[[functions]]
+name = "regexp_split"
+signatures = ["regexp_split(str string, pattern string) -> array"]
+doc = "String split at the matches of the regular expression."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(str1 string, str2 string, ...) -> string"]
+doc = "Concatenation of the strings."
+
+[[functions]]
+name = "concat2"
+signatures = ["concat2(separator string, value any, ...) -> string"]
+doc = "Concatenation of the strings or string arrays with a separator."
+
+[[functions]]
+name = "contains"
+signatures = ["contains(str string, substr string) -> boolean"]
+doc = "True if the string contains the substring."
+
+[[functions]]
+name = "initcap"
+signatures = ["initcap(str string) -> string"]
+doc = "String with the first letter of each word upper-cased."
+
+[[functions]]
+name = "length"
+signatures = ["length(str string) -> number"]
+doc = "Number of characters."
+
+[[functions]]
+name = "lower"
+signatures = ["lower(str string) -> string"]
+doc = "Lower-case string."
+
+[[functions]]
+name = "lpad"
+signatures = ["lpad(str string, size number) -> string", "lpad(str string, size number, pad string) -> string"]
+doc = "String left-padded to the size."
+
+[[functions]]
+name = "ltrim"
+signatures = ["ltrim(str string) -> string", "ltrim(str string, chars string) -> string"]
+doc = "String with leading whitespace (or chars) removed."
+
+[[functions]]
+name = "mask"
+signatures = ["mask(str string) -> string", "mask(str string, options object) -> string"]
+doc = "String masked with a pattern (default `********`)."
+
+[[functions]]
+name = "position"
+signatures = ["position(str string, substr string) -> number"]
+doc = "Zero-based position of the substring, or -1."
+
+[[functions]]
+name = "position1"
+signatures = ["position1(str string, substr string) -> number"]
+doc = "One-based position of the substring, or 0."
+
+[[functions]]
+name = "repeat"
+signatures = ["repeat(str string, n number) -> string"]
+doc = "String repeated n times."
+
+[[functions]]
+name = "replace"
+signatures = ["replace(str string, old string, new string) -> string", "replace(str string, old string, new string, n number) -> string"]
+doc = "String with occurrences of a substring replaced (at most n)."
+
+[[functions]]
+name = "reverse"
+signatures = ["reverse(str string) -> string"]
+doc = "String with the characters in reverse order."
+
+[[functions]]
+name = "rpad"
+signatures = ["rpad(str string, size number) -> string", "rpad(str string, size number, pad string) -> string"]
+doc = "String right-padded to the size."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(str string) -> string", "rtrim(str string, chars string) -> string"]
+doc = "String with trailing whitespace (or chars) removed."
+
+[[functions]]
+name = "split"
+signatures = ["split(str string) -> array", "split(str string, separator string) -> array"]
+doc = "String split at whitespace or at the separator."
+
+[[functions]]
+name = "substr"
+signatures = ["substr(str string, pos number) -> string", "substr(str string, pos number, length number) -> string"]
+doc = "Substring from a zero-based position."
+
+[[functions]]
+name = "substr1"
+signatures = ["substr1(str string, pos number) -> string", "substr1(str string, pos number, length number) -> string"]
+doc = "Substring from a one-based position."
+
+[[functions]]
+name = "suffixes"
+signatures = ["suffixes(str string) -> array"]
+doc = "Array of all suffixes of the string (for array indexes)."
+
+[[functions]]
+name = "title"
+signatures = ["title(str string) -> string"]
+doc = "String with the first letter of each word upper-cased (alias of `initcap`)."
+
+[[functions]]
+name = "tokens"
+signatures = ["tokens(value any) -> array", "tokens(value any, options object) -> array"]
+doc = "Array of the words and values found in the value."
+
+[[functions]]
+name = "trim"
+signatures = ["trim(str string) -> string", "trim(str string, chars string) -> string"]
+doc = "String with leading and trailing whitespace (or chars) removed."
+
+[[functions]]
+name = "upper"
+signatures = ["upper(str string) -> string"]
+doc = "Upper-case string."
+
+[[functions]]
+name = "url_encode"
+signatures = ["url_encode(str string) -> string"]
+doc = "String percent-encoded for use in a URL."
+
+[[functions]]
+name = "url_decode"
+signatures = ["url_decode(str string) -> string"]
+doc = "String decoded from URL percent-encoding."
+
+[[functions]]
+name = "is_array"
+signatures = ["is_array(value any) -> boolean"]
+doc = "True if the value is an array."
+
+[[functions]]
+name = "isarray"
+signatures = ["isarray(value any) -> boolean"]
+doc = "True if the value is an array (alias of `is_array`)."
+
+[[functions]]
+name = "is_atom"
+signatures = ["is_atom(value any) -> boolean"]
+doc = "True if the value is an atomic value (boolean, number or string)."
+
+[[functions]]
+name = "isatom"
+signatures = ["isatom(value any) -> boolean"]
+doc = "True if the value is an atomic value (boolean, number or string) (alias of `is_atom`)."
+
+[[functions]]
+name = "is_binary"
+signatures = ["is_binary(value any) -> boolean"]
+doc = "True if the value is binary data."
+
+[[functions]]
+name = "isbinary"
+signatures = ["isbinary(value any) -> boolean"]
+doc = "True if the value is binary data (alias of `is_binary`)."
+
+[[functions]]
+name = "is_boolean"
+signatures = ["is_boolean(value any) -> boolean"]
+doc = "True if the value is a boolean."
+
+[[functions]]
+name = "isboolean"
+signatures = ["isboolean(value any) -> boolean"]
+doc = "True if the value is a boolean (alias of `is_boolean`)."
+
+[[functions]]
+name = "is_number"
+signatures = ["is_number(value any) -> boolean"]
+doc = "True if the value is a number."
+
+[[functions]]
+name = "isnumber"
+signatures = ["isnumber(value any) -> boolean"]
+doc = "True if the value is a number (alias of `is_number`)."
+
+[[functions]]
+name = "is_object"
+signatures = ["is_object(value any) -> boolean"]
+doc = "True if the value is an object."
+
+[[functions]]
+name = "isobject"
+signatures = ["isobject(value any) -> boolean"]
+doc = "True if the value is an object (alias of `is_object`)."
+
+[[functions]]
+name = "is_string"
+signatures = ["is_string(value any) -> boolean"]
+doc = "True if the value is a string."
+
+[[functions]]
+name = "isstring"
+signatures = ["isstring(value any) -> boolean"]
+doc = "True if the value is a string (alias of `is_string`)."
+
+[[functions]]
+name = "type"
+signatures = ["type(value any) -> string"]
+doc = "Name of the JSON type of the value (`missing`, `null`, `boolean`, `number`, `string`, `array`, `object`, `binary`)."
+
+[[functions]]
+name = "typename"
+signatures = ["typename(value any) -> string"]
+doc = "Name of the JSON type of the value (alias of `type`)."
+
+[[functions]]
+name = "to_array"
+signatures = ["to_array(value any) -> array"]
+doc = "Value converted to an array (non-arrays are wrapped)."
+
+[[functions]]
+name = "toarray"
+signatures = ["toarray(value any) -> array"]
+doc = "Value converted to an array (non-arrays are wrapped) (alias of `to_array`)."
+
+[[functions]]
+name = "to_atom"
+signatures = ["to_atom(value any) -> any"]
+doc = "Value converted to an atomic value."
+
+[[functions]]
+name = "toatom"
+signatures = ["toatom(value any) -> any"]
+doc = "Value converted to an atomic value (alias of `to_atom`)."
+
+[[functions]]
+name = "to_boolean"
+signatures = ["to_boolean(value any) -> boolean"]
+doc = "Value converted to a boolean."
+
+[[functions]]
+name = "toboolean"
+signatures = ["toboolean(value any) -> boolean"]
+doc = "Value converted to a boolean (alias of `to_boolean`)."
+
+[[functions]]
+name = "to_number"
+signatures = ["to_number(value any) -> number"]
+doc = "Value converted to a number."
+
+[[functions]]
+name = "tonumber"
+signatures = ["tonumber(value any) -> number"]
+doc = "Value converted to a number (alias of `to_number`)."
+
+[[functions]]
+name = "to_object"
+signatures = ["to_object(value any) -> object"]
+doc = "Value converted to an object (non-objects become `{}`)."
+
+[[functions]]
+name = "toobject"
+signatures = ["toobject(value any) -> object"]
+doc = "Value converted to an object (non-objects become `{}`) (alias of `to_object`)."
+
+[[functions]]
+name = "to_string"
+signatures = ["to_string(value any) -> string"]
+doc = "Value converted to a string."
+
+[[functions]]
+name = "tostr"
+signatures = ["tostr(value any) -> string"]
+doc = "Value converted to a string (alias of `to_string`)."
+
+[[functions]]
+name = "search"
+signatures = ["search(identifier any, query any) -> boolean", "search(identifier any, query any, options object) -> boolean"]
+doc = "True if the document matches the Full Text Search query."
+
+[[functions]]
+name = "search_meta"
+signatures = ["search_meta() -> object", "search_meta(identifier any) -> object"]
+doc = "Full Text Search metadata of the document matched by `search()`."
+
+[[functions]]
+name = "search_score"
+signatures = ["search_score() -> number", "search_score(identifier any) -> number"]
+doc = "Full Text Search score of the document matched by `search()`."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> number"]
+doc = "Number of the current row within its partition, from 1."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> number"]
+doc = "Rank of the current row with gaps."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> number"]
+doc = "Rank of the current row without gaps."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> number"]
+doc = "Relative rank of the current row: (rank - 1) / (rows - 1)."
+
+[[functions]]
+name = "cume_dist"
+signatures = ["cume_dist() -> number"]
+doc = "Cumulative distribution: fraction of rows preceding or peer with the current row."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(buckets number) -> number"]
+doc = "Bucket number from 1 to buckets, dividing the partition as equally as possible."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(expr any) -> any", "lag(expr any, offset number) -> any", "lag(expr any, offset number, default any) -> any"]
+doc = "Value of the expression at offset rows before the current row."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(expr any) -> any", "lead(expr any, offset number) -> any", "lead(expr any, offset number, default any) -> any"]
+doc = "Value of the expression at offset rows after the current row."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(expr any) -> any"]
+doc = "Value of the expression at the first row of the window frame."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(expr any) -> any"]
+doc = "Value of the expression at the last row of the window frame."
+
+[[functions]]
+name = "nth_value"
+signatures = ["nth_value(expr any, n number) -> any"]
+doc = "Value of the expression at the n-th row of the window frame."
+
+[[functions]]
+name = "ratio_to_report"
+signatures = ["ratio_to_report(expr number) -> number"]
+doc = "Fraction of the value relative to the sum over the window."

@@ -67,6 +67,8 @@ pub enum StmtKind {
     Insert,
     Update,
     Delete,
+    /// `MERGE INTO … USING …` (T-SQL, Oracle, standard SQL).
+    Merge,
     CreateTable,
     CreateView,
     CreateIndex,
@@ -305,6 +307,11 @@ const NOT_ALIAS: &[&str] = &[
     "outer",
     "lateral",
     "straight_join",
+    "apply",
+    "output",
+    "connect",
+    "start",
+    "option",
     "on",
     "using",
     "set",
@@ -582,6 +589,7 @@ impl<'a> Parser<'a> {
             "insert" | "replace" => self.insert(root),
             "update" => self.update(root),
             "delete" => self.delete(root),
+            "merge" => self.merge(root),
             "create" => self.create(root),
             "alter" | "drop" | "truncate" | "comment" | "lock" | "analyze" | "vacuum" => {
                 self.ddl(root)
@@ -612,8 +620,14 @@ impl<'a> Parser<'a> {
     fn insert(&mut self, root: usize) {
         self.out.kind = StmtKind::Insert;
         let mut i = 1;
-        while i < self.toks.len() && !self.is_word(i, "into") && self.word(i).is_some() {
-            // `INSERT IGNORE`, `INSERT OR REPLACE`, `REPLACE`
+        i = self.skip_top(i);
+        while i < self.toks.len()
+            && !self.is_word(i, "into")
+            && self
+                .word(i)
+                .is_some_and(|w| self.d.is_keyword(&w) || self.d.is_soft_keyword(&w))
+        {
+            // `INSERT IGNORE`, `INSERT OR REPLACE`, `REPLACE`; T-SQL `INSERT t`.
             i += 1;
         }
         if self.is_word(i, "into") {
@@ -693,6 +707,19 @@ impl<'a> Parser<'a> {
                     self.i += 1;
                     self.expressions(root, Clause::Returning);
                 }
+                "output" if self.d.flavor.at_params => {
+                    // `OUTPUT inserted.id [INTO …]` before VALUES / SELECT.
+                    self.output_pseudo_sources(root);
+                    self.mark(self.pos(self.i), root, Clause::Returning);
+                    self.i += 1;
+                    while self.i < self.toks.len()
+                        && !["values", "select", "with", "default"]
+                            .iter()
+                            .any(|w| self.is_word(self.i, w))
+                    {
+                        self.expression_token(root, Clause::Returning);
+                    }
+                }
                 _ => self.i += 1,
             }
         }
@@ -753,6 +780,7 @@ impl<'a> Parser<'a> {
         {
             i += 1;
         }
+        i = self.skip_top(i);
         self.mark(self.pos(i), root, Clause::Target);
         i = self.target_source(root, i);
         self.i = i;
@@ -809,6 +837,7 @@ impl<'a> Parser<'a> {
         let end = self
             .tok(next.saturating_sub(1))
             .map_or(start, |t| t.range.end);
+        next = self.skip_hints(next);
         self.out.scopes[scope].sources.push(Source {
             kind: SourceKind::Table(parts),
             alias,
@@ -818,6 +847,178 @@ impl<'a> Parser<'a> {
             target: true,
         });
         next
+    }
+
+    /// `TOP (n) [PERCENT] [WITH TIES]` (T-SQL) at `i`; index after it.
+    fn skip_top(&self, mut i: usize) -> usize {
+        if !self.is_word(i, "top") {
+            return i;
+        }
+        i += 1;
+        if self.is_punct(i, "(") {
+            i = self.after_parens(i);
+        } else if self
+            .tok(i)
+            .is_some_and(|t| matches!(t.kind, TokenKind::Number | TokenKind::Param))
+        {
+            i += 1;
+        }
+        if self.is_word(i, "percent") {
+            i += 1;
+        }
+        if self.is_word(i, "with") && self.is_word(i + 1, "ties") {
+            i += 2;
+        }
+        i
+    }
+
+    /// Index after the parenthesized group opening at `i`.
+    fn after_parens(&self, i: usize) -> usize {
+        let mut j = i;
+        let mut depth = 0;
+        while j < self.toks.len() {
+            if self.is_punct(j, "(") {
+                depth += 1;
+            } else if self.is_punct(j, ")") {
+                depth -= 1;
+                if depth == 0 {
+                    return j + 1;
+                }
+            }
+            j += 1;
+        }
+        j
+    }
+
+    /// T-SQL table hints `WITH (NOLOCK, INDEX(ix))` at `i`; index after them.
+    fn skip_hints(&self, i: usize) -> usize {
+        if self.d.flavor.at_params && self.is_word(i, "with") && self.is_punct(i + 1, "(") {
+            self.after_parens(i + 1)
+        } else {
+            i
+        }
+    }
+
+    /// T-SQL `OUTPUT`: `inserted` / `deleted` stand for the target's rows.
+    fn output_pseudo_sources(&mut self, scope: usize) {
+        let Some(SourceKind::Table(parts)) = self.out.scopes[scope]
+            .sources
+            .iter()
+            .find(|s| s.target)
+            .map(|s| s.kind.clone())
+        else {
+            return;
+        };
+        for name in ["inserted", "deleted"] {
+            let exists = self.out.scopes[scope]
+                .sources
+                .iter()
+                .any(|s| s.range.is_empty() && s.alias.as_ref().is_some_and(|a| a.text == name));
+            if exists {
+                continue;
+            }
+            self.out.scopes[scope].sources.push(Source {
+                kind: SourceKind::Table(parts.clone()),
+                alias: Some(Ident {
+                    text: name.into(),
+                    quoted: false,
+                    range: 0..0,
+                }),
+                column_aliases: Vec::new(),
+                range: 0..0,
+                joined: false,
+                target: false,
+            });
+        }
+    }
+
+    /// `MERGE [INTO] target [AS] t USING source [AS] s ON cond
+    /// WHEN [NOT] MATCHED [BY SOURCE|TARGET] [AND …] THEN
+    /// {UPDATE SET … | DELETE | INSERT [(cols)] VALUES (…)} …`
+    fn merge(&mut self, root: usize) {
+        self.out.kind = StmtKind::Merge;
+        let mut i = self.skip_top(1);
+        if self.is_word(i, "into") {
+            i += 1;
+        }
+        self.mark(self.pos(i), root, Clause::Target);
+        i = self.target_source(root, i);
+        self.i = i;
+        let mut st = QState {
+            scope: root,
+            clause: Clause::Target,
+            expect_source: false,
+            item_start: None,
+            item_refs: 0,
+            in_extract: false,
+        };
+        while self.i < self.toks.len() {
+            let i = self.i;
+            let w = self.word(i).unwrap_or_default();
+            match w.as_str() {
+                "using" if st.clause == Clause::Target => {
+                    self.set_clause(&mut st, Clause::From, i);
+                    self.i += 1;
+                    if self.is_punct(self.i, "(") && self.starts_query(self.i + 1) {
+                        let s = self.new_scope(Some(root), self.pos(self.i + 1), false);
+                        let open = self.i;
+                        self.query(s, open + 1, true);
+                        self.i += 1;
+                        let start = self.pos(open);
+                        self.after_source(&mut st, SourceKind::Subquery(s), start);
+                    } else if let Some((parts, trailing, next)) = self.qualified(self.i) {
+                        let start = parts[0].range.start;
+                        let sidx = self.out.scopes[root].sources.len();
+                        self.push_ref(parts.clone(), root, Role::Table { source: sidx }, trailing);
+                        self.i = next;
+                        self.after_source(&mut st, SourceKind::Table(parts), start);
+                    }
+                }
+                "on" if st.clause == Clause::From => {
+                    self.set_clause(&mut st, Clause::On, i);
+                    self.i += 1;
+                }
+                "when" => {
+                    self.set_clause(&mut st, Clause::Where, i);
+                    self.i += 1;
+                }
+                "update" if self.is_word(i + 1, "set") => {
+                    self.set_clause(&mut st, Clause::Set, i + 1);
+                    self.i = i + 2;
+                    self.set_list(root);
+                }
+                "insert" => {
+                    self.i += 1;
+                    if self.is_punct(self.i, "(") {
+                        self.mark(self.pos(self.i + 1), root, Clause::InsertColumns);
+                        self.i += 1;
+                        while self.i < self.toks.len() && !self.is_punct(self.i, ")") {
+                            if let Some((parts, trailing, next)) = self.qualified(self.i) {
+                                self.push_ref(parts, root, Role::TargetColumn, trailing);
+                                self.i = next;
+                            } else {
+                                self.i += 1;
+                            }
+                        }
+                        self.i += 1;
+                    }
+                    st.clause = Clause::Values;
+                    self.mark(self.pos(self.i), root, Clause::Values);
+                }
+                "output" if self.d.flavor.at_params => {
+                    self.output_pseudo_sources(root);
+                    self.set_clause(&mut st, Clause::Returning, i);
+                    self.i += 1;
+                }
+                "delete" | "then" | "matched" | "by" | "source" | "target" | "values" => {
+                    self.i += 1;
+                }
+                _ => {
+                    let c = st.clause;
+                    self.expression_token(root, c);
+                }
+            }
+        }
     }
 
     fn alias_at(&self, i: usize) -> Option<Ident> {
@@ -1079,8 +1280,12 @@ impl<'a> Parser<'a> {
                             self.query(s, i + 1, true);
                             let close = self.i;
                             self.i = close + 1;
-                            let end_pos = self.pos(close + 1);
-                            self.mark(end_pos, st.scope, st.clause);
+                            // An unclosed subquery runs to the end: the
+                            // cursor there is still inside it.
+                            if self.is_punct(close, ")") {
+                                let end_pos = self.pos(close + 1);
+                                self.mark(end_pos, st.scope, st.clause);
+                            }
                             if as_source {
                                 self.after_source(st, SourceKind::Subquery(s), self.pos(i));
                             }
@@ -1165,6 +1370,18 @@ impl<'a> Parser<'a> {
                     self.i += 1;
                     continue;
                 }
+                // T-SQL table variable `FROM @t`: its columns are unknown.
+                if t.kind == TokenKind::Param {
+                    let f = Ident {
+                        text: txt.to_owned(),
+                        quoted: false,
+                        range: t.range.clone(),
+                    };
+                    let start = t.range.start;
+                    self.i += 1;
+                    self.after_source(st, SourceKind::Function(f), start);
+                    continue;
+                }
                 if let Some((parts, trailing, next)) = self.qualified(i) {
                     let start = parts[0].range.start;
                     if self.is_punct(next, "(") {
@@ -1245,6 +1462,7 @@ impl<'a> Parser<'a> {
                 while self.is_word(self.i, "distinct") || self.is_word(self.i, "all") {
                     self.i += 1;
                 }
+                self.i = self.skip_top(self.i);
                 st.item_start = None;
                 st.item_refs = self.out.refs.len();
                 true
@@ -1261,6 +1479,74 @@ impl<'a> Parser<'a> {
                     return false;
                 }
                 self.set_clause(st, Clause::From, i);
+                st.expect_source = true;
+                true
+            }
+            // `SELECT … INTO #t FROM …` (T-SQL) / `INTO v_a, v_b` (PL/SQL).
+            "into" if top && st.clause == Clause::Select && self.out.kind == StmtKind::Select => {
+                self.set_clause(st, Clause::Other, i);
+                let mut j = i + 1;
+                loop {
+                    if let Some((_, _, next)) = self.qualified(j) {
+                        j = next;
+                    } else if self.tok(j).is_some_and(|t| t.kind == TokenKind::Param) {
+                        j += 1;
+                    } else {
+                        break;
+                    }
+                    if !self.is_punct(j, ",") {
+                        break;
+                    }
+                    j += 1;
+                }
+                self.i = j;
+                true
+            }
+            // ClickHouse `SETTINGS max_threads = 4`, `FORMAT JSON`: no names.
+            "settings" | "format"
+                if top && self.d.id == "clickhouse" && st.clause != Clause::None =>
+            {
+                self.set_clause(st, Clause::Other, i);
+                self.i = self.toks.len();
+                true
+            }
+            // Oracle hierarchical queries.
+            "connect" if top && self.is_word(i + 1, "by") => {
+                self.set_clause(st, Clause::Other, i);
+                self.i = i + 2;
+                if self.is_word(self.i, "nocycle") {
+                    self.i += 1;
+                }
+                true
+            }
+            "start" if top && self.is_word(i + 1, "with") && st.clause != Clause::None => {
+                self.set_clause(st, Clause::Other, i);
+                self.i = i + 2;
+                true
+            }
+            // T-SQL `OPTION (MAXDOP 1)` query hints.
+            "option" if top && self.is_punct(i + 1, "(") && self.d.flavor.at_params => {
+                self.set_clause(st, Clause::Other, i);
+                self.i = self.after_parens(i + 1);
+                true
+            }
+            "output"
+                if top
+                    && self.d.flavor.at_params
+                    && matches!(self.out.kind, StmtKind::Update | StmtKind::Delete)
+                    && st.scope == 0 =>
+            {
+                self.output_pseudo_sources(st.scope);
+                self.set_clause(st, Clause::Returning, i);
+                true
+            }
+            // `CROSS APPLY` / `OUTER APPLY` (T-SQL, Oracle 12c+).
+            "apply"
+                if top
+                    && (self.is_word(i.wrapping_sub(1), "cross")
+                        || self.is_word(i.wrapping_sub(1), "outer")) =>
+            {
+                self.set_clause(st, Clause::Join, i);
                 st.expect_source = true;
                 true
             }
@@ -1387,6 +1673,7 @@ impl<'a> Parser<'a> {
             .tok(i.saturating_sub(1))
             .map_or(start, |t| t.range.end)
             .max(start);
+        i = self.skip_hints(i);
         let joined = st.clause == Clause::Join;
         self.out.scopes[st.scope].sources.push(Source {
             kind,
@@ -1462,10 +1749,11 @@ impl<'a> Parser<'a> {
         while self.i < self.toks.len() {
             let w = self.word(self.i).unwrap_or_default();
             if depth == 0
-                && matches!(
+                && (matches!(
                     w.as_str(),
                     "from" | "where" | "returning" | "on" | "order" | "limit"
-                )
+                ) || (w == "output" && self.d.flavor.at_params)
+                    || (w == "when" && self.out.kind == StmtKind::Merge))
             {
                 return;
             }

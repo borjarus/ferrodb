@@ -129,7 +129,24 @@ pub enum TableTarget {
 }
 
 const PSEUDO_COLUMNS: &[&str] = &[
-    "ctid", "oid", "xmin", "xmax", "cmin", "cmax", "tableoid", "rowid", "_rowid_",
+    "ctid",
+    "oid",
+    "xmin",
+    "xmax",
+    "cmin",
+    "cmax",
+    "tableoid",
+    "rowid",
+    "_rowid_",
+    "$action",
+    "$identity",
+    "$rowguid",
+    "ora_rowscn",
+    "gp_segment_id",
+    "_partitiontime",
+    "_partitiondate",
+    "_file_name",
+    "input__file__name",
 ];
 
 impl<'a> Env<'a> {
@@ -360,6 +377,21 @@ impl Resolver<'_, '_> {
                     }
                 }
             }
+            // Oracle `DUAL`, T-SQL temporary tables `#t` / `##t` (tempdb):
+            // never in the catalog.
+            Err(_)
+                if (n == 1 && is_session_table(&r.parts[0].text))
+                    || (n >= 2 && is_system_schema(&r.parts[n - 2].text))
+                    || (n == 1
+                        && self.d().flavor.plsql
+                        && is_dictionary_view(&r.parts[0].text)) =>
+            {
+                Resolution {
+                    parts,
+                    status: Status::Unknown,
+                    data_type: None,
+                }
+            }
             Err(true) if !ddl => {
                 // A missing schema is reported on the schema.
                 if n >= 2 && parts[n - 2].is_none() && !self.env.model.is_empty() {
@@ -426,6 +458,14 @@ impl Resolver<'_, '_> {
         }
 
         let qual = &r.parts[..n - if r.role == Role::Star { 0 } else { 1 }];
+        // Oracle sequences `seq.NEXTVAL`, `schema.seq.CURRVAL`.
+        if !qual.is_empty()
+            && ["nextval", "currval"]
+                .iter()
+                .any(|s| col.text.eq_ignore_ascii_case(s))
+        {
+            return unknown(parts);
+        }
         if !qual.is_empty() {
             // Find the source named by the qualifier.
             let qn = qual.last().expect("non-empty").name(self.d());
@@ -653,6 +693,40 @@ impl Dialect {
     pub fn is_same(&self, a: &str, b: &str) -> bool {
         names_eq(a, b, self)
     }
+}
+
+/// Catalog schemas introspectors do not list (`sys.objects`,
+/// `INFORMATION_SCHEMA.TABLES`, `SYSCAT.TABLES`…).
+fn is_system_schema(name: &str) -> bool {
+    [
+        "information_schema",
+        "sys",
+        "system",
+        "pg_catalog",
+        "performance_schema",
+        "mysql",
+        "syscat",
+        "sysibm",
+        "sysibmadm",
+        "sysstat",
+        "sysproc",
+        "sysfun",
+    ]
+    .iter()
+    .any(|s| name.eq_ignore_ascii_case(s))
+}
+
+/// Oracle data dictionary views reached through public synonyms.
+fn is_dictionary_view(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    ["user_", "all_", "dba_", "cdb_", "v$", "gv$", "nls_"]
+        .iter()
+        .any(|p| n.starts_with(p))
+}
+
+/// Tables that exist outside the catalog: `DUAL`, T-SQL `#temp` tables.
+fn is_session_table(name: &str) -> bool {
+    name.starts_with('#') || name.eq_ignore_ascii_case("dual")
 }
 
 /// Exact match first, then case-insensitive where folding allows it.

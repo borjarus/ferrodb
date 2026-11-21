@@ -1,0 +1,1834 @@
+# ClickHouse 24.x / 25.x: clause keywords and the commonly used built-in functions.
+# Function names keep their real (case-sensitive) camelCase spelling.
+id = "clickhouse"
+name = "ClickHouse"
+inherits = "sql"
+# ClickHouse accepts both "name" and `name`; backticks are the usual style.
+identifier_quote = '`'
+# Names are case-sensitive and stored as written.
+case_folding = "none"
+default_schema = "default"
+parser = "clickhouse"
+
+keywords = [
+  "array", "final", "global", "ilike", "interval", "limit", "prewhere", "sample",
+  "settings",
+]
+
+soft_keywords = [
+  "alias", "anti", "apply", "asof", "attach", "cache", "cluster", "codec", "columns",
+  "comment", "cube", "databases", "deduplicate", "delay", "describe", "detach",
+  "dictionaries", "dictionary", "disk", "distributed", "engine", "events", "exchange",
+  "fetches", "fill", "flush", "format", "freeze", "granularity", "grouping", "ignore",
+  "interpolate", "kill", "live", "local", "logs", "mark", "materialize", "merges", "modify",
+  "move", "mutation", "mutations", "optimize", "organize", "outfile", "paste",
+  "permanently", "policy", "populate", "profile", "projection", "query", "quota", "refresh",
+  "reload", "replicas", "role", "rollup", "semi", "sends", "sets", "show", "sorting",
+  "stale", "step", "sync", "system", "tables", "tags", "totals", "ttl", "uncompressed",
+  "unfreeze", "use", "user", "volume", "watch",
+]
+
+types = [
+  "aggregatefunction", "array", "bfloat16", "bool", "date32", "datetime", "datetime64",
+  "decimal128", "decimal256", "decimal32", "decimal64", "dynamic", "enum", "enum16",
+  "enum8", "fixedstring", "float32", "float64", "int128", "int16", "int256", "int32",
+  "int64", "int8", "interval", "ipv4", "ipv6", "json", "linestring", "lowcardinality",
+  "map", "multilinestring", "multipolygon", "nested", "nullable", "point", "polygon",
+  "ring", "simpleaggregatefunction", "string", "time64", "tuple", "uint128", "uint16",
+  "uint256", "uint32", "uint64", "uint8", "uuid", "variant",
+]
+
+[[functions]]
+name = "now"
+signatures = ["now() -> DateTime", "now(timezone String) -> DateTime"]
+doc = "Current date and time."
+
+[[functions]]
+name = "now64"
+signatures = ["now64() -> DateTime64", "now64(scale UInt8) -> DateTime64", "now64(scale UInt8, timezone String) -> DateTime64"]
+doc = "Current date and time with sub-second precision."
+
+[[functions]]
+name = "today"
+signatures = ["today() -> Date"]
+doc = "Current date."
+
+[[functions]]
+name = "yesterday"
+signatures = ["yesterday() -> Date"]
+doc = "Yesterday's date."
+
+[[functions]]
+name = "toDate"
+signatures = ["toDate(expr any) -> Date"]
+doc = "Value converted to Date."
+
+[[functions]]
+name = "toDate32"
+signatures = ["toDate32(expr any) -> Date32"]
+doc = "Value converted to Date32 (extended range)."
+
+[[functions]]
+name = "toDateTime"
+signatures = ["toDateTime(expr any) -> DateTime", "toDateTime(expr any, timezone String) -> DateTime"]
+doc = "Value converted to DateTime."
+
+[[functions]]
+name = "toDateTime64"
+signatures = ["toDateTime64(expr any, scale UInt8) -> DateTime64", "toDateTime64(expr any, scale UInt8, timezone String) -> DateTime64"]
+doc = "Value converted to DateTime64."
+
+[[functions]]
+name = "toYear"
+signatures = ["toYear(date DateTime) -> UInt16"]
+doc = "Year of a date."
+
+[[functions]]
+name = "toQuarter"
+signatures = ["toQuarter(date DateTime) -> UInt8"]
+doc = "Quarter (1-4) of a date."
+
+[[functions]]
+name = "toMonth"
+signatures = ["toMonth(date DateTime) -> UInt8"]
+doc = "Month (1-12) of a date."
+
+[[functions]]
+name = "toDayOfMonth"
+signatures = ["toDayOfMonth(date DateTime) -> UInt8"]
+doc = "Day of the month of a date."
+
+[[functions]]
+name = "toDayOfWeek"
+signatures = ["toDayOfWeek(date DateTime) -> UInt8", "toDayOfWeek(date DateTime, mode UInt8) -> UInt8"]
+doc = "Day of the week (1 = Monday by default)."
+
+[[functions]]
+name = "toDayOfYear"
+signatures = ["toDayOfYear(date DateTime) -> UInt16"]
+doc = "Day of the year of a date."
+
+[[functions]]
+name = "toHour"
+signatures = ["toHour(datetime DateTime) -> UInt8"]
+doc = "Hour of a datetime."
+
+[[functions]]
+name = "toMinute"
+signatures = ["toMinute(datetime DateTime) -> UInt8"]
+doc = "Minute of a datetime."
+
+[[functions]]
+name = "toSecond"
+signatures = ["toSecond(datetime DateTime) -> UInt8"]
+doc = "Second of a datetime."
+
+[[functions]]
+name = "toISOWeek"
+signatures = ["toISOWeek(date DateTime) -> UInt8"]
+doc = "ISO week number of a date."
+
+[[functions]]
+name = "toWeek"
+signatures = ["toWeek(date DateTime) -> UInt8", "toWeek(date DateTime, mode UInt8) -> UInt8"]
+doc = "Week number of a date."
+
+[[functions]]
+name = "toStartOfDay"
+signatures = ["toStartOfDay(datetime DateTime) -> DateTime"]
+doc = "Datetime rounded down to the start of the day."
+
+[[functions]]
+name = "toStartOfHour"
+signatures = ["toStartOfHour(datetime DateTime) -> DateTime"]
+doc = "Datetime rounded down to the start of the hour."
+
+[[functions]]
+name = "toStartOfMinute"
+signatures = ["toStartOfMinute(datetime DateTime) -> DateTime"]
+doc = "Datetime rounded down to the start of the minute."
+
+[[functions]]
+name = "toStartOfFiveMinutes"
+signatures = ["toStartOfFiveMinutes(datetime DateTime) -> DateTime"]
+doc = "Datetime rounded down to a five-minute boundary."
+
+[[functions]]
+name = "toStartOfFifteenMinutes"
+signatures = ["toStartOfFifteenMinutes(datetime DateTime) -> DateTime"]
+doc = "Datetime rounded down to a fifteen-minute boundary."
+
+[[functions]]
+name = "toStartOfWeek"
+signatures = ["toStartOfWeek(date DateTime) -> Date", "toStartOfWeek(date DateTime, mode UInt8) -> Date"]
+doc = "Date rounded down to the start of the week."
+
+[[functions]]
+name = "toStartOfMonth"
+signatures = ["toStartOfMonth(date DateTime) -> Date"]
+doc = "Date rounded down to the first day of the month."
+
+[[functions]]
+name = "toStartOfQuarter"
+signatures = ["toStartOfQuarter(date DateTime) -> Date"]
+doc = "Date rounded down to the first day of the quarter."
+
+[[functions]]
+name = "toStartOfYear"
+signatures = ["toStartOfYear(date DateTime) -> Date"]
+doc = "Date rounded down to the first day of the year."
+
+[[functions]]
+name = "toStartOfInterval"
+signatures = ["toStartOfInterval(datetime DateTime, step Interval) -> DateTime", "toStartOfInterval(datetime DateTime, step Interval, timezone String) -> DateTime"]
+doc = "Datetime rounded down to a multiple of an interval (`INTERVAL 10 MINUTE`)."
+
+[[functions]]
+name = "toMonday"
+signatures = ["toMonday(date DateTime) -> Date"]
+doc = "Date rounded down to the nearest Monday."
+
+[[functions]]
+name = "toLastDayOfMonth"
+signatures = ["toLastDayOfMonth(date DateTime) -> Date"]
+doc = "Last day of the month."
+
+[[functions]]
+name = "toYYYYMM"
+signatures = ["toYYYYMM(date DateTime) -> UInt32"]
+doc = "Date as a YYYYMM number."
+
+[[functions]]
+name = "toYYYYMMDD"
+signatures = ["toYYYYMMDD(date DateTime) -> UInt32"]
+doc = "Date as a YYYYMMDD number."
+
+[[functions]]
+name = "toYYYYMMDDhhmmss"
+signatures = ["toYYYYMMDDhhmmss(datetime DateTime) -> UInt64"]
+doc = "Datetime as a YYYYMMDDhhmmss number."
+
+[[functions]]
+name = "toUnixTimestamp"
+signatures = ["toUnixTimestamp(datetime DateTime) -> UInt32", "toUnixTimestamp(str String, timezone String) -> UInt32"]
+doc = "Seconds since the Unix epoch."
+
+[[functions]]
+name = "fromUnixTimestamp"
+signatures = ["fromUnixTimestamp(ts Int64) -> DateTime", "fromUnixTimestamp(ts Int64, format String) -> String"]
+doc = "Datetime from a Unix timestamp, or formatted with a MySQL-style format."
+
+[[functions]]
+name = "formatDateTime"
+signatures = ["formatDateTime(datetime DateTime, format String) -> String", "formatDateTime(datetime DateTime, format String, timezone String) -> String"]
+doc = "Datetime formatted with a MySQL-style format (`%Y-%m-%d`)."
+
+[[functions]]
+name = "parseDateTime"
+signatures = ["parseDateTime(str String, format String) -> DateTime"]
+doc = "Datetime parsed with a MySQL-style format."
+
+[[functions]]
+name = "parseDateTimeBestEffort"
+signatures = ["parseDateTimeBestEffort(str String) -> DateTime", "parseDateTimeBestEffort(str String, timezone String) -> DateTime"]
+doc = "Datetime parsed from many textual formats."
+
+[[functions]]
+name = "parseDateTimeBestEffortOrNull"
+signatures = ["parseDateTimeBestEffortOrNull(str String) -> Nullable", "parseDateTimeBestEffortOrNull(str String, timezone String) -> Nullable"]
+doc = "Like `parseDateTimeBestEffort`, but NULL when unparsable."
+
+[[functions]]
+name = "parseDateTimeBestEffortOrZero"
+signatures = ["parseDateTimeBestEffortOrZero(str String) -> DateTime"]
+doc = "Like `parseDateTimeBestEffort`, but zero date when unparsable."
+
+[[functions]]
+name = "parseDateTime64BestEffort"
+signatures = ["parseDateTime64BestEffort(str String) -> DateTime64", "parseDateTime64BestEffort(str String, precision UInt8) -> DateTime64"]
+doc = "DateTime64 parsed from many textual formats."
+
+[[functions]]
+name = "dateDiff"
+signatures = ["dateDiff(unit String, startdate DateTime, enddate DateTime) -> Int64", "dateDiff(unit String, startdate DateTime, enddate DateTime, timezone String) -> Int64"]
+doc = "Number of unit boundaries crossed between two dates."
+
+[[functions]]
+name = "dateAdd"
+signatures = ["dateAdd(unit String, value Int64, date DateTime) -> DateTime"]
+doc = "Date plus a number of units."
+
+[[functions]]
+name = "dateSub"
+signatures = ["dateSub(unit String, value Int64, date DateTime) -> DateTime"]
+doc = "Date minus a number of units."
+
+[[functions]]
+name = "dateTrunc"
+signatures = ["dateTrunc(unit String, value DateTime) -> DateTime"]
+doc = "Date truncated to the unit (`'month'`...)."
+
+[[functions]]
+name = "date_diff"
+signatures = ["date_diff(unit String, startdate DateTime, enddate DateTime) -> Int64"]
+doc = "Alias of `dateDiff`."
+
+[[functions]]
+name = "addSeconds"
+signatures = ["addSeconds(date DateTime, num Int64) -> DateTime"]
+doc = "Datetime plus seconds."
+
+[[functions]]
+name = "addMinutes"
+signatures = ["addMinutes(date DateTime, num Int64) -> DateTime"]
+doc = "Datetime plus minutes."
+
+[[functions]]
+name = "addHours"
+signatures = ["addHours(date DateTime, num Int64) -> DateTime"]
+doc = "Datetime plus hours."
+
+[[functions]]
+name = "addDays"
+signatures = ["addDays(date DateTime, num Int64) -> DateTime"]
+doc = "Date plus days."
+
+[[functions]]
+name = "addWeeks"
+signatures = ["addWeeks(date DateTime, num Int64) -> DateTime"]
+doc = "Date plus weeks."
+
+[[functions]]
+name = "addMonths"
+signatures = ["addMonths(date DateTime, num Int64) -> DateTime"]
+doc = "Date plus months."
+
+[[functions]]
+name = "addYears"
+signatures = ["addYears(date DateTime, num Int64) -> DateTime"]
+doc = "Date plus years."
+
+[[functions]]
+name = "subtractDays"
+signatures = ["subtractDays(date DateTime, num Int64) -> DateTime"]
+doc = "Date minus days."
+
+[[functions]]
+name = "subtractHours"
+signatures = ["subtractHours(date DateTime, num Int64) -> DateTime"]
+doc = "Datetime minus hours."
+
+[[functions]]
+name = "subtractMonths"
+signatures = ["subtractMonths(date DateTime, num Int64) -> DateTime"]
+doc = "Date minus months."
+
+[[functions]]
+name = "timeSlot"
+signatures = ["timeSlot(datetime DateTime) -> DateTime"]
+doc = "Datetime rounded down to a half-hour boundary."
+
+[[functions]]
+name = "toTimeZone"
+signatures = ["toTimeZone(datetime DateTime, timezone String) -> DateTime"]
+doc = "Datetime with a different time zone attached."
+
+[[functions]]
+name = "toRelativeDayNum"
+signatures = ["toRelativeDayNum(date DateTime) -> UInt32"]
+doc = "Number of days since a fixed point in the past."
+
+[[functions]]
+name = "toRelativeHourNum"
+signatures = ["toRelativeHourNum(datetime DateTime) -> UInt32"]
+doc = "Number of hours since a fixed point in the past."
+
+[[functions]]
+name = "toIntervalDay"
+signatures = ["toIntervalDay(n Int64) -> Interval"]
+doc = "Interval of `n` days."
+
+[[functions]]
+name = "toIntervalHour"
+signatures = ["toIntervalHour(n Int64) -> Interval"]
+doc = "Interval of `n` hours."
+
+[[functions]]
+name = "toIntervalMonth"
+signatures = ["toIntervalMonth(n Int64) -> Interval"]
+doc = "Interval of `n` months."
+
+[[functions]]
+name = "age"
+signatures = ["age(unit String, startdate DateTime, enddate DateTime) -> Int32"]
+doc = "Number of full units elapsed between two dates."
+
+[[functions]]
+name = "toInt8"
+signatures = ["toInt8(expr any) -> Int8"]
+doc = "Value converted to Int8."
+
+[[functions]]
+name = "toInt16"
+signatures = ["toInt16(expr any) -> Int16"]
+doc = "Value converted to Int16."
+
+[[functions]]
+name = "toInt32"
+signatures = ["toInt32(expr any) -> Int32"]
+doc = "Value converted to Int32."
+
+[[functions]]
+name = "toInt64"
+signatures = ["toInt64(expr any) -> Int64"]
+doc = "Value converted to Int64."
+
+[[functions]]
+name = "toInt128"
+signatures = ["toInt128(expr any) -> Int128"]
+doc = "Value converted to Int128."
+
+[[functions]]
+name = "toUInt8"
+signatures = ["toUInt8(expr any) -> UInt8"]
+doc = "Value converted to UInt8."
+
+[[functions]]
+name = "toUInt16"
+signatures = ["toUInt16(expr any) -> UInt16"]
+doc = "Value converted to UInt16."
+
+[[functions]]
+name = "toUInt32"
+signatures = ["toUInt32(expr any) -> UInt32"]
+doc = "Value converted to UInt32."
+
+[[functions]]
+name = "toUInt64"
+signatures = ["toUInt64(expr any) -> UInt64"]
+doc = "Value converted to UInt64."
+
+[[functions]]
+name = "toFloat32"
+signatures = ["toFloat32(expr any) -> Float32"]
+doc = "Value converted to Float32."
+
+[[functions]]
+name = "toFloat64"
+signatures = ["toFloat64(expr any) -> Float64"]
+doc = "Value converted to Float64."
+
+[[functions]]
+name = "toDecimal32"
+signatures = ["toDecimal32(expr any, scale UInt8) -> Decimal32"]
+doc = "Value converted to Decimal32 with a scale."
+
+[[functions]]
+name = "toDecimal64"
+signatures = ["toDecimal64(expr any, scale UInt8) -> Decimal64"]
+doc = "Value converted to Decimal64 with a scale."
+
+[[functions]]
+name = "toDecimal128"
+signatures = ["toDecimal128(expr any, scale UInt8) -> Decimal128"]
+doc = "Value converted to Decimal128 with a scale."
+
+[[functions]]
+name = "toString"
+signatures = ["toString(expr any) -> String", "toString(datetime DateTime, timezone String) -> String"]
+doc = "Value converted to String."
+
+[[functions]]
+name = "toFixedString"
+signatures = ["toFixedString(s String, n UInt64) -> FixedString"]
+doc = "String converted to FixedString(n)."
+
+[[functions]]
+name = "toUUID"
+signatures = ["toUUID(s String) -> UUID"]
+doc = "String converted to UUID."
+
+[[functions]]
+name = "toIPv4"
+signatures = ["toIPv4(s String) -> IPv4"]
+doc = "String converted to IPv4."
+
+[[functions]]
+name = "toIPv6"
+signatures = ["toIPv6(s String) -> IPv6"]
+doc = "String converted to IPv6."
+
+[[functions]]
+name = "toBool"
+signatures = ["toBool(expr any) -> Bool"]
+doc = "Value converted to Bool."
+
+[[functions]]
+name = "toInt32OrNull"
+signatures = ["toInt32OrNull(s String) -> Nullable"]
+doc = "String converted to Int32, NULL on failure."
+
+[[functions]]
+name = "toInt64OrNull"
+signatures = ["toInt64OrNull(s String) -> Nullable"]
+doc = "String converted to Int64, NULL on failure."
+
+[[functions]]
+name = "toInt32OrZero"
+signatures = ["toInt32OrZero(s String) -> Int32"]
+doc = "String converted to Int32, 0 on failure."
+
+[[functions]]
+name = "toInt64OrZero"
+signatures = ["toInt64OrZero(s String) -> Int64"]
+doc = "String converted to Int64, 0 on failure."
+
+[[functions]]
+name = "toUInt64OrNull"
+signatures = ["toUInt64OrNull(s String) -> Nullable"]
+doc = "String converted to UInt64, NULL on failure."
+
+[[functions]]
+name = "toUInt64OrZero"
+signatures = ["toUInt64OrZero(s String) -> UInt64"]
+doc = "String converted to UInt64, 0 on failure."
+
+[[functions]]
+name = "toFloat64OrNull"
+signatures = ["toFloat64OrNull(s String) -> Nullable"]
+doc = "String converted to Float64, NULL on failure."
+
+[[functions]]
+name = "toFloat64OrZero"
+signatures = ["toFloat64OrZero(s String) -> Float64"]
+doc = "String converted to Float64, 0 on failure."
+
+[[functions]]
+name = "toDateOrNull"
+signatures = ["toDateOrNull(s String) -> Nullable"]
+doc = "String converted to Date, NULL on failure."
+
+[[functions]]
+name = "toDateTimeOrNull"
+signatures = ["toDateTimeOrNull(s String) -> Nullable"]
+doc = "String converted to DateTime, NULL on failure."
+
+[[functions]]
+name = "toDecimal64OrNull"
+signatures = ["toDecimal64OrNull(s String, scale UInt8) -> Nullable"]
+doc = "String converted to Decimal64, NULL on failure."
+
+[[functions]]
+name = "reinterpretAsString"
+signatures = ["reinterpretAsString(x any) -> String"]
+doc = "Raw bytes of a value as a String."
+
+[[functions]]
+name = "reinterpretAsUInt64"
+signatures = ["reinterpretAsUInt64(x any) -> UInt64"]
+doc = "Raw bytes of a value as a UInt64."
+
+[[functions]]
+name = "accurateCast"
+signatures = ["accurateCast(x any, type String) -> any"]
+doc = "Cast that fails instead of overflowing."
+
+[[functions]]
+name = "accurateCastOrNull"
+signatures = ["accurateCastOrNull(x any, type String) -> Nullable"]
+doc = "Cast that returns NULL instead of overflowing or failing."
+
+[[functions]]
+name = "toTypeName"
+signatures = ["toTypeName(x any) -> String"]
+doc = "Type name of the argument."
+
+[[functions]]
+name = "toLowCardinality"
+signatures = ["toLowCardinality(x any) -> LowCardinality"]
+doc = "Value converted to a LowCardinality type."
+
+[[functions]]
+name = "toDecimalString"
+signatures = ["toDecimalString(x any, scale UInt8) -> String"]
+doc = "Number formatted with a fixed number of decimals."
+
+[[functions]]
+name = "length"
+signatures = ["length(x any) -> UInt64"]
+doc = "Length in bytes of a string, or number of array elements."
+
+[[functions]]
+name = "lengthUTF8"
+signatures = ["lengthUTF8(s String) -> UInt64"]
+doc = "Number of Unicode code points of a UTF-8 string."
+
+[[functions]]
+name = "empty"
+signatures = ["empty(x any) -> UInt8"]
+doc = "1 for an empty string, array or map."
+
+[[functions]]
+name = "notEmpty"
+signatures = ["notEmpty(x any) -> UInt8"]
+doc = "1 for a non-empty string, array or map."
+
+[[functions]]
+name = "lowerUTF8"
+signatures = ["lowerUTF8(s String) -> String"]
+doc = "UTF-8 string converted to lower case."
+
+[[functions]]
+name = "upperUTF8"
+signatures = ["upperUTF8(s String) -> String"]
+doc = "UTF-8 string converted to upper case."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(s any, ...) -> String"]
+doc = "Concatenation of the arguments."
+
+[[functions]]
+name = "concatWithSeparator"
+signatures = ["concatWithSeparator(sep String, s any, ...) -> String"]
+doc = "Concatenation with a separator."
+
+[[functions]]
+name = "substring"
+signatures = ["substring(s String, offset Int64) -> String", "substring(s String, offset Int64, length UInt64) -> String"]
+doc = "Substring starting at a 1-based byte offset."
+
+[[functions]]
+name = "substringUTF8"
+signatures = ["substringUTF8(s String, offset Int64) -> String", "substringUTF8(s String, offset Int64, length UInt64) -> String"]
+doc = "Substring by Unicode code points."
+
+[[functions]]
+name = "left"
+signatures = ["left(s String, n Int64) -> String"]
+doc = "Leftmost `n` bytes."
+
+[[functions]]
+name = "right"
+signatures = ["right(s String, n Int64) -> String"]
+doc = "Rightmost `n` bytes."
+
+[[functions]]
+name = "position"
+signatures = ["position(haystack String, needle String) -> UInt64", "position(haystack String, needle String, start_pos UInt64) -> UInt64"]
+doc = "1-based byte position of `needle`, 0 if absent."
+
+[[functions]]
+name = "positionCaseInsensitive"
+signatures = ["positionCaseInsensitive(haystack String, needle String) -> UInt64"]
+doc = "Case-insensitive `position`."
+
+[[functions]]
+name = "positionUTF8"
+signatures = ["positionUTF8(haystack String, needle String) -> UInt64"]
+doc = "Position in Unicode code points."
+
+[[functions]]
+name = "startsWith"
+signatures = ["startsWith(s String, prefix String) -> UInt8"]
+doc = "1 if the string starts with the prefix."
+
+[[functions]]
+name = "endsWith"
+signatures = ["endsWith(s String, suffix String) -> UInt8"]
+doc = "1 if the string ends with the suffix."
+
+[[functions]]
+name = "trimLeft"
+signatures = ["trimLeft(s String) -> String", "trimLeft(s String, chars String) -> String"]
+doc = "Removes leading whitespace (or characters)."
+
+[[functions]]
+name = "trimRight"
+signatures = ["trimRight(s String) -> String", "trimRight(s String, chars String) -> String"]
+doc = "Removes trailing whitespace (or characters)."
+
+[[functions]]
+name = "trimBoth"
+signatures = ["trimBoth(s String) -> String", "trimBoth(s String, chars String) -> String"]
+doc = "Removes leading and trailing whitespace (or characters)."
+
+[[functions]]
+name = "leftPad"
+signatures = ["leftPad(s String, length UInt64) -> String", "leftPad(s String, length UInt64, pad String) -> String"]
+doc = "String left-padded to `length`."
+
+[[functions]]
+name = "rightPad"
+signatures = ["rightPad(s String, length UInt64) -> String", "rightPad(s String, length UInt64, pad String) -> String"]
+doc = "String right-padded to `length`."
+
+[[functions]]
+name = "repeat"
+signatures = ["repeat(s String, n UInt64) -> String"]
+doc = "String repeated `n` times."
+
+[[functions]]
+name = "reverse"
+signatures = ["reverse(x any) -> any"]
+doc = "Reversed string (bytes) or array."
+
+[[functions]]
+name = "replaceOne"
+signatures = ["replaceOne(haystack String, pattern String, replacement String) -> String"]
+doc = "Replaces the first occurrence of a substring."
+
+[[functions]]
+name = "replaceAll"
+signatures = ["replaceAll(haystack String, pattern String, replacement String) -> String"]
+doc = "Replaces every occurrence of a substring."
+
+[[functions]]
+name = "replaceRegexpOne"
+signatures = ["replaceRegexpOne(haystack String, pattern String, replacement String) -> String"]
+doc = "Replaces the first RE2 regex match."
+
+[[functions]]
+name = "replaceRegexpAll"
+signatures = ["replaceRegexpAll(haystack String, pattern String, replacement String) -> String"]
+doc = "Replaces every RE2 regex match."
+
+[[functions]]
+name = "match"
+signatures = ["match(haystack String, pattern String) -> UInt8"]
+doc = "1 if the string matches the RE2 regex."
+
+[[functions]]
+name = "extract"
+signatures = ["extract(haystack String, pattern String) -> String"]
+doc = "First regex match (or first capture group)."
+
+[[functions]]
+name = "extractAll"
+signatures = ["extractAll(haystack String, pattern String) -> Array"]
+doc = "Array of all regex matches."
+
+[[functions]]
+name = "extractAllGroups"
+signatures = ["extractAllGroups(haystack String, pattern String) -> Array"]
+doc = "Array of capture-group arrays for every match."
+
+[[functions]]
+name = "multiSearchAny"
+signatures = ["multiSearchAny(haystack String, needles Array) -> UInt8"]
+doc = "1 if any of the needles occurs in the string."
+
+[[functions]]
+name = "splitByChar"
+signatures = ["splitByChar(separator String, s String) -> Array", "splitByChar(separator String, s String, max_substrings Int64) -> Array"]
+doc = "String split by a single character."
+
+[[functions]]
+name = "splitByString"
+signatures = ["splitByString(separator String, s String) -> Array", "splitByString(separator String, s String, max_substrings Int64) -> Array"]
+doc = "String split by a multi-character separator."
+
+[[functions]]
+name = "splitByRegexp"
+signatures = ["splitByRegexp(regexp String, s String) -> Array"]
+doc = "String split by a regex."
+
+[[functions]]
+name = "splitByWhitespace"
+signatures = ["splitByWhitespace(s String) -> Array"]
+doc = "String split by whitespace."
+
+[[functions]]
+name = "arrayStringConcat"
+signatures = ["arrayStringConcat(arr Array) -> String", "arrayStringConcat(arr Array, separator String) -> String"]
+doc = "Array elements joined into a string."
+
+[[functions]]
+name = "format"
+signatures = ["format(pattern String, s any, ...) -> String"]
+doc = "Pattern with `{}` placeholders filled with the arguments."
+
+[[functions]]
+name = "base64Encode"
+signatures = ["base64Encode(s String) -> String"]
+doc = "String encoded as base64."
+
+[[functions]]
+name = "base64Decode"
+signatures = ["base64Decode(s String) -> String"]
+doc = "Base64 string decoded (exception on invalid input)."
+
+[[functions]]
+name = "tryBase64Decode"
+signatures = ["tryBase64Decode(s String) -> String"]
+doc = "Base64 string decoded, empty string on invalid input."
+
+[[functions]]
+name = "hex"
+signatures = ["hex(x any) -> String"]
+doc = "Hexadecimal representation of a value."
+
+[[functions]]
+name = "unhex"
+signatures = ["unhex(s String) -> String"]
+doc = "Bytes from a hexadecimal string."
+
+[[functions]]
+name = "normalizeQuery"
+signatures = ["normalizeQuery(query String) -> String"]
+doc = "Query text with literals replaced by `?`."
+
+[[functions]]
+name = "ngramDistance"
+signatures = ["ngramDistance(haystack String, needle String) -> Float32"]
+doc = "4-gram distance between two strings (0..1)."
+
+[[functions]]
+name = "editDistance"
+signatures = ["editDistance(s1 String, s2 String) -> UInt64"]
+doc = "Levenshtein distance between two strings (bytes)."
+
+[[functions]]
+name = "damerauLevenshteinDistance"
+signatures = ["damerauLevenshteinDistance(s1 String, s2 String) -> UInt64"]
+doc = "Damerau-Levenshtein distance between two strings."
+
+[[functions]]
+name = "initcap"
+signatures = ["initcap(s String) -> String"]
+doc = "First letter of each word upper-cased, the rest lower-cased."
+
+[[functions]]
+name = "like"
+signatures = ["like(haystack String, pattern String) -> UInt8"]
+doc = "1 if the string matches a LIKE pattern."
+
+[[functions]]
+name = "ilike"
+signatures = ["ilike(haystack String, pattern String) -> UInt8"]
+doc = "Case-insensitive `like`."
+
+[[functions]]
+name = "toValidUTF8"
+signatures = ["toValidUTF8(s String) -> String"]
+doc = "String with invalid UTF-8 sequences replaced by U+FFFD."
+
+[[functions]]
+name = "array"
+signatures = ["array(x any, ...) -> Array"]
+doc = "Array built from the arguments."
+
+[[functions]]
+name = "arrayJoin"
+signatures = ["arrayJoin(arr Array) -> any"]
+doc = "One row per array element (unfolds the array into rows)."
+
+[[functions]]
+name = "arrayMap"
+signatures = ["arrayMap(func Lambda, arr Array, ...) -> Array"]
+doc = "Array of the lambda applied to each element."
+
+[[functions]]
+name = "arrayFilter"
+signatures = ["arrayFilter(func Lambda, arr Array, ...) -> Array"]
+doc = "Elements for which the lambda returns non-zero."
+
+[[functions]]
+name = "arrayExists"
+signatures = ["arrayExists(func Lambda, arr Array, ...) -> UInt8"]
+doc = "1 if the lambda is true for at least one element."
+
+[[functions]]
+name = "arrayAll"
+signatures = ["arrayAll(func Lambda, arr Array, ...) -> UInt8"]
+doc = "1 if the lambda is true for every element."
+
+[[functions]]
+name = "arraySum"
+signatures = ["arraySum(arr Array) -> any", "arraySum(func Lambda, arr Array) -> any"]
+doc = "Sum of the elements."
+
+[[functions]]
+name = "arrayCount"
+signatures = ["arrayCount(arr Array) -> UInt64", "arrayCount(func Lambda, arr Array) -> UInt64"]
+doc = "Number of non-zero elements (or elements matching the lambda)."
+
+[[functions]]
+name = "arrayDistinct"
+signatures = ["arrayDistinct(arr Array) -> Array"]
+doc = "Array of the distinct elements."
+
+[[functions]]
+name = "arrayUniq"
+signatures = ["arrayUniq(arr Array, ...) -> UInt64"]
+doc = "Number of distinct elements."
+
+[[functions]]
+name = "arraySort"
+signatures = ["arraySort(arr Array) -> Array", "arraySort(func Lambda, arr Array) -> Array"]
+doc = "Array sorted ascending (optionally by a lambda key)."
+
+[[functions]]
+name = "arrayReverseSort"
+signatures = ["arrayReverseSort(arr Array) -> Array", "arrayReverseSort(func Lambda, arr Array) -> Array"]
+doc = "Array sorted descending."
+
+[[functions]]
+name = "arrayConcat"
+signatures = ["arrayConcat(arr Array, ...) -> Array"]
+doc = "Concatenation of arrays."
+
+[[functions]]
+name = "arrayElement"
+signatures = ["arrayElement(arr Array, n Int64) -> any"]
+doc = "The `n`-th element (1-based, negative counts from the end), same as `arr[n]`."
+
+[[functions]]
+name = "has"
+signatures = ["has(arr Array, elem any) -> UInt8"]
+doc = "1 if the array contains the element."
+
+[[functions]]
+name = "hasAll"
+signatures = ["hasAll(set Array, subset Array) -> UInt8"]
+doc = "1 if the first array contains every element of the second."
+
+[[functions]]
+name = "hasAny"
+signatures = ["hasAny(arr1 Array, arr2 Array) -> UInt8"]
+doc = "1 if the arrays share at least one element."
+
+[[functions]]
+name = "indexOf"
+signatures = ["indexOf(arr Array, x any) -> UInt64"]
+doc = "1-based index of the first occurrence of `x`, 0 if absent."
+
+[[functions]]
+name = "range"
+signatures = ["range(end UInt64) -> Array", "range(start UInt64, end UInt64) -> Array", "range(start UInt64, end UInt64, step UInt64) -> Array"]
+doc = "Array of numbers from `start` up to (excluding) `end`."
+
+[[functions]]
+name = "arrayEnumerate"
+signatures = ["arrayEnumerate(arr Array) -> Array"]
+doc = "Array of indexes `[1, 2, ..., length(arr)]`."
+
+[[functions]]
+name = "arraySlice"
+signatures = ["arraySlice(arr Array, offset Int64) -> Array", "arraySlice(arr Array, offset Int64, length Int64) -> Array"]
+doc = "Slice of an array (1-based offset)."
+
+[[functions]]
+name = "arrayPushBack"
+signatures = ["arrayPushBack(arr Array, x any) -> Array"]
+doc = "Array with an element appended."
+
+[[functions]]
+name = "arrayPushFront"
+signatures = ["arrayPushFront(arr Array, x any) -> Array"]
+doc = "Array with an element prepended."
+
+[[functions]]
+name = "arrayPopBack"
+signatures = ["arrayPopBack(arr Array) -> Array"]
+doc = "Array without its last element."
+
+[[functions]]
+name = "arrayFlatten"
+signatures = ["arrayFlatten(arr Array) -> Array"]
+doc = "Array of arrays flattened."
+
+[[functions]]
+name = "arrayZip"
+signatures = ["arrayZip(arr Array, ...) -> Array"]
+doc = "Array of tuples combining elements at each position."
+
+[[functions]]
+name = "arrayReduce"
+signatures = ["arrayReduce(agg_func String, arr Array, ...) -> any"]
+doc = "Aggregate function applied to the array elements."
+
+[[functions]]
+name = "arrayFirst"
+signatures = ["arrayFirst(func Lambda, arr Array) -> any"]
+doc = "First element for which the lambda is true."
+
+[[functions]]
+name = "arrayCompact"
+signatures = ["arrayCompact(arr Array) -> Array"]
+doc = "Array without consecutive duplicates."
+
+[[functions]]
+name = "arrayIntersect"
+signatures = ["arrayIntersect(arr Array, ...) -> Array"]
+doc = "Elements present in every array."
+
+[[functions]]
+name = "emptyArrayString"
+signatures = ["emptyArrayString() -> Array"]
+doc = "Empty Array(String)."
+
+[[functions]]
+name = "tuple"
+signatures = ["tuple(x any, ...) -> Tuple"]
+doc = "Tuple built from the arguments."
+
+[[functions]]
+name = "tupleElement"
+signatures = ["tupleElement(tuple Tuple, index any) -> any"]
+doc = "Tuple element by 1-based index or name, same as `t.1`."
+
+[[functions]]
+name = "map"
+signatures = ["map(key any, value any, ...) -> Map"]
+doc = "Map built from key/value pairs."
+
+[[functions]]
+name = "mapKeys"
+signatures = ["mapKeys(m Map) -> Array"]
+doc = "Array of the keys of a map."
+
+[[functions]]
+name = "mapValues"
+signatures = ["mapValues(m Map) -> Array"]
+doc = "Array of the values of a map."
+
+[[functions]]
+name = "mapContains"
+signatures = ["mapContains(m Map, key any) -> UInt8"]
+doc = "1 if the map contains the key."
+
+[[functions]]
+name = "mapFromArrays"
+signatures = ["mapFromArrays(keys Array, values Array) -> Map"]
+doc = "Map built from an array of keys and an array of values."
+
+[[functions]]
+name = "if"
+signatures = ["if(cond UInt8, then any, else any) -> any"]
+doc = "`then` if the condition is non-zero, otherwise `else`."
+
+[[functions]]
+name = "multiIf"
+signatures = ["multiIf(cond1 UInt8, then1 any, ...) -> any"]
+doc = "Value of the first true condition (CASE-like); the last argument is the default."
+
+[[functions]]
+name = "ifNull"
+signatures = ["ifNull(x any, alt any) -> any"]
+doc = "`alt` when `x` is NULL."
+
+[[functions]]
+name = "nullIf"
+signatures = ["nullIf(x any, y any) -> Nullable"]
+doc = "NULL when the arguments are equal, otherwise `x`."
+
+[[functions]]
+name = "assumeNotNull"
+signatures = ["assumeNotNull(x Nullable) -> any"]
+doc = "Value of a Nullable column as its non-nullable type."
+
+[[functions]]
+name = "isNull"
+signatures = ["isNull(x any) -> UInt8"]
+doc = "1 if the value is NULL."
+
+[[functions]]
+name = "isNotNull"
+signatures = ["isNotNull(x any) -> UInt8"]
+doc = "1 if the value is not NULL."
+
+[[functions]]
+name = "toNullable"
+signatures = ["toNullable(x any) -> Nullable"]
+doc = "Value converted to the Nullable type."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(a any, b any, ...) -> any"]
+doc = "Largest of the arguments."
+
+[[functions]]
+name = "least"
+signatures = ["least(a any, b any, ...) -> any"]
+doc = "Smallest of the arguments."
+
+[[functions]]
+name = "cityHash64"
+signatures = ["cityHash64(x any, ...) -> UInt64"]
+doc = "CityHash64 of the arguments."
+
+[[functions]]
+name = "sipHash64"
+signatures = ["sipHash64(x any, ...) -> UInt64"]
+doc = "SipHash-2-4 64-bit hash of the arguments."
+
+[[functions]]
+name = "xxHash64"
+signatures = ["xxHash64(s String) -> UInt64"]
+doc = "xxHash 64-bit hash of a string."
+
+[[functions]]
+name = "xxh3"
+signatures = ["xxh3(x any, ...) -> UInt64"]
+doc = "XXH3 64-bit hash."
+
+[[functions]]
+name = "murmurHash3_64"
+signatures = ["murmurHash3_64(x any, ...) -> UInt64"]
+doc = "MurmurHash3 64-bit hash."
+
+[[functions]]
+name = "farmHash64"
+signatures = ["farmHash64(x any, ...) -> UInt64"]
+doc = "FarmHash64 of the arguments."
+
+[[functions]]
+name = "halfMD5"
+signatures = ["halfMD5(x any, ...) -> UInt64"]
+doc = "First 8 bytes of the MD5 of the arguments as UInt64."
+
+[[functions]]
+name = "MD5"
+signatures = ["MD5(s String) -> FixedString"]
+doc = "MD5 digest (16 raw bytes, wrap in `hex()` to print)."
+
+[[functions]]
+name = "SHA1"
+signatures = ["SHA1(s String) -> FixedString"]
+doc = "SHA-1 digest (20 raw bytes)."
+
+[[functions]]
+name = "SHA256"
+signatures = ["SHA256(s String) -> FixedString"]
+doc = "SHA-256 digest (32 raw bytes)."
+
+[[functions]]
+name = "generateUUIDv4"
+signatures = ["generateUUIDv4() -> UUID"]
+doc = "Random version 4 UUID."
+
+[[functions]]
+name = "generateUUIDv7"
+signatures = ["generateUUIDv7() -> UUID"]
+doc = "Time-ordered version 7 UUID."
+
+[[functions]]
+name = "JSONExtract"
+signatures = ["JSONExtract(json String, indices_or_keys any, ...) -> any"]
+doc = "Value of the requested type (last argument) at a path."
+
+[[functions]]
+name = "JSONExtractString"
+signatures = ["JSONExtractString(json String, indices_or_keys any, ...) -> String"]
+doc = "String at a path."
+
+[[functions]]
+name = "JSONExtractInt"
+signatures = ["JSONExtractInt(json String, indices_or_keys any, ...) -> Int64"]
+doc = "Integer at a path."
+
+[[functions]]
+name = "JSONExtractUInt"
+signatures = ["JSONExtractUInt(json String, indices_or_keys any, ...) -> UInt64"]
+doc = "Unsigned integer at a path."
+
+[[functions]]
+name = "JSONExtractFloat"
+signatures = ["JSONExtractFloat(json String, indices_or_keys any, ...) -> Float64"]
+doc = "Float at a path."
+
+[[functions]]
+name = "JSONExtractBool"
+signatures = ["JSONExtractBool(json String, indices_or_keys any, ...) -> UInt8"]
+doc = "Boolean at a path."
+
+[[functions]]
+name = "JSONExtractRaw"
+signatures = ["JSONExtractRaw(json String, indices_or_keys any, ...) -> String"]
+doc = "Unparsed JSON text at a path."
+
+[[functions]]
+name = "JSONExtractArrayRaw"
+signatures = ["JSONExtractArrayRaw(json String, indices_or_keys any, ...) -> Array"]
+doc = "Array of unparsed JSON elements at a path."
+
+[[functions]]
+name = "JSONExtractKeys"
+signatures = ["JSONExtractKeys(json String, indices_or_keys any, ...) -> Array"]
+doc = "Keys of the JSON object at a path."
+
+[[functions]]
+name = "JSONExtractKeysAndValues"
+signatures = ["JSONExtractKeysAndValues(json String, indices_or_keys any, ...) -> Array"]
+doc = "Key/value tuples of the JSON object at a path (value type last)."
+
+[[functions]]
+name = "JSONHas"
+signatures = ["JSONHas(json String, indices_or_keys any, ...) -> UInt8"]
+doc = "1 if the path exists."
+
+[[functions]]
+name = "JSONLength"
+signatures = ["JSONLength(json String, indices_or_keys any, ...) -> UInt64"]
+doc = "Length of the JSON array or object at a path."
+
+[[functions]]
+name = "JSONType"
+signatures = ["JSONType(json String, indices_or_keys any, ...) -> Enum8"]
+doc = "Type of the JSON value at a path."
+
+[[functions]]
+name = "isValidJSON"
+signatures = ["isValidJSON(json String) -> UInt8"]
+doc = "1 if the string is valid JSON."
+
+[[functions]]
+name = "visitParamExtractString"
+signatures = ["visitParamExtractString(params String, name String) -> String"]
+doc = "String field of a flat JSON object (fast, simplified parser)."
+
+[[functions]]
+name = "simpleJSONExtractString"
+signatures = ["simpleJSONExtractString(json String, field_name String) -> String"]
+doc = "String field of a flat JSON object (fast, simplified parser)."
+
+[[functions]]
+name = "simpleJSONHas"
+signatures = ["simpleJSONHas(json String, field_name String) -> UInt8"]
+doc = "1 if a flat JSON object has the field."
+
+[[functions]]
+name = "toJSONString"
+signatures = ["toJSONString(value any) -> String"]
+doc = "Value serialized as JSON."
+
+[[functions]]
+name = "JSON_VALUE"
+signatures = ["JSON_VALUE(json String, path String) -> String"]
+doc = "Scalar at a JSONPath."
+
+[[functions]]
+name = "JSON_QUERY"
+signatures = ["JSON_QUERY(json String, path String) -> String"]
+doc = "JSON value at a JSONPath, as JSON text."
+
+[[functions]]
+name = "count"
+signatures = ["count(expr any) -> UInt64", "count(*) -> UInt64"]
+doc = "Number of rows or non-NULL values."
+
+[[functions]]
+name = "any"
+signatures = ["any(x any) -> any"]
+doc = "First encountered value of the group."
+
+[[functions]]
+name = "anyLast"
+signatures = ["anyLast(x any) -> any"]
+doc = "Last encountered value of the group."
+
+[[functions]]
+name = "anyHeavy"
+signatures = ["anyHeavy(x any) -> any"]
+doc = "Frequently occurring value (heavy hitters)."
+
+[[functions]]
+name = "argMin"
+signatures = ["argMin(arg any, val any) -> any"]
+doc = "Value of `arg` at the row with the minimum `val`."
+
+[[functions]]
+name = "argMax"
+signatures = ["argMax(arg any, val any) -> any"]
+doc = "Value of `arg` at the row with the maximum `val`."
+
+[[functions]]
+name = "uniq"
+signatures = ["uniq(x any, ...) -> UInt64"]
+doc = "Approximate number of distinct values."
+
+[[functions]]
+name = "uniqExact"
+signatures = ["uniqExact(x any, ...) -> UInt64"]
+doc = "Exact number of distinct values."
+
+[[functions]]
+name = "uniqCombined"
+signatures = ["uniqCombined(x any, ...) -> UInt64"]
+doc = "Approximate distinct count (combined algorithm, less memory)."
+
+[[functions]]
+name = "uniqHLL12"
+signatures = ["uniqHLL12(x any, ...) -> UInt64"]
+doc = "Approximate distinct count (HyperLogLog, 2^12 cells)."
+
+[[functions]]
+name = "uniqTheta"
+signatures = ["uniqTheta(x any, ...) -> UInt64"]
+doc = "Approximate distinct count (Theta sketch)."
+
+[[functions]]
+name = "groupArray"
+signatures = ["groupArray(x any) -> Array", "groupArray(max_size UInt64) -> Array"]
+doc = "Array of the values of the group (`groupArray(n)(x)` caps the size)."
+
+[[functions]]
+name = "groupUniqArray"
+signatures = ["groupUniqArray(x any) -> Array"]
+doc = "Array of the distinct values of the group."
+
+[[functions]]
+name = "groupArrayInsertAt"
+signatures = ["groupArrayInsertAt(x any, pos UInt32) -> Array"]
+doc = "Array with values placed at given positions."
+
+[[functions]]
+name = "groupArraySorted"
+signatures = ["groupArraySorted(n UInt64) -> Array"]
+doc = "First `n` values in ascending order (`groupArraySorted(n)(x)`)."
+
+[[functions]]
+name = "groupBitAnd"
+signatures = ["groupBitAnd(x any) -> any"]
+doc = "Bitwise AND of the group."
+
+[[functions]]
+name = "groupBitOr"
+signatures = ["groupBitOr(x any) -> any"]
+doc = "Bitwise OR of the group."
+
+[[functions]]
+name = "groupBitXor"
+signatures = ["groupBitXor(x any) -> any"]
+doc = "Bitwise XOR of the group."
+
+[[functions]]
+name = "groupConcat"
+signatures = ["groupConcat(x any) -> String", "groupConcat(separator String) -> String"]
+doc = "Values of the group joined into a string (`groupConcat(',')(x)`)."
+
+[[functions]]
+name = "quantile"
+signatures = ["quantile(level Float64) -> Float64"]
+doc = "Approximate quantile (`quantile(0.9)(x)`, reservoir sampling)."
+
+[[functions]]
+name = "quantiles"
+signatures = ["quantiles(level Float64, ...) -> Array"]
+doc = "Several approximate quantiles at once (`quantiles(0.5, 0.9)(x)`)."
+
+[[functions]]
+name = "quantileExact"
+signatures = ["quantileExact(level Float64) -> any"]
+doc = "Exact quantile (`quantileExact(0.5)(x)`)."
+
+[[functions]]
+name = "quantileTDigest"
+signatures = ["quantileTDigest(level Float64) -> Float64"]
+doc = "Approximate quantile using t-digest."
+
+[[functions]]
+name = "quantileTiming"
+signatures = ["quantileTiming(level Float64) -> Float32"]
+doc = "Quantile optimized for timing distributions."
+
+[[functions]]
+name = "median"
+signatures = ["median(x any) -> Float64"]
+doc = "Approximate median (alias of `quantile`)."
+
+[[functions]]
+name = "topK"
+signatures = ["topK(n UInt64) -> Array"]
+doc = "Approximately most frequent values (`topK(10)(x)`)."
+
+[[functions]]
+name = "sumIf"
+signatures = ["sumIf(x any, cond UInt8) -> any"]
+doc = "Sum of the values where the condition is true."
+
+[[functions]]
+name = "countIf"
+signatures = ["countIf(cond UInt8) -> UInt64"]
+doc = "Number of rows where the condition is true."
+
+[[functions]]
+name = "avgIf"
+signatures = ["avgIf(x any, cond UInt8) -> Float64"]
+doc = "Average of the values where the condition is true."
+
+[[functions]]
+name = "minIf"
+signatures = ["minIf(x any, cond UInt8) -> any"]
+doc = "Minimum of the values where the condition is true."
+
+[[functions]]
+name = "maxIf"
+signatures = ["maxIf(x any, cond UInt8) -> any"]
+doc = "Maximum of the values where the condition is true."
+
+[[functions]]
+name = "uniqIf"
+signatures = ["uniqIf(x any, cond UInt8) -> UInt64"]
+doc = "Approximate distinct count where the condition is true."
+
+[[functions]]
+name = "uniqExactIf"
+signatures = ["uniqExactIf(x any, cond UInt8) -> UInt64"]
+doc = "Exact distinct count where the condition is true."
+
+[[functions]]
+name = "sumMap"
+signatures = ["sumMap(keys Array, values Array) -> Tuple"]
+doc = "Values summed per key."
+
+[[functions]]
+name = "minMap"
+signatures = ["minMap(keys Array, values Array) -> Tuple"]
+doc = "Minimum value per key."
+
+[[functions]]
+name = "maxMap"
+signatures = ["maxMap(keys Array, values Array) -> Tuple"]
+doc = "Maximum value per key."
+
+[[functions]]
+name = "sumWithOverflow"
+signatures = ["sumWithOverflow(x any) -> any"]
+doc = "Sum using the argument type (overflow wraps)."
+
+[[functions]]
+name = "varPop"
+signatures = ["varPop(x any) -> Float64"]
+doc = "Population variance."
+
+[[functions]]
+name = "varSamp"
+signatures = ["varSamp(x any) -> Float64"]
+doc = "Sample variance."
+
+[[functions]]
+name = "stddevPop"
+signatures = ["stddevPop(x any) -> Float64"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "stddevSamp"
+signatures = ["stddevSamp(x any) -> Float64"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "corr"
+signatures = ["corr(x any, y any) -> Float64"]
+doc = "Pearson correlation coefficient."
+
+[[functions]]
+name = "covarPop"
+signatures = ["covarPop(x any, y any) -> Float64"]
+doc = "Population covariance."
+
+[[functions]]
+name = "covarSamp"
+signatures = ["covarSamp(x any, y any) -> Float64"]
+doc = "Sample covariance."
+
+[[functions]]
+name = "entropy"
+signatures = ["entropy(x any) -> Float64"]
+doc = "Shannon entropy of the values."
+
+[[functions]]
+name = "simpleLinearRegression"
+signatures = ["simpleLinearRegression(x any, y any) -> Tuple"]
+doc = "Tuple `(k, b)` of the line `y = k*x + b`."
+
+[[functions]]
+name = "histogram"
+signatures = ["histogram(number_of_bins UInt64) -> Array"]
+doc = "Adaptive histogram (`histogram(10)(x)`)."
+
+[[functions]]
+name = "windowFunnel"
+signatures = ["windowFunnel(window UInt64) -> UInt8"]
+doc = "Longest chain of funnel steps within a time window (`windowFunnel(3600)(ts, c1, c2...)`)."
+
+[[functions]]
+name = "retention"
+signatures = ["retention(cond UInt8, ...) -> Array"]
+doc = "Retention flags for each condition after the first."
+
+[[functions]]
+name = "sequenceMatch"
+signatures = ["sequenceMatch(pattern String) -> UInt8"]
+doc = "1 if the events match a pattern (`sequenceMatch('(?1)(?2)')(ts, c1, c2)`)."
+
+[[functions]]
+name = "sequenceCount"
+signatures = ["sequenceCount(pattern String) -> UInt64"]
+doc = "Number of event chains matching a pattern."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> UInt64"]
+doc = "Sequential number of the row within its partition."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> UInt64"]
+doc = "Rank with gaps."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> UInt64"]
+doc = "Rank without gaps."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> Float64"]
+doc = "Relative rank of the row (0..1)."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(n UInt64) -> UInt64"]
+doc = "Bucket number (1..n) of the row."
+
+[[functions]]
+name = "lagInFrame"
+signatures = ["lagInFrame(x any) -> any", "lagInFrame(x any, offset UInt64) -> any", "lagInFrame(x any, offset UInt64, default any) -> any"]
+doc = "Value from a preceding row within the window frame."
+
+[[functions]]
+name = "leadInFrame"
+signatures = ["leadInFrame(x any) -> any", "leadInFrame(x any, offset UInt64) -> any", "leadInFrame(x any, offset UInt64, default any) -> any"]
+doc = "Value from a following row within the window frame."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(x any) -> any", "lag(x any, offset UInt64) -> any", "lag(x any, offset UInt64, default any) -> any"]
+doc = "Value from a preceding row (25.x)."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(x any) -> any", "lead(x any, offset UInt64) -> any", "lead(x any, offset UInt64, default any) -> any"]
+doc = "Value from a following row (25.x)."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(x any) -> any"]
+doc = "First value of the window frame."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(x any) -> any"]
+doc = "Last value of the window frame."
+
+[[functions]]
+name = "nth_value"
+signatures = ["nth_value(x any, n UInt64) -> any"]
+doc = "The `n`-th value of the window frame."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(x any) -> any", "floor(x any, n Int64) -> any"]
+doc = "Value rounded down (to `n` decimals)."
+
+[[functions]]
+name = "ceil"
+signatures = ["ceil(x any) -> any", "ceil(x any, n Int64) -> any"]
+doc = "Value rounded up (to `n` decimals)."
+
+[[functions]]
+name = "roundBankers"
+signatures = ["roundBankers(x any) -> any", "roundBankers(x any, n Int64) -> any"]
+doc = "Banker's rounding (half to even)."
+
+[[functions]]
+name = "trunc"
+signatures = ["trunc(x any) -> any", "trunc(x any, n Int64) -> any"]
+doc = "Value truncated toward zero (to `n` decimals)."
+
+[[functions]]
+name = "intDiv"
+signatures = ["intDiv(a any, b any) -> any"]
+doc = "Integer division, rounding down."
+
+[[functions]]
+name = "intDivOrZero"
+signatures = ["intDivOrZero(a any, b any) -> any"]
+doc = "Integer division, 0 when dividing by zero."
+
+[[functions]]
+name = "modulo"
+signatures = ["modulo(a any, b any) -> any"]
+doc = "Remainder of a division (`a % b`)."
+
+[[functions]]
+name = "positiveModulo"
+signatures = ["positiveModulo(a any, b any) -> any"]
+doc = "Non-negative remainder of a division."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(x Float64) -> Float64"]
+doc = "e raised to the power `x`."
+
+[[functions]]
+name = "log"
+signatures = ["log(x Float64) -> Float64"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log2"
+signatures = ["log2(x Float64) -> Float64"]
+doc = "Base-2 logarithm."
+
+[[functions]]
+name = "log10"
+signatures = ["log10(x Float64) -> Float64"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(x Float64) -> Float64"]
+doc = "Square root."
+
+[[functions]]
+name = "cbrt"
+signatures = ["cbrt(x Float64) -> Float64"]
+doc = "Cube root."
+
+[[functions]]
+name = "pow"
+signatures = ["pow(x Float64, y Float64) -> Float64"]
+doc = "`x` raised to the power `y`."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(x any) -> Int8"]
+doc = "Sign of the number (-1, 0 or 1)."
+
+[[functions]]
+name = "pi"
+signatures = ["pi() -> Float64"]
+doc = "The constant pi."
+
+[[functions]]
+name = "geoDistance"
+signatures = ["geoDistance(lon1 Float64, lat1 Float64, lon2 Float64, lat2 Float64) -> Float32"]
+doc = "Distance in meters on the WGS-84 ellipsoid."
+
+[[functions]]
+name = "greatCircleDistance"
+signatures = ["greatCircleDistance(lon1 Float64, lat1 Float64, lon2 Float64, lat2 Float64) -> Float32"]
+doc = "Great-circle distance in meters on a sphere."
+
+[[functions]]
+name = "pointInPolygon"
+signatures = ["pointInPolygon(point Tuple, polygon Array, ...) -> UInt8"]
+doc = "1 if the point lies inside the polygon."
+
+[[functions]]
+name = "geohashEncode"
+signatures = ["geohashEncode(longitude Float64, latitude Float64) -> String", "geohashEncode(longitude Float64, latitude Float64, precision UInt8) -> String"]
+doc = "Geohash of a point."
+
+[[functions]]
+name = "IPv4NumToString"
+signatures = ["IPv4NumToString(num UInt32) -> String"]
+doc = "IPv4 address number as dotted text."
+
+[[functions]]
+name = "IPv4StringToNum"
+signatures = ["IPv4StringToNum(s String) -> UInt32"]
+doc = "Dotted IPv4 address as a number."
+
+[[functions]]
+name = "IPv6NumToString"
+signatures = ["IPv6NumToString(x FixedString) -> String"]
+doc = "IPv6 address bytes as text."
+
+[[functions]]
+name = "isIPAddressInRange"
+signatures = ["isIPAddressInRange(address String, prefix String) -> UInt8"]
+doc = "1 if the IP address is in the CIDR range."
+
+[[functions]]
+name = "domain"
+signatures = ["domain(url String) -> String"]
+doc = "Host name of a URL."
+
+[[functions]]
+name = "domainWithoutWWW"
+signatures = ["domainWithoutWWW(url String) -> String"]
+doc = "Host name of a URL without a leading `www.`."
+
+[[functions]]
+name = "topLevelDomain"
+signatures = ["topLevelDomain(url String) -> String"]
+doc = "Top-level domain of a URL."
+
+[[functions]]
+name = "protocol"
+signatures = ["protocol(url String) -> String"]
+doc = "Protocol of a URL."
+
+[[functions]]
+name = "path"
+signatures = ["path(url String) -> String"]
+doc = "Path of a URL without the query string."
+
+[[functions]]
+name = "queryString"
+signatures = ["queryString(url String) -> String"]
+doc = "Query string of a URL."
+
+[[functions]]
+name = "extractURLParameter"
+signatures = ["extractURLParameter(url String, name String) -> String"]
+doc = "Value of a URL query parameter."
+
+[[functions]]
+name = "cutQueryString"
+signatures = ["cutQueryString(url String) -> String"]
+doc = "URL without its query string."
+
+[[functions]]
+name = "version"
+signatures = ["version() -> String"]
+doc = "Server version."
+
+[[functions]]
+name = "hostName"
+signatures = ["hostName() -> String"]
+doc = "Host name of the server."
+
+[[functions]]
+name = "currentDatabase"
+signatures = ["currentDatabase() -> String"]
+doc = "Current database name."
+
+[[functions]]
+name = "currentUser"
+signatures = ["currentUser() -> String"]
+doc = "Name of the current user."
+
+[[functions]]
+name = "uptime"
+signatures = ["uptime() -> UInt32"]
+doc = "Server uptime in seconds."
+
+[[functions]]
+name = "timezone"
+signatures = ["timezone() -> String"]
+doc = "Server time zone."
+
+[[functions]]
+name = "rand"
+signatures = ["rand() -> UInt32"]
+doc = "Random UInt32."
+
+[[functions]]
+name = "rand64"
+signatures = ["rand64() -> UInt64"]
+doc = "Random UInt64."
+
+[[functions]]
+name = "randCanonical"
+signatures = ["randCanonical() -> Float64"]
+doc = "Random Float64 in [0, 1)."
+
+[[functions]]
+name = "runningDifference"
+signatures = ["runningDifference(x any) -> any"]
+doc = "Difference from the previous row of the data block."
+
+[[functions]]
+name = "neighbor"
+signatures = ["neighbor(column any, offset Int64) -> any", "neighbor(column any, offset Int64, default any) -> any"]
+doc = "Value at an offset from the current row within the data block."
+
+[[functions]]
+name = "rowNumberInAllBlocks"
+signatures = ["rowNumberInAllBlocks() -> UInt64"]
+doc = "0-based row number across all data blocks."
+
+[[functions]]
+name = "bar"
+signatures = ["bar(x any, min any, max any, width UInt64) -> String"]
+doc = "Unicode bar chart of a value."
+
+[[functions]]
+name = "formatReadableSize"
+signatures = ["formatReadableSize(x any) -> String"]
+doc = "Byte count as a readable size (`1.00 GiB`)."
+
+[[functions]]
+name = "formatReadableDecimalSize"
+signatures = ["formatReadableDecimalSize(x any) -> String"]
+doc = "Byte count as a readable decimal size (`1.00 GB`)."
+
+[[functions]]
+name = "formatReadableQuantity"
+signatures = ["formatReadableQuantity(x any) -> String"]
+doc = "Number with a readable suffix (`1.00 million`)."
+
+[[functions]]
+name = "formatReadableTimeDelta"
+signatures = ["formatReadableTimeDelta(seconds any) -> String", "formatReadableTimeDelta(seconds any, maximum_unit String) -> String"]
+doc = "Seconds as a readable duration."
+
+[[functions]]
+name = "throwIf"
+signatures = ["throwIf(x UInt8) -> UInt8", "throwIf(x UInt8, message String) -> UInt8"]
+doc = "Throws an exception when the argument is non-zero."
+
+[[functions]]
+name = "sleep"
+signatures = ["sleep(seconds Float64) -> UInt8"]
+doc = "Sleeps for the given seconds (per block)."
+
+[[functions]]
+name = "materialize"
+signatures = ["materialize(x any) -> any"]
+doc = "Constant turned into a full column."
+
+[[functions]]
+name = "ignore"
+signatures = ["ignore(x any, ...) -> UInt8"]
+doc = "Ignores the arguments and returns 0."
+
+[[functions]]
+name = "identity"
+signatures = ["identity(x any) -> any"]
+doc = "The argument itself (disables index use)."
+
+[[functions]]
+name = "getSetting"
+signatures = ["getSetting(name String) -> any"]
+doc = "Current value of a setting."
+
+[[functions]]
+name = "dictGet"
+signatures = ["dictGet(dict String, attr String, key any) -> any"]
+doc = "Attribute of a dictionary entry."
+
+[[functions]]
+name = "dictGetOrDefault"
+signatures = ["dictGetOrDefault(dict String, attr String, key any, default any) -> any"]
+doc = "Attribute of a dictionary entry, or a default when absent."
+
+[[functions]]
+name = "dictGetOrNull"
+signatures = ["dictGetOrNull(dict String, attr String, key any) -> Nullable"]
+doc = "Attribute of a dictionary entry, or NULL when absent."
+
+[[functions]]
+name = "dictHas"
+signatures = ["dictHas(dict String, key any) -> UInt8"]
+doc = "1 if the dictionary contains the key."
+
+[[functions]]
+name = "blockSize"
+signatures = ["blockSize() -> UInt64"]
+doc = "Number of rows of the current data block."

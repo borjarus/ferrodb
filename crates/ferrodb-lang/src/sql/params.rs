@@ -7,28 +7,109 @@ use std::ops::Range;
 
 use ferrodb_api::Parameter;
 
-use super::lexer::{Flavor, TokenKind, tokenize};
+use super::lexer::{Flavor, Token, TokenKind, tokenize};
 
 /// All placeholders in `src` (one entry per occurrence).
+///
+/// T-SQL `@name` is a parameter unless the script declares it (`DECLARE
+/// @x`, the parameters of a routine being defined). In Oracle triggers
+/// `:new` / `:old` are row references, not parameters.
 pub fn occurrences(src: &str, flavor: &Flavor) -> Vec<Parameter> {
+    let toks = tokenize(src, flavor);
+    let local = if flavor.at_params || flavor.plsql {
+        local_names(src, &toks, flavor)
+    } else {
+        Vec::new()
+    };
     let mut positional = 0;
-    tokenize(src, flavor)
-        .into_iter()
+    toks.into_iter()
         .filter(|t| t.kind == TokenKind::Param)
-        .map(|t| {
+        .filter_map(|t| {
             let text = &src[t.range.clone()];
             let name = if text == "?" {
                 positional += 1;
                 format!("?{positional}")
             } else {
-                text.trim_start_matches([':', '$']).to_owned()
+                text.trim_start_matches([':', '$', '@']).to_owned()
             };
-            Parameter {
+            if local.iter().any(|l| l.eq_ignore_ascii_case(&name)) {
+                return None;
+            }
+            Some(Parameter {
                 name,
                 range: t.range,
-            }
+            })
         })
         .collect()
+}
+
+/// Words that start a T-SQL statement after a declaration.
+const TSQL_STATEMENTS: &[&str] = &[
+    "select", "set", "insert", "update", "delete", "merge", "exec", "execute", "if", "while",
+    "print", "declare", "begin", "return", "with",
+];
+
+/// Names that are variables of the script, not parameters.
+fn local_names(src: &str, toks: &[Token], flavor: &Flavor) -> Vec<String> {
+    let sig: Vec<&Token> = toks.iter().filter(|t| !t.is_trivia()).collect();
+    let mut out = Vec::new();
+    if flavor.plsql {
+        if sig.iter().any(|t| t.is_word(src, "trigger")) {
+            out.extend(["new".to_owned(), "old".to_owned()]);
+        }
+        return out;
+    }
+    let word = |i: usize, w: &str| sig.get(i).is_some_and(|t| t.is_word(src, w));
+    let param = |i: usize| {
+        sig.get(i)
+            .filter(|t| t.kind == TokenKind::Param)
+            .map(|t| t.text(src).trim_start_matches('@').to_owned())
+    };
+    for i in 0..sig.len() {
+        // `DECLARE @a int = 1, @b varchar(10)`: the `@x` after `DECLARE` and
+        // after each top-level comma, until the next statement.
+        if word(i, "declare") {
+            let mut j = i + 1;
+            let mut depth = 0;
+            let mut expect = true;
+            while j < sig.len() {
+                match sig[j].text(src) {
+                    "(" => depth += 1,
+                    ")" => depth -= 1,
+                    ";" => break,
+                    "," if depth == 0 => expect = true,
+                    _ if expect => {
+                        let Some(n) = param(j) else { break };
+                        out.push(n);
+                        expect = false;
+                    }
+                    _ if depth == 0
+                        && j > i + 2
+                        && TSQL_STATEMENTS.iter().any(|k| sig[j].is_word(src, k)) =>
+                    {
+                        break;
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+        }
+        // `CREATE PROCEDURE p @a int, @b int OUTPUT AS …`: every variable of
+        // a routine definition is its own.
+        let routine = ["procedure", "proc", "function", "trigger"]
+            .iter()
+            .any(|k| word(i, k));
+        if routine && (1..=3).any(|k| i >= k && (word(i - k, "create") || word(i - k, "alter"))) {
+            out.extend(
+                sig[i..]
+                    .iter()
+                    .filter(|t| t.kind == TokenKind::Param)
+                    .map(|t| t.text(src).trim_start_matches('@').to_owned()),
+            );
+            break;
+        }
+    }
+    out
 }
 
 /// Distinct placeholders in order of first appearance.

@@ -63,6 +63,52 @@ const FRAGMENTS: &[&str] = &[
     "not",
     "exists",
     "distinct",
+    // T-SQL, Oracle and the phase 8 dialects.
+    "[Br;acket]",
+    "#tmp",
+    "@v",
+    "top 10",
+    "\ngo\n",
+    "q'[a;b]'",
+    ":p",
+    "nvl(a, b)",
+    "\n/\n",
+    "begin",
+    "`bq`",
+    "rownum",
+    "cross apply",
+    "with (nolock)",
+    "allow filtering",
+    "{'k': 1}",
+    "[1, 2]",
+];
+
+/// Every dialect with a file.
+const DIALECTS: &[&str] = &[
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "mariadb",
+    "duckdb",
+    "greenplum",
+    "cockroachdb",
+    "redshift",
+    "tsql",
+    "sybase",
+    "oracle",
+    "db2",
+    "h2",
+    "derby",
+    "hsqldb",
+    "exasol",
+    "vertica",
+    "hiveql",
+    "snowflake",
+    "googlesql",
+    "clickhouse",
+    "cql",
+    "sqlpp",
+    "partiql",
 ];
 
 fn significant(s: &str, dialect: &str) -> String {
@@ -83,12 +129,12 @@ fn significant(s: &str, dialect: &str) -> String {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(400))]
+    #![proptest_config(ProptestConfig::with_cases(1500))]
 
     #[test]
     fn idempotent_and_token_preserving(
         parts in prop::collection::vec(prop::sample::select(FRAGMENTS), 1..40),
-        dialect in prop::sample::select(&["postgresql", "mysql", "sqlite"][..]),
+        dialect in prop::sample::select(DIALECTS),
     ) {
         let src = parts.join(" ");
         let style = FormatStyle::default();

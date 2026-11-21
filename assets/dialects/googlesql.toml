@@ -1,0 +1,1288 @@
+# Google BigQuery, GoogleSQL dialect (2025-2026): reserved keywords and the commonly used
+# built-in functions. Dotted families (`hll_count.*`, `keys.*`, `net.*`) are not listed.
+id = "googlesql"
+name = "GoogleSQL (BigQuery)"
+inherits = "sql"
+identifier_quote = '`'
+# Dataset and table names are case-sensitive, column names are not: names keep their spelling.
+case_folding = "none"
+parser = "bigquery"
+
+keywords = [
+  "array", "assert_rows_modified", "at", "collate", "contains", "cube", "current", "define",
+  "enum", "escape", "exclude", "extract", "following", "grouping", "groups", "hash", "if",
+  "ignore", "interval", "lateral", "limit", "lookup", "merge", "new", "no", "nulls", "of",
+  "over", "partition", "preceding", "proto", "qualify", "range", "recursive", "respect",
+  "rollup", "rows", "struct", "tablesample", "treat", "unbounded", "unnest", "window",
+  "within",
+]
+
+soft_keywords = [
+  "access", "assert", "assignment", "break", "call", "capacity", "clone", "cluster",
+  "column", "connection", "constraint", "continue", "copy", "declare", "deterministic",
+  "elseif", "enforced", "exception", "execute", "export", "external", "files", "foreign",
+  "format", "immediate", "iterate", "js", "language", "leave", "load", "loop", "matched",
+  "model", "options", "overwrite", "pivot", "policy", "primary", "raise", "references",
+  "repeat", "reservation", "return", "returns", "revoke", "search", "snapshot", "source",
+  "system_time", "target", "undrop", "unpivot", "until", "uri", "vector", "while",
+  "wildcard",
+]
+
+types = [
+  "array", "bigdecimal", "bignumeric", "bool", "byteint", "bytes", "datetime", "float64",
+  "geography", "int64", "interval", "json", "range", "string", "struct", "tinyint",
+]
+
+removed_keywords = [
+  "both", "check", "column", "constraint", "current_user", "foreign", "leading", "primary",
+  "references", "trailing", "unique",
+]
+
+removed_types = [
+  "char", "character", "double precision", "float", "real", "varchar",
+]
+
+[[functions]]
+name = "concat"
+signatures = ["concat(value string, ...) -> string", "concat(value bytes, ...) -> bytes"]
+doc = "Concatenation of the arguments."
+
+[[functions]]
+name = "contains_substr"
+signatures = ["contains_substr(expression any, search_value string) -> bool"]
+doc = "True if the value (searched recursively in structs/arrays) contains the string, case-insensitively."
+
+[[functions]]
+name = "ends_with"
+signatures = ["ends_with(value string, suffix string) -> bool"]
+doc = "True if the value ends with the suffix."
+
+[[functions]]
+name = "starts_with"
+signatures = ["starts_with(value string, prefix string) -> bool"]
+doc = "True if the value starts with the prefix."
+
+[[functions]]
+name = "format"
+signatures = ["format(format_string string, value any, ...) -> string"]
+doc = "String formatted with a printf-like format (`%d`, `%s`, `%t`...)."
+
+[[functions]]
+name = "initcap"
+signatures = ["initcap(value string) -> string", "initcap(value string, delimiters string) -> string"]
+doc = "First letter of each word upper-cased, the rest lower-cased."
+
+[[functions]]
+name = "instr"
+signatures = ["instr(source string, search string) -> int64", "instr(source string, search string, position int64, occurrence int64) -> int64"]
+doc = "1-based position of an occurrence of `search`, 0 if absent."
+
+[[functions]]
+name = "left"
+signatures = ["left(value string, length int64) -> string"]
+doc = "Leftmost characters (or bytes)."
+
+[[functions]]
+name = "right"
+signatures = ["right(value string, length int64) -> string"]
+doc = "Rightmost characters (or bytes)."
+
+[[functions]]
+name = "length"
+signatures = ["length(value string) -> int64"]
+doc = "Number of characters (bytes for BYTES)."
+
+[[functions]]
+name = "char_length"
+signatures = ["char_length(value string) -> int64"]
+doc = "Number of characters."
+
+[[functions]]
+name = "character_length"
+signatures = ["character_length(value string) -> int64"]
+doc = "Number of characters."
+
+[[functions]]
+name = "byte_length"
+signatures = ["byte_length(value string) -> int64"]
+doc = "Number of bytes."
+
+[[functions]]
+name = "lpad"
+signatures = ["lpad(value string, return_length int64) -> string", "lpad(value string, return_length int64, pattern string) -> string"]
+doc = "String left-padded to `return_length`."
+
+[[functions]]
+name = "rpad"
+signatures = ["rpad(value string, return_length int64) -> string", "rpad(value string, return_length int64, pattern string) -> string"]
+doc = "String right-padded to `return_length`."
+
+[[functions]]
+name = "ltrim"
+signatures = ["ltrim(value string) -> string", "ltrim(value string, set_of_characters string) -> string"]
+doc = "Removes leading characters (whitespace by default)."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(value string) -> string", "rtrim(value string, set_of_characters string) -> string"]
+doc = "Removes trailing characters (whitespace by default)."
+
+[[functions]]
+name = "trim"
+signatures = ["trim(value string) -> string", "trim(value string, set_of_characters string) -> string"]
+doc = "Removes leading and trailing characters (whitespace by default)."
+
+[[functions]]
+name = "normalize"
+signatures = ["normalize(value string) -> string", "normalize(value string, mode string) -> string"]
+doc = "Unicode-normalized string (NFC by default)."
+
+[[functions]]
+name = "normalize_and_casefold"
+signatures = ["normalize_and_casefold(value string) -> string", "normalize_and_casefold(value string, mode string) -> string"]
+doc = "Case-folded, Unicode-normalized string."
+
+[[functions]]
+name = "regexp_contains"
+signatures = ["regexp_contains(value string, regexp string) -> bool"]
+doc = "True if the value contains a match of the RE2 regex."
+
+[[functions]]
+name = "regexp_extract"
+signatures = ["regexp_extract(value string, regexp string) -> string", "regexp_extract(value string, regexp string, position int64, occurrence int64) -> string"]
+doc = "First substring matching the regex (or its capture group)."
+
+[[functions]]
+name = "regexp_extract_all"
+signatures = ["regexp_extract_all(value string, regexp string) -> array"]
+doc = "Array of all substrings matching the regex."
+
+[[functions]]
+name = "regexp_instr"
+signatures = ["regexp_instr(source string, regexp string) -> int64", "regexp_instr(source string, regexp string, position int64, occurrence int64, occurrence_position int64) -> int64"]
+doc = "1-based position of a regex match, 0 if none."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(value string, regexp string, replacement string) -> string"]
+doc = "Replaces every regex match (`\\1` refers to groups)."
+
+[[functions]]
+name = "regexp_substr"
+signatures = ["regexp_substr(value string, regexp string) -> string", "regexp_substr(value string, regexp string, position int64, occurrence int64) -> string"]
+doc = "Synonym of `regexp_extract`."
+
+[[functions]]
+name = "repeat"
+signatures = ["repeat(original_value string, repetitions int64) -> string"]
+doc = "String repeated `repetitions` times."
+
+[[functions]]
+name = "reverse"
+signatures = ["reverse(value string) -> string"]
+doc = "Reversed string (or bytes)."
+
+[[functions]]
+name = "split"
+signatures = ["split(value string) -> array", "split(value string, delimiter string) -> array"]
+doc = "Array of the parts of a string split by a delimiter (`,` by default)."
+
+[[functions]]
+name = "strpos"
+signatures = ["strpos(value string, subvalue string) -> int64"]
+doc = "1-based position of the first occurrence of `subvalue`, 0 if absent."
+
+[[functions]]
+name = "substr"
+signatures = ["substr(value string, position int64) -> string", "substr(value string, position int64, length int64) -> string"]
+doc = "Substring starting at `position` (1-based, negative counts from the end)."
+
+[[functions]]
+name = "substring"
+signatures = ["substring(value string, position int64) -> string", "substring(value string, position int64, length int64) -> string"]
+doc = "Alias of `substr`."
+
+[[functions]]
+name = "translate"
+signatures = ["translate(expression string, source_characters string, target_characters string) -> string"]
+doc = "Replaces characters of the source set with the matching target characters."
+
+[[functions]]
+name = "to_base64"
+signatures = ["to_base64(bytes_expr bytes) -> string"]
+doc = "Bytes encoded as base64."
+
+[[functions]]
+name = "from_base64"
+signatures = ["from_base64(string_expr string) -> bytes"]
+doc = "Base64 string decoded to bytes."
+
+[[functions]]
+name = "to_base32"
+signatures = ["to_base32(bytes_expr bytes) -> string"]
+doc = "Bytes encoded as base32."
+
+[[functions]]
+name = "from_base32"
+signatures = ["from_base32(string_expr string) -> bytes"]
+doc = "Base32 string decoded to bytes."
+
+[[functions]]
+name = "to_hex"
+signatures = ["to_hex(bytes bytes) -> string"]
+doc = "Bytes encoded as lower-case hexadecimal."
+
+[[functions]]
+name = "from_hex"
+signatures = ["from_hex(value string) -> bytes"]
+doc = "Hexadecimal string decoded to bytes."
+
+[[functions]]
+name = "safe_convert_bytes_to_string"
+signatures = ["safe_convert_bytes_to_string(value bytes) -> string"]
+doc = "Bytes decoded as UTF-8, invalid characters replaced with U+FFFD."
+
+[[functions]]
+name = "soundex"
+signatures = ["soundex(value string) -> string"]
+doc = "Soundex code of a string."
+
+[[functions]]
+name = "unicode"
+signatures = ["unicode(value string) -> int64"]
+doc = "Code point of the first character, 0 for an empty string."
+
+[[functions]]
+name = "ascii"
+signatures = ["ascii(value string) -> int64"]
+doc = "ASCII code of the first character."
+
+[[functions]]
+name = "chr"
+signatures = ["chr(value int64) -> string"]
+doc = "Character with the given Unicode code point."
+
+[[functions]]
+name = "code_points_to_string"
+signatures = ["code_points_to_string(unicode_code_points array) -> string"]
+doc = "String built from an array of code points."
+
+[[functions]]
+name = "code_points_to_bytes"
+signatures = ["code_points_to_bytes(ascii_code_points array) -> bytes"]
+doc = "Bytes built from an array of ASCII code points."
+
+[[functions]]
+name = "to_code_points"
+signatures = ["to_code_points(value string) -> array"]
+doc = "Array of the code points of a string (or bytes)."
+
+[[functions]]
+name = "collate"
+signatures = ["collate(value string, collate_specification string) -> string"]
+doc = "String with a collation specification (`'und:ci'`)."
+
+[[functions]]
+name = "edit_distance"
+signatures = ["edit_distance(value1 string, value2 string) -> int64"]
+doc = "Levenshtein distance between two strings."
+
+[[functions]]
+name = "current_date"
+signatures = ["current_date() -> date", "current_date(time_zone string) -> date"]
+doc = "Current date (UTC or in the given time zone)."
+
+[[functions]]
+name = "current_datetime"
+signatures = ["current_datetime() -> datetime", "current_datetime(time_zone string) -> datetime"]
+doc = "Current civil date and time."
+
+[[functions]]
+name = "current_time"
+signatures = ["current_time() -> time", "current_time(time_zone string) -> time"]
+doc = "Current civil time."
+
+[[functions]]
+name = "current_timestamp"
+signatures = ["current_timestamp() -> timestamp"]
+doc = "Current timestamp."
+
+[[functions]]
+name = "date"
+signatures = ["date(year int64, month int64, day int64) -> date", "date(timestamp_expression timestamp) -> date", "date(timestamp_expression timestamp, time_zone string) -> date", "date(datetime_expression datetime) -> date"]
+doc = "Date built from parts or extracted from a timestamp or datetime."
+
+[[functions]]
+name = "date_add"
+signatures = ["date_add(date_expression date, interval_expression interval) -> date"]
+doc = "Date plus an interval (`INTERVAL 3 DAY`)."
+
+[[functions]]
+name = "date_sub"
+signatures = ["date_sub(date_expression date, interval_expression interval) -> date"]
+doc = "Date minus an interval."
+
+[[functions]]
+name = "date_diff"
+signatures = ["date_diff(end_date date, start_date date, granularity part) -> int64"]
+doc = "Number of `granularity` boundaries between two dates."
+
+[[functions]]
+name = "date_trunc"
+signatures = ["date_trunc(date_expression date, granularity part) -> date"]
+doc = "Date truncated to the granularity (`MONTH`, `WEEK(MONDAY)`...)."
+
+[[functions]]
+name = "date_bucket"
+signatures = ["date_bucket(date_in_bucket date, bucket_width interval) -> date", "date_bucket(date_in_bucket date, bucket_width interval, bucket_origin_date date) -> date"]
+doc = "Start of the bucket containing the date."
+
+[[functions]]
+name = "date_from_unix_date"
+signatures = ["date_from_unix_date(days int64) -> date"]
+doc = "Date from a number of days since 1970-01-01."
+
+[[functions]]
+name = "format_date"
+signatures = ["format_date(format_string string, date_expr date) -> string"]
+doc = "Date formatted with a `%`-format."
+
+[[functions]]
+name = "parse_date"
+signatures = ["parse_date(format_string string, date_string string) -> date"]
+doc = "Date parsed from a string with a `%`-format."
+
+[[functions]]
+name = "last_day"
+signatures = ["last_day(date_expression date) -> date", "last_day(date_expression date, granularity part) -> date"]
+doc = "Last day of the month (or week, quarter, year)."
+
+[[functions]]
+name = "unix_date"
+signatures = ["unix_date(date_expression date) -> int64"]
+doc = "Days since 1970-01-01."
+
+[[functions]]
+name = "datetime"
+signatures = ["datetime(year int64, month int64, day int64, hour int64, minute int64, second int64) -> datetime", "datetime(date_expression date, time_expression time) -> datetime", "datetime(timestamp_expression timestamp, time_zone string) -> datetime"]
+doc = "Datetime built from parts or converted from a timestamp."
+
+[[functions]]
+name = "datetime_add"
+signatures = ["datetime_add(datetime_expression datetime, interval_expression interval) -> datetime"]
+doc = "Datetime plus an interval."
+
+[[functions]]
+name = "datetime_sub"
+signatures = ["datetime_sub(datetime_expression datetime, interval_expression interval) -> datetime"]
+doc = "Datetime minus an interval."
+
+[[functions]]
+name = "datetime_diff"
+signatures = ["datetime_diff(end_datetime datetime, start_datetime datetime, granularity part) -> int64"]
+doc = "Number of `granularity` boundaries between two datetimes."
+
+[[functions]]
+name = "datetime_trunc"
+signatures = ["datetime_trunc(datetime_expression datetime, granularity part) -> datetime"]
+doc = "Datetime truncated to the granularity."
+
+[[functions]]
+name = "datetime_bucket"
+signatures = ["datetime_bucket(datetime_in_bucket datetime, bucket_width interval) -> datetime", "datetime_bucket(datetime_in_bucket datetime, bucket_width interval, bucket_origin_datetime datetime) -> datetime"]
+doc = "Start of the bucket containing the datetime."
+
+[[functions]]
+name = "format_datetime"
+signatures = ["format_datetime(format_string string, datetime_expression datetime) -> string"]
+doc = "Datetime formatted with a `%`-format."
+
+[[functions]]
+name = "parse_datetime"
+signatures = ["parse_datetime(format_string string, datetime_string string) -> datetime"]
+doc = "Datetime parsed from a string with a `%`-format."
+
+[[functions]]
+name = "time"
+signatures = ["time(hour int64, minute int64, second int64) -> time", "time(timestamp timestamp, time_zone string) -> time", "time(datetime datetime) -> time"]
+doc = "Time built from parts or extracted from a timestamp or datetime."
+
+[[functions]]
+name = "time_add"
+signatures = ["time_add(time_expression time, interval_expression interval) -> time"]
+doc = "Time plus an interval (wraps around midnight)."
+
+[[functions]]
+name = "time_sub"
+signatures = ["time_sub(time_expression time, interval_expression interval) -> time"]
+doc = "Time minus an interval."
+
+[[functions]]
+name = "time_diff"
+signatures = ["time_diff(end_time time, start_time time, granularity part) -> int64"]
+doc = "Number of `granularity` boundaries between two times."
+
+[[functions]]
+name = "time_trunc"
+signatures = ["time_trunc(time_expression time, granularity part) -> time"]
+doc = "Time truncated to the granularity."
+
+[[functions]]
+name = "format_time"
+signatures = ["format_time(format_string string, time_object time) -> string"]
+doc = "Time formatted with a `%`-format."
+
+[[functions]]
+name = "parse_time"
+signatures = ["parse_time(format_string string, time_string string) -> time"]
+doc = "Time parsed from a string with a `%`-format."
+
+[[functions]]
+name = "timestamp"
+signatures = ["timestamp(string_expression string) -> timestamp", "timestamp(string_expression string, time_zone string) -> timestamp", "timestamp(date_expression date) -> timestamp", "timestamp(datetime_expression datetime, time_zone string) -> timestamp"]
+doc = "Timestamp converted from a string, date or datetime."
+
+[[functions]]
+name = "timestamp_add"
+signatures = ["timestamp_add(timestamp_expression timestamp, interval_expression interval) -> timestamp"]
+doc = "Timestamp plus an interval."
+
+[[functions]]
+name = "timestamp_sub"
+signatures = ["timestamp_sub(timestamp_expression timestamp, interval_expression interval) -> timestamp"]
+doc = "Timestamp minus an interval."
+
+[[functions]]
+name = "timestamp_diff"
+signatures = ["timestamp_diff(end_timestamp timestamp, start_timestamp timestamp, granularity part) -> int64"]
+doc = "Number of `granularity` units between two timestamps."
+
+[[functions]]
+name = "timestamp_trunc"
+signatures = ["timestamp_trunc(timestamp_expression timestamp, granularity part) -> timestamp", "timestamp_trunc(timestamp_expression timestamp, granularity part, time_zone string) -> timestamp"]
+doc = "Timestamp truncated to the granularity."
+
+[[functions]]
+name = "timestamp_bucket"
+signatures = ["timestamp_bucket(timestamp_in_bucket timestamp, bucket_width interval) -> timestamp", "timestamp_bucket(timestamp_in_bucket timestamp, bucket_width interval, bucket_origin_timestamp timestamp) -> timestamp"]
+doc = "Start of the bucket containing the timestamp."
+
+[[functions]]
+name = "timestamp_seconds"
+signatures = ["timestamp_seconds(int64_expression int64) -> timestamp"]
+doc = "Timestamp from seconds since the Unix epoch."
+
+[[functions]]
+name = "timestamp_millis"
+signatures = ["timestamp_millis(int64_expression int64) -> timestamp"]
+doc = "Timestamp from milliseconds since the Unix epoch."
+
+[[functions]]
+name = "timestamp_micros"
+signatures = ["timestamp_micros(int64_expression int64) -> timestamp"]
+doc = "Timestamp from microseconds since the Unix epoch."
+
+[[functions]]
+name = "unix_seconds"
+signatures = ["unix_seconds(timestamp_expression timestamp) -> int64"]
+doc = "Seconds since the Unix epoch."
+
+[[functions]]
+name = "unix_millis"
+signatures = ["unix_millis(timestamp_expression timestamp) -> int64"]
+doc = "Milliseconds since the Unix epoch."
+
+[[functions]]
+name = "unix_micros"
+signatures = ["unix_micros(timestamp_expression timestamp) -> int64"]
+doc = "Microseconds since the Unix epoch."
+
+[[functions]]
+name = "format_timestamp"
+signatures = ["format_timestamp(format_string string, timestamp_expr timestamp) -> string", "format_timestamp(format_string string, timestamp_expr timestamp, time_zone string) -> string"]
+doc = "Timestamp formatted with a `%`-format."
+
+[[functions]]
+name = "parse_timestamp"
+signatures = ["parse_timestamp(format_string string, timestamp_string string) -> timestamp", "parse_timestamp(format_string string, timestamp_string string, time_zone string) -> timestamp"]
+doc = "Timestamp parsed from a string with a `%`-format."
+
+[[functions]]
+name = "generate_date_array"
+signatures = ["generate_date_array(start_date date, end_date date) -> array", "generate_date_array(start_date date, end_date date, step interval) -> array"]
+doc = "Array of dates from `start_date` to `end_date` (`INTERVAL 1 DAY` step by default)."
+
+[[functions]]
+name = "generate_timestamp_array"
+signatures = ["generate_timestamp_array(start_timestamp timestamp, end_timestamp timestamp, step interval) -> array"]
+doc = "Array of timestamps separated by the step."
+
+[[functions]]
+name = "make_interval"
+signatures = ["make_interval(year int64, month int64, day int64, hour int64, minute int64, second int64) -> interval"]
+doc = "Interval built from its parts (named arguments allowed)."
+
+[[functions]]
+name = "justify_days"
+signatures = ["justify_days(interval_expression interval) -> interval"]
+doc = "Interval with each 30 days turned into a month."
+
+[[functions]]
+name = "justify_hours"
+signatures = ["justify_hours(interval_expression interval) -> interval"]
+doc = "Interval with each 24 hours turned into a day."
+
+[[functions]]
+name = "justify_interval"
+signatures = ["justify_interval(interval_expression interval) -> interval"]
+doc = "Interval normalized by days and hours."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(x float64) -> float64"]
+doc = "Sign of the value (-1, 0 or 1)."
+
+[[functions]]
+name = "round"
+signatures = ["round(x float64) -> float64", "round(x float64, n int64) -> float64", "round(x numeric, n int64, rounding_mode string) -> numeric"]
+doc = "Rounds to `n` decimal places (`ROUND_HALF_EVEN` mode for NUMERIC)."
+
+[[functions]]
+name = "trunc"
+signatures = ["trunc(x float64) -> float64", "trunc(x float64, n int64) -> float64"]
+doc = "Value truncated toward zero to `n` decimal places."
+
+[[functions]]
+name = "ceil"
+signatures = ["ceil(x float64) -> float64"]
+doc = "Smallest integral value not less than `x`."
+
+[[functions]]
+name = "ceiling"
+signatures = ["ceiling(x float64) -> float64"]
+doc = "Smallest integral value not less than `x`."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(x float64) -> float64"]
+doc = "Largest integral value not greater than `x`."
+
+[[functions]]
+name = "div"
+signatures = ["div(x int64, y int64) -> int64"]
+doc = "Integer division, error on division by zero."
+
+[[functions]]
+name = "mod"
+signatures = ["mod(x int64, y int64) -> int64"]
+doc = "Remainder of an integer division."
+
+[[functions]]
+name = "ieee_divide"
+signatures = ["ieee_divide(x float64, y float64) -> float64"]
+doc = "Division following IEEE (inf or NaN instead of errors)."
+
+[[functions]]
+name = "safe_divide"
+signatures = ["safe_divide(x float64, y float64) -> float64"]
+doc = "Division returning null instead of an error."
+
+[[functions]]
+name = "safe_multiply"
+signatures = ["safe_multiply(x float64, y float64) -> float64"]
+doc = "Multiplication returning null on overflow."
+
+[[functions]]
+name = "safe_add"
+signatures = ["safe_add(x float64, y float64) -> float64"]
+doc = "Addition returning null on overflow."
+
+[[functions]]
+name = "safe_subtract"
+signatures = ["safe_subtract(x float64, y float64) -> float64"]
+doc = "Subtraction returning null on overflow."
+
+[[functions]]
+name = "safe_negate"
+signatures = ["safe_negate(x float64) -> float64"]
+doc = "Negation returning null on overflow."
+
+[[functions]]
+name = "pow"
+signatures = ["pow(x float64, y float64) -> float64"]
+doc = "`x` raised to the power `y`."
+
+[[functions]]
+name = "power"
+signatures = ["power(x float64, y float64) -> float64"]
+doc = "`x` raised to the power `y`."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(x float64) -> float64"]
+doc = "Square root."
+
+[[functions]]
+name = "cbrt"
+signatures = ["cbrt(x float64) -> float64"]
+doc = "Cube root."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(x float64) -> float64"]
+doc = "e raised to the power `x`."
+
+[[functions]]
+name = "ln"
+signatures = ["ln(x float64) -> float64"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log"
+signatures = ["log(x float64) -> float64", "log(x float64, y float64) -> float64"]
+doc = "Natural logarithm, or logarithm of `x` in base `y`."
+
+[[functions]]
+name = "log10"
+signatures = ["log10(x float64) -> float64"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(value any, ...) -> any"]
+doc = "Largest of the arguments (null if any is null)."
+
+[[functions]]
+name = "least"
+signatures = ["least(value any, ...) -> any"]
+doc = "Smallest of the arguments (null if any is null)."
+
+[[functions]]
+name = "rand"
+signatures = ["rand() -> float64"]
+doc = "Pseudo-random value in [0, 1)."
+
+[[functions]]
+name = "range_bucket"
+signatures = ["range_bucket(point any, boundaries_array array) -> int64"]
+doc = "Index of the bucket of a sorted boundary array that holds the point."
+
+[[functions]]
+name = "is_inf"
+signatures = ["is_inf(x float64) -> bool"]
+doc = "True if the value is positive or negative infinity."
+
+[[functions]]
+name = "is_nan"
+signatures = ["is_nan(x float64) -> bool"]
+doc = "True if the value is NaN."
+
+[[functions]]
+name = "sin"
+signatures = ["sin(x float64) -> float64"]
+doc = "Sine."
+
+[[functions]]
+name = "cos"
+signatures = ["cos(x float64) -> float64"]
+doc = "Cosine."
+
+[[functions]]
+name = "tan"
+signatures = ["tan(x float64) -> float64"]
+doc = "Tangent."
+
+[[functions]]
+name = "asin"
+signatures = ["asin(x float64) -> float64"]
+doc = "Arc sine."
+
+[[functions]]
+name = "acos"
+signatures = ["acos(x float64) -> float64"]
+doc = "Arc cosine."
+
+[[functions]]
+name = "atan"
+signatures = ["atan(x float64) -> float64"]
+doc = "Arc tangent."
+
+[[functions]]
+name = "atan2"
+signatures = ["atan2(x float64, y float64) -> float64"]
+doc = "Arc tangent of `x / y` using the signs to pick the quadrant."
+
+[[functions]]
+name = "cosine_distance"
+signatures = ["cosine_distance(vector1 array, vector2 array) -> float64"]
+doc = "Cosine distance between two vectors."
+
+[[functions]]
+name = "euclidean_distance"
+signatures = ["euclidean_distance(vector1 array, vector2 array) -> float64"]
+doc = "Euclidean distance between two vectors."
+
+[[functions]]
+name = "parse_numeric"
+signatures = ["parse_numeric(string_expression string) -> numeric"]
+doc = "String converted to NUMERIC."
+
+[[functions]]
+name = "parse_bignumeric"
+signatures = ["parse_bignumeric(string_expression string) -> bignumeric"]
+doc = "String converted to BIGNUMERIC."
+
+[[functions]]
+name = "parse_json"
+signatures = ["parse_json(json_string string) -> json", "parse_json(json_string string, wide_number_mode string) -> json"]
+doc = "JSON string parsed into a JSON value."
+
+[[functions]]
+name = "to_json"
+signatures = ["to_json(sql_value any) -> json", "to_json(sql_value any, stringify_wide_numbers bool) -> json"]
+doc = "SQL value converted to a JSON value."
+
+[[functions]]
+name = "to_json_string"
+signatures = ["to_json_string(value any) -> string", "to_json_string(value any, pretty_print bool) -> string"]
+doc = "Value serialized as a JSON string."
+
+[[functions]]
+name = "json_value"
+signatures = ["json_value(json_string_expr any) -> string", "json_value(json_string_expr any, json_path string) -> string"]
+doc = "Scalar at a JSONPath, as a string."
+
+[[functions]]
+name = "json_query"
+signatures = ["json_query(json_string_expr any, json_path string) -> any"]
+doc = "JSON value (object, array or scalar) at a JSONPath."
+
+[[functions]]
+name = "json_extract"
+signatures = ["json_extract(json_string_expr any, json_path string) -> any"]
+doc = "Legacy: JSON value at a JSONPath (use `json_query`)."
+
+[[functions]]
+name = "json_extract_scalar"
+signatures = ["json_extract_scalar(json_string_expr any) -> string", "json_extract_scalar(json_string_expr any, json_path string) -> string"]
+doc = "Legacy: scalar at a JSONPath (use `json_value`)."
+
+[[functions]]
+name = "json_extract_array"
+signatures = ["json_extract_array(json_string_expr any) -> array", "json_extract_array(json_string_expr any, json_path string) -> array"]
+doc = "Legacy: array of JSON values at a JSONPath."
+
+[[functions]]
+name = "json_extract_string_array"
+signatures = ["json_extract_string_array(json_string_expr any) -> array", "json_extract_string_array(json_string_expr any, json_path string) -> array"]
+doc = "Legacy: array of scalar strings at a JSONPath."
+
+[[functions]]
+name = "json_query_array"
+signatures = ["json_query_array(json_string_expr any) -> array", "json_query_array(json_string_expr any, json_path string) -> array"]
+doc = "Array of JSON values at a JSONPath."
+
+[[functions]]
+name = "json_value_array"
+signatures = ["json_value_array(json_string_expr any) -> array", "json_value_array(json_string_expr any, json_path string) -> array"]
+doc = "Array of scalar strings at a JSONPath."
+
+[[functions]]
+name = "json_type"
+signatures = ["json_type(json_expr json) -> string"]
+doc = "Type of the outermost JSON value (`object`, `array`, `string`...)."
+
+[[functions]]
+name = "json_set"
+signatures = ["json_set(json_expr json, json_path string, value any, ...) -> json"]
+doc = "JSON with values inserted or replaced at paths."
+
+[[functions]]
+name = "json_remove"
+signatures = ["json_remove(json_expr json, json_path string, ...) -> json"]
+doc = "JSON with the values at the paths removed."
+
+[[functions]]
+name = "json_strip_nulls"
+signatures = ["json_strip_nulls(json_expr json) -> json"]
+doc = "JSON with null fields and elements removed."
+
+[[functions]]
+name = "json_object"
+signatures = ["json_object(key string, value any, ...) -> json"]
+doc = "JSON object built from key/value pairs."
+
+[[functions]]
+name = "json_array"
+signatures = ["json_array(value any, ...) -> json"]
+doc = "JSON array built from the arguments."
+
+[[functions]]
+name = "json_keys"
+signatures = ["json_keys(json_expr json) -> array", "json_keys(json_expr json, max_depth int64) -> array"]
+doc = "Array of the keys of a JSON object (dotted paths)."
+
+[[functions]]
+name = "bool"
+signatures = ["bool(json_expr json) -> bool"]
+doc = "JSON boolean converted to BOOL (error for other types)."
+
+[[functions]]
+name = "int64"
+signatures = ["int64(json_expr json) -> int64"]
+doc = "JSON number converted to INT64."
+
+[[functions]]
+name = "float64"
+signatures = ["float64(json_expr json) -> float64", "float64(json_expr json, wide_number_mode string) -> float64"]
+doc = "JSON number converted to FLOAT64."
+
+[[functions]]
+name = "string"
+signatures = ["string(json_expr json) -> string", "string(timestamp_expression timestamp, time_zone string) -> string"]
+doc = "JSON string converted to STRING, or timestamp formatted as a string."
+
+[[functions]]
+name = "lax_bool"
+signatures = ["lax_bool(json_expr json) -> bool"]
+doc = "JSON value converted to BOOL leniently (null if impossible)."
+
+[[functions]]
+name = "lax_int64"
+signatures = ["lax_int64(json_expr json) -> int64"]
+doc = "JSON value converted to INT64 leniently."
+
+[[functions]]
+name = "lax_float64"
+signatures = ["lax_float64(json_expr json) -> float64"]
+doc = "JSON value converted to FLOAT64 leniently."
+
+[[functions]]
+name = "lax_string"
+signatures = ["lax_string(json_expr json) -> string"]
+doc = "JSON value converted to STRING leniently."
+
+[[functions]]
+name = "array_concat"
+signatures = ["array_concat(array_expression array, ...) -> array"]
+doc = "Concatenation of arrays."
+
+[[functions]]
+name = "array_length"
+signatures = ["array_length(array_expression array) -> int64"]
+doc = "Number of elements of an array."
+
+[[functions]]
+name = "array_reverse"
+signatures = ["array_reverse(value array) -> array"]
+doc = "Array in reverse order."
+
+[[functions]]
+name = "array_to_string"
+signatures = ["array_to_string(array_expression array, delimiter string) -> string", "array_to_string(array_expression array, delimiter string, null_text string) -> string"]
+doc = "Array elements joined into a string."
+
+[[functions]]
+name = "array_first"
+signatures = ["array_first(array_expression array) -> any"]
+doc = "First element of an array (error if empty)."
+
+[[functions]]
+name = "array_last"
+signatures = ["array_last(array_expression array) -> any"]
+doc = "Last element of an array (error if empty)."
+
+[[functions]]
+name = "array_slice"
+signatures = ["array_slice(array_to_slice array, start_offset int64, end_offset int64) -> array"]
+doc = "Elements between two 0-based offsets, both included (negative counts from the end)."
+
+[[functions]]
+name = "generate_array"
+signatures = ["generate_array(start_expression int64, end_expression int64) -> array", "generate_array(start_expression int64, end_expression int64, step_expression int64) -> array"]
+doc = "Array of values from start to end (both included)."
+
+[[functions]]
+name = "any_value"
+signatures = ["any_value(expression any) -> any"]
+doc = "Some value of the group."
+
+[[functions]]
+name = "array_agg"
+signatures = ["array_agg(expression any) -> array"]
+doc = "Array of the values of a group (`IGNORE NULLS`, `ORDER BY`, `LIMIT` allowed)."
+
+[[functions]]
+name = "array_concat_agg"
+signatures = ["array_concat_agg(expression array) -> array"]
+doc = "Concatenation of the arrays of a group."
+
+[[functions]]
+name = "avg"
+signatures = ["avg(expression any) -> float64"]
+doc = "Average of non-null values."
+
+[[functions]]
+name = "bit_and"
+signatures = ["bit_and(expression int64) -> int64"]
+doc = "Bitwise AND of a group."
+
+[[functions]]
+name = "bit_or"
+signatures = ["bit_or(expression int64) -> int64"]
+doc = "Bitwise OR of a group."
+
+[[functions]]
+name = "bit_xor"
+signatures = ["bit_xor(expression int64) -> int64"]
+doc = "Bitwise XOR of a group."
+
+[[functions]]
+name = "count"
+signatures = ["count(expression any) -> int64", "count(*) -> int64"]
+doc = "Number of rows (or of non-null values)."
+
+[[functions]]
+name = "countif"
+signatures = ["countif(expression bool) -> int64"]
+doc = "Number of rows for which the condition is true."
+
+[[functions]]
+name = "logical_and"
+signatures = ["logical_and(expression bool) -> bool"]
+doc = "True if all values of the group are true."
+
+[[functions]]
+name = "logical_or"
+signatures = ["logical_or(expression bool) -> bool"]
+doc = "True if any value of the group is true."
+
+[[functions]]
+name = "max_by"
+signatures = ["max_by(x any, y any) -> any"]
+doc = "Value of `x` at the row where `y` is largest."
+
+[[functions]]
+name = "min_by"
+signatures = ["min_by(x any, y any) -> any"]
+doc = "Value of `x` at the row where `y` is smallest."
+
+[[functions]]
+name = "string_agg"
+signatures = ["string_agg(expression string) -> string", "string_agg(expression string, delimiter string) -> string"]
+doc = "Values of a group joined into a string (`,` by default)."
+
+[[functions]]
+name = "approx_count_distinct"
+signatures = ["approx_count_distinct(expression any) -> int64"]
+doc = "Approximate number of distinct values."
+
+[[functions]]
+name = "approx_quantiles"
+signatures = ["approx_quantiles(expression any, number int64) -> array"]
+doc = "Approximate quantile boundaries (`number + 1` values)."
+
+[[functions]]
+name = "approx_top_count"
+signatures = ["approx_top_count(expression any, number int64) -> array"]
+doc = "Approximate top values with their counts."
+
+[[functions]]
+name = "approx_top_sum"
+signatures = ["approx_top_sum(expression any, weight any, number int64) -> array"]
+doc = "Approximate top values by summed weight."
+
+[[functions]]
+name = "corr"
+signatures = ["corr(x float64, y float64) -> float64"]
+doc = "Pearson correlation coefficient."
+
+[[functions]]
+name = "covar_pop"
+signatures = ["covar_pop(x float64, y float64) -> float64"]
+doc = "Population covariance."
+
+[[functions]]
+name = "covar_samp"
+signatures = ["covar_samp(x float64, y float64) -> float64"]
+doc = "Sample covariance."
+
+[[functions]]
+name = "stddev"
+signatures = ["stddev(expression float64) -> float64"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(expression float64) -> float64"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(expression float64) -> float64"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "variance"
+signatures = ["variance(expression float64) -> float64"]
+doc = "Sample variance."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(expression float64) -> float64"]
+doc = "Population variance."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(expression float64) -> float64"]
+doc = "Sample variance."
+
+[[functions]]
+name = "grouping"
+signatures = ["grouping(groupable_value any) -> int64"]
+doc = "1 if the column is aggregated in the ROLLUP/CUBE/GROUPING SETS row, 0 otherwise."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> int64"]
+doc = "Sequential number of the row within its partition."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> int64"]
+doc = "Rank with gaps."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> int64"]
+doc = "Rank without gaps."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> float64"]
+doc = "Relative rank of the row (0..1)."
+
+[[functions]]
+name = "cume_dist"
+signatures = ["cume_dist() -> float64"]
+doc = "Cumulative distribution of the row."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(constant_integer_expression int64) -> int64"]
+doc = "Bucket number (1..n) of the row."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(value_expression any) -> any", "lag(value_expression any, offset int64) -> any", "lag(value_expression any, offset int64, default_expression any) -> any"]
+doc = "Value from a preceding row."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(value_expression any) -> any", "lead(value_expression any, offset int64) -> any", "lead(value_expression any, offset int64, default_expression any) -> any"]
+doc = "Value from a following row."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(value_expression any) -> any"]
+doc = "First value of the window frame (`IGNORE NULLS` allowed)."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(value_expression any) -> any"]
+doc = "Last value of the window frame (`IGNORE NULLS` allowed)."
+
+[[functions]]
+name = "nth_value"
+signatures = ["nth_value(value_expression any, constant_integer_expression int64) -> any"]
+doc = "The n-th value of the window frame."
+
+[[functions]]
+name = "percentile_cont"
+signatures = ["percentile_cont(value_expression float64, percentile float64) -> float64"]
+doc = "Interpolated percentile over the window."
+
+[[functions]]
+name = "percentile_disc"
+signatures = ["percentile_disc(value_expression any, percentile float64) -> any"]
+doc = "Discrete percentile over the window."
+
+[[functions]]
+name = "farm_fingerprint"
+signatures = ["farm_fingerprint(value string) -> int64"]
+doc = "FarmHash Fingerprint64 of a string or bytes."
+
+[[functions]]
+name = "md5"
+signatures = ["md5(input string) -> bytes"]
+doc = "MD5 hash (16 bytes)."
+
+[[functions]]
+name = "sha1"
+signatures = ["sha1(input string) -> bytes"]
+doc = "SHA-1 hash (20 bytes)."
+
+[[functions]]
+name = "sha256"
+signatures = ["sha256(input string) -> bytes"]
+doc = "SHA-256 hash (32 bytes)."
+
+[[functions]]
+name = "sha512"
+signatures = ["sha512(input string) -> bytes"]
+doc = "SHA-512 hash (64 bytes)."
+
+[[functions]]
+name = "generate_uuid"
+signatures = ["generate_uuid() -> string"]
+doc = "Random version 4 UUID as a string."
+
+[[functions]]
+name = "st_geogpoint"
+signatures = ["st_geogpoint(longitude float64, latitude float64) -> geography"]
+doc = "Point from longitude and latitude."
+
+[[functions]]
+name = "st_makeline"
+signatures = ["st_makeline(geography_1 geography, geography_2 geography) -> geography", "st_makeline(array_of_geography array) -> geography"]
+doc = "Line string from points or lines."
+
+[[functions]]
+name = "st_makepolygon"
+signatures = ["st_makepolygon(polygon_shell geography) -> geography"]
+doc = "Polygon from a closed line string."
+
+[[functions]]
+name = "st_geogfromtext"
+signatures = ["st_geogfromtext(wkt_string string) -> geography"]
+doc = "GEOGRAPHY from WKT."
+
+[[functions]]
+name = "st_geogfromgeojson"
+signatures = ["st_geogfromgeojson(geojson_string string) -> geography"]
+doc = "GEOGRAPHY from GeoJSON."
+
+[[functions]]
+name = "st_geogfromwkb"
+signatures = ["st_geogfromwkb(wkb_bytes bytes) -> geography"]
+doc = "GEOGRAPHY from WKB."
+
+[[functions]]
+name = "st_astext"
+signatures = ["st_astext(geography_expression geography) -> string"]
+doc = "GEOGRAPHY as WKT."
+
+[[functions]]
+name = "st_asgeojson"
+signatures = ["st_asgeojson(geography_expression geography) -> string"]
+doc = "GEOGRAPHY as GeoJSON."
+
+[[functions]]
+name = "st_asbinary"
+signatures = ["st_asbinary(geography_expression geography) -> bytes"]
+doc = "GEOGRAPHY as WKB."
+
+[[functions]]
+name = "st_x"
+signatures = ["st_x(point_geography_expression geography) -> float64"]
+doc = "Longitude of a point."
+
+[[functions]]
+name = "st_y"
+signatures = ["st_y(point_geography_expression geography) -> float64"]
+doc = "Latitude of a point."
+
+[[functions]]
+name = "st_distance"
+signatures = ["st_distance(geography_1 geography, geography_2 geography) -> float64"]
+doc = "Shortest distance in meters between two geographies."
+
+[[functions]]
+name = "st_dwithin"
+signatures = ["st_dwithin(geography_1 geography, geography_2 geography, distance float64) -> bool"]
+doc = "True if the geographies are within `distance` meters."
+
+[[functions]]
+name = "st_contains"
+signatures = ["st_contains(geography_1 geography, geography_2 geography) -> bool"]
+doc = "True if the first geography contains the second."
+
+[[functions]]
+name = "st_within"
+signatures = ["st_within(geography_1 geography, geography_2 geography) -> bool"]
+doc = "True if the first geography is within the second."
+
+[[functions]]
+name = "st_intersects"
+signatures = ["st_intersects(geography_1 geography, geography_2 geography) -> bool"]
+doc = "True if the geographies intersect."
+
+[[functions]]
+name = "st_covers"
+signatures = ["st_covers(geography_1 geography, geography_2 geography) -> bool"]
+doc = "True if no point of the second geography lies outside the first."
+
+[[functions]]
+name = "st_area"
+signatures = ["st_area(geography_expression geography) -> float64"]
+doc = "Area in square meters."
+
+[[functions]]
+name = "st_length"
+signatures = ["st_length(geography_expression geography) -> float64"]
+doc = "Length of lines in meters."
+
+[[functions]]
+name = "st_perimeter"
+signatures = ["st_perimeter(geography_expression geography) -> float64"]
+doc = "Perimeter of polygons in meters."
+
+[[functions]]
+name = "st_buffer"
+signatures = ["st_buffer(geography geography, buffer_radius float64) -> geography"]
+doc = "Geography buffered by a radius in meters."
+
+[[functions]]
+name = "st_centroid"
+signatures = ["st_centroid(geography_expression geography) -> geography"]
+doc = "Centroid point."
+
+[[functions]]
+name = "st_intersection"
+signatures = ["st_intersection(geography_1 geography, geography_2 geography) -> geography"]
+doc = "Intersection of two geographies."
+
+[[functions]]
+name = "st_union"
+signatures = ["st_union(geography_1 geography, geography_2 geography) -> geography", "st_union(array_of_geography array) -> geography"]
+doc = "Union of geographies."
+
+[[functions]]
+name = "st_union_agg"
+signatures = ["st_union_agg(geography geography) -> geography"]
+doc = "Union of the geographies of a group."
+
+[[functions]]
+name = "st_simplify"
+signatures = ["st_simplify(geography geography, tolerance_meters float64) -> geography"]
+doc = "Simplified geography."
+
+[[functions]]
+name = "session_user"
+signatures = ["session_user() -> string"]
+doc = "Email of the user running the query."
+
+[[functions]]
+name = "error"
+signatures = ["error(error_message string) -> any"]
+doc = "Raises an error with the message."
+
+[[functions]]
+name = "ifnull"
+signatures = ["ifnull(expr any, null_result any) -> any"]
+doc = "`null_result` when `expr` is null."
+
+[[functions]]
+name = "if"
+signatures = ["if(expr bool, true_result any, else_result any) -> any"]
+doc = "`true_result` if the condition holds, otherwise `else_result`."

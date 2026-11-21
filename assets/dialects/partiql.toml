@@ -1,0 +1,62 @@
+# Amazon DynamoDB PartiQL: the subset of PartiQL supported by DynamoDB (SELECT, INSERT, UPDATE,
+# DELETE). Standalone dialect: nothing is inherited.
+id = "partiql"
+name = "PartiQL (DynamoDB)"
+identifier_quote = '"'
+case_folding = "none"
+parser = ""
+
+keywords = [
+  "select", "from", "where", "and", "or", "not", "in", "between", "is", "missing", "null",
+  "true", "false", "insert", "into", "value", "update", "set", "remove", "delete", "order",
+  "by", "asc", "desc", "returning",
+]
+
+soft_keywords = [
+  "all", "old", "new", "modified", "updated",
+]
+
+types = [
+  "string", "number", "binary", "boolean", "null", "list", "map", "string set", "number set",
+  "binary set",
+]
+
+[[functions]]
+name = "exists"
+signatures = ["exists(statement any) -> boolean"]
+doc = "True if the nested SELECT returns an item; only usable inside ExecuteTransaction (condition check)."
+
+[[functions]]
+name = "begins_with"
+signatures = ["begins_with(path any, value string) -> boolean"]
+doc = "True if the string attribute at the path starts with the value."
+
+[[functions]]
+name = "attribute_type"
+signatures = ["attribute_type(path any, type string) -> boolean"]
+doc = "True if the attribute has the type: `S`, `N`, `B`, `BOOL`, `NULL`, `L`, `M`, `SS`, `NS` or `BS`."
+
+[[functions]]
+name = "contains"
+signatures = ["contains(path any, value any) -> boolean"]
+doc = "True if the string attribute contains the substring, or the set/list contains the element."
+
+[[functions]]
+name = "size"
+signatures = ["size(path any) -> number"]
+doc = "Size of the attribute: string length, number of bytes of a binary, or number of elements of a set, list or map."
+
+[[functions]]
+name = "list_append"
+signatures = ["list_append(list1 list, list2 list) -> list"]
+doc = "Concatenation of two lists (UPDATE ... SET)."
+
+[[functions]]
+name = "set_add"
+signatures = ["set_add(set any, values any) -> any"]
+doc = "Set with the elements of the given set added (UPDATE ... SET, e.g. `set_add(tags, <<'a'>>)`)."
+
+[[functions]]
+name = "set_delete"
+signatures = ["set_delete(set any, values any) -> any"]
+doc = "Set with the elements of the given set removed (UPDATE ... SET)."
