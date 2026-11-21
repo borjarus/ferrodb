@@ -110,7 +110,10 @@ pub fn hierarchy(d: Dialect) -> HierarchySpec {
             level(MaterializedView, &[Column]),
         ],
         Dialect::BigQuery => vec![
-            level(Dataset, &[Table, View, MaterializedView, Function, Procedure]),
+            level(
+                Dataset,
+                &[Table, View, MaterializedView, Function, Procedure],
+            ),
             level(Table, &[Column]),
             level(View, &[Column]),
             level(MaterializedView, &[Column]),
@@ -125,7 +128,10 @@ pub fn hierarchy(d: Dialect) -> HierarchySpec {
             level(Scope, &[Collection]),
             level(Collection, &[Index]),
         ],
-        Dialect::DynamoDb => vec![level(Database, &[Table]), level(Table, &[Column, Index])],
+        Dialect::DynamoDb => vec![
+            level(Database, &[Table]),
+            level(Table, &[Column, PrimaryKey, Index]),
+        ],
         Dialect::Redis => vec![
             level(Database, &[KeyPrefix, Key]),
             level(KeyPrefix, &[KeyPrefix, Key]),
@@ -275,7 +281,25 @@ pub fn container_children(node: &NodeRef, content: &Content) -> Vec<DbObject> {
             true,
         ));
     }
-    for c in &content.collections {
+    // Couchbase: collections are grouped under their scopes.
+    let mut scopes: Vec<&str> = Vec::new();
+    for s in content
+        .collections
+        .iter()
+        .filter_map(|c| c.scope.as_deref())
+    {
+        if !scopes.contains(&s) {
+            scopes.push(s);
+            out.push(obj(
+                node.child(ObjectKind::Scope, s),
+                ObjectKind::Scope,
+                s,
+                None,
+                true,
+            ));
+        }
+    }
+    for c in content.collections.iter().filter(|c| c.scope.is_none()) {
         let (kind, detail) = match c.kind {
             CollectionKind::View => (ObjectKind::View, None),
             CollectionKind::TimeSeries => (ObjectKind::Collection, Some("time series".to_owned())),
@@ -384,6 +408,24 @@ pub fn table_children(node: &NodeRef, t: &Table) -> Vec<DbObject> {
     out
 }
 
+/// Collections of a Couchbase scope (`node` is the scope).
+pub fn scope_children(node: &NodeRef, content: &Content, scope: &str) -> Vec<DbObject> {
+    content
+        .collections
+        .iter()
+        .filter(|c| c.scope.as_deref() == Some(scope))
+        .map(|c| {
+            obj(
+                node.child(ObjectKind::Collection, &c.name),
+                ObjectKind::Collection,
+                &c.name,
+                c.options.clone(),
+                true,
+            )
+        })
+        .collect()
+}
+
 pub fn collection_children(node: &NodeRef, c: &Collection) -> Vec<DbObject> {
     c.indexes
         .iter()
@@ -438,6 +480,17 @@ pub fn find<'a>(
             let c = content.collections.iter().find(|c| &c.name == name)?;
             find_in_collection(c, rest)
         }
+        // Couchbase: scope → collection → index.
+        Scope => match rest.split_first() {
+            Some(((Collection, c), rest)) => {
+                let c = content
+                    .collections
+                    .iter()
+                    .find(|x| x.scope.as_deref() == Some(name.as_str()) && &x.name == c)?;
+                find_in_collection(c, rest)
+            }
+            _ => None,
+        },
         Function | Procedure => content
             .routines
             .iter()
@@ -752,7 +805,14 @@ pub fn search_entries(
         }
         let cnode = root.child(ck, &c.name);
         let location = format!("{source_name} / {}", c.name);
-        for o in container_children(&cnode, content) {
+        let mut objects = container_children(&cnode, content);
+        let scoped: Vec<DbObject> = objects
+            .iter()
+            .filter(|o| o.kind == ObjectKind::Scope)
+            .flat_map(|o| scope_children(&o.node, content, &o.name))
+            .collect();
+        objects.extend(scoped);
+        for o in objects {
             out.push(SearchEntry {
                 label: o.name,
                 location: location.clone(),
@@ -781,6 +841,9 @@ pub fn snapshot(
         }
         let cnode = root.child(ck, &c.name);
         for o in container_children(&cnode, content) {
+            if o.kind == ObjectKind::Scope {
+                out.extend(scope_children(&o.node, content, &o.name));
+            }
             out.push(o);
         }
         for t in &content.tables {

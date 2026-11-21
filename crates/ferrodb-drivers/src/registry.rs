@@ -38,6 +38,10 @@ impl Registry {
         r.drivers.extend(crate::redis::drivers());
         #[cfg(feature = "cql")]
         r.drivers.extend(crate::cql::drivers());
+        #[cfg(feature = "dynamodb")]
+        r.drivers.extend(crate::dynamodb::drivers());
+        #[cfg(feature = "couchbase")]
+        r.drivers.extend(crate::couchbase::drivers());
         r
     }
 

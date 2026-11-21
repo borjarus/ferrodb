@@ -16,6 +16,7 @@
 
 mod documents;
 mod key_value;
+mod documents_sql;
 
 use std::time::{Duration, Instant};
 

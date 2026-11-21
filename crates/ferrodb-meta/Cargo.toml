@@ -14,7 +14,7 @@ ferrodb-lang.workspace = true
 futures.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
-bson.workspace = true
+bson = { workspace = true, features = ["serde_json-1"] }
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

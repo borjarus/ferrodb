@@ -364,6 +364,7 @@ fn schema_tools_on_sqlite() {
 }
 
 #[test]
+#[cfg(feature = "duckdb")]
 fn duckdb_file_data_source() {
     let dir = tempfile::tempdir().unwrap();
     let csv = dir.path().join("orders.csv");

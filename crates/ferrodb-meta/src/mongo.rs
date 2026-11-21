@@ -88,6 +88,7 @@ fn collection_from(info: &Document, indexes: Vec<Document>) -> Collection {
         validator: validator.map(|v| print_pretty(&Bson::Document(v), 78)),
         indexes,
         definition,
+        scope: None,
     }
 }
 

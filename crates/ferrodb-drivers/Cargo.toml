@@ -16,6 +16,8 @@ mongodb = ["dep:mongodb"]
 duckdb = ["dep:duckdb"]
 redis = ["dep:redis"]
 cql = ["dep:scylla", "dep:async-trait"]
+dynamodb = ["dep:aws-config", "dep:aws-sdk-dynamodb", "dep:aws-smithy-http-client", "dep:base64"]
+couchbase = ["dep:reqwest", "dep:base64"]
 
 [dependencies]
 ferrodb-api.workspace = true
@@ -41,6 +43,11 @@ duckdb = { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 scylla = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
+aws-config = { workspace = true, optional = true }
+aws-sdk-dynamodb = { workspace = true, optional = true }
+aws-smithy-http-client = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

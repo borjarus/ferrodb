@@ -8,6 +8,8 @@
 //! - `FERRODB_TCK_MYSQL=mysql://root:ferrodb@localhost:53306/tck`
 //! - `FERRODB_TCK_MARIADB=mariadb://root:ferrodb@localhost:53307/tck`
 //! - `FERRODB_TCK_MONGODB=mongodb://localhost:57017/tck?directConnection=true`
+//! - `FERRODB_TCK_DYNAMODB=http://localhost:56520` (DynamoDB Local)
+//! - `FERRODB_TCK_COUCHBASE=couchbase://Administrator:ferrodb@localhost:56503/tck?mgmt_port=56501&scope=app`
 //!
 //! Each report is also written to `target/tck/<driver>.md`.
 
@@ -75,6 +77,47 @@ fn mongodb() {
         "TCK failed for mongodb:
 {md}"
     );
+}
+
+fn documents(driver: &str, cfg: ResolvedConfig) {
+    let registry = Registry::builtin();
+    let d = registry.get(&driver.into()).expect("driver is built in");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let report = rt.block_on(ferrodb_driver_tck::run_documents(d.as_ref(), &cfg));
+    let md = report.markdown();
+    println!("{md}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tck");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join(format!("{driver}.md")), &md);
+    assert!(
+        report.passed(),
+        "TCK failed for {driver}:
+{md}"
+    );
+}
+
+/// DynamoDB Local: `FERRODB_TCK_DYNAMODB=http://localhost:56520`.
+#[test]
+fn dynamodb() {
+    let Ok(endpoint) = std::env::var("FERRODB_TCK_DYNAMODB") else {
+        return;
+    };
+    let cfg = ResolvedConfig::new("dynamodb")
+        .with("region", "eu-central-1")
+        .with("endpoint", endpoint)
+        .with_secret("aws.access_key_id", "tck")
+        .with_secret("aws.secret_access_key", "tck");
+    documents("dynamodb", cfg);
+}
+
+/// Couchbase Server (bucket `tck` with scope `app`, see `cargo xtask
+/// db-up`): `FERRODB_TCK_COUCHBASE=couchbase://user:pw@host:56503/tck?mgmt_port=56501&scope=app`.
+#[test]
+fn couchbase() {
+    let Some(cfg) = from_env("FERRODB_TCK_COUCHBASE", "couchbase") else {
+        return;
+    };
+    documents("couchbase", cfg.with("scan_consistency", "request_plus"));
 }
 
 #[test]

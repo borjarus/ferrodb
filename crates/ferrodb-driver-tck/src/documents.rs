@@ -2,7 +2,8 @@
 //! the tabular suite, in MQL — connection, BSON type round trip, write
 //! counts, streaming 100k documents with backpressure, cancellation of a
 //! running server operation, errors with codes and positions, transactions
-//! (replica set), database switching and listings.
+//! (replica set), database switching and listings. SQL++ and PartiQL
+//! sources run the same scenarios in `documents_sql`.
 
 use std::time::{Duration, Instant};
 
@@ -39,6 +40,11 @@ fn decode(d: &RawDocumentBuf) -> Document {
 
 /// Runs every document scenario. Never panics; failures are reported.
 pub async fn run_documents(driver: &dyn Driver, cfg: &ResolvedConfig) -> Report {
+    // SQL++ (Couchbase) and PartiQL (DynamoDB): the same scenarios in
+    // their language (phase 8).
+    if driver.descriptor().capabilities.language != QueryLanguage::Mql {
+        return crate::documents_sql::run(driver, cfg).await;
+    }
     let mut report = Report {
         driver: driver.descriptor().name,
         ..Default::default()

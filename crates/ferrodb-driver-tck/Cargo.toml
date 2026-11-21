@@ -9,9 +9,10 @@ publish = false
 
 [dependencies]
 ferrodb-api.workspace = true
-ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb", "redis", "cql"] }
+ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb", "redis", "cql", "dynamodb", "couchbase"] }
 ferrodb-lang.workspace = true
-bson.workspace = true
+bson = { workspace = true, features = ["serde_json-1"] }
+serde_json.workspace = true
 futures.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true

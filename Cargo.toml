@@ -81,6 +81,16 @@ russh = { version = "0.65.1", default-features = false, features = ["flate2", "r
 redis = { version = "1.8.2", default-features = false, features = ["acl", "streams", "aio", "tokio-comp", "tokio-rustls-comp", "tls-rustls-insecure", "cluster-async", "sentinel"] }
 scylla = { version = "1.10.0", default-features = false }
 async-trait = "0.1.92"
+# DynamoDB (phase 8): the official AWS SDK without its default HTTPS client
+# (that one is rustls + aws-lc, which needs cmake/NASM on Windows); the
+# smithy hyper client is built with rustls + ring instead.
+aws-config = { version = "1.13.3", default-features = false, features = ["rt-tokio", "sso", "credentials-process", "behavior-version-latest"] }
+aws-sdk-dynamodb = { version = "1.140.0", default-features = false, features = ["rt-tokio", "behavior-version-latest"] }
+aws-smithy-http-client = { version = "1.5.3", default-features = false, features = ["rustls-ring"] }
+# Couchbase (phase 8): REST services (query, cluster manager) over HTTP,
+# rustls with the process-wide ring provider.
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream"] }
+base64 = "0.22.1"
 
 # languages
 sqlparser = "0.63.0"

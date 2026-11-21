@@ -24,9 +24,11 @@
 
 pub mod cache;
 pub mod cassandra;
+pub mod couchbase;
 pub mod ddl;
 pub mod diff;
 mod duckdb;
+pub mod dynamodb;
 pub mod infer;
 pub mod model;
 pub mod mongo;
@@ -89,8 +91,8 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::BigQuery => &Unavailable(Dialect::BigQuery),
         Dialect::ClickHouse => &Unavailable(Dialect::ClickHouse),
         Dialect::Cassandra => &cassandra::CassandraIntrospector,
-        Dialect::Couchbase => &Unavailable(Dialect::Couchbase),
-        Dialect::DynamoDb => &Unavailable(Dialect::DynamoDb),
+        Dialect::Couchbase => &couchbase::CouchbaseIntrospector,
+        Dialect::DynamoDb => &dynamodb::DynamoIntrospector,
         Dialect::Redis => &redis::RedisIntrospector,
     }
 }

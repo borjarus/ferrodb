@@ -7,7 +7,7 @@ pub mod ssh;
 pub mod tls;
 
 pub use ssh::{SshAuth, SshConfig, SshTunnel};
-pub use tls::{TlsMode, client_config, install_crypto_provider};
+pub use tls::{TlsMode, client_config, client_config_with_cert, install_crypto_provider};
 
 #[derive(Debug, thiserror::Error)]
 pub enum NetError {

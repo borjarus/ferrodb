@@ -24,12 +24,11 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use bson::Bson;
 use ferrodb_api::{
     ApplyReport, BoxFuture, CancelHandle, ChangeSet, DataSourceConfig, DataSourceId, Error,
-    ExecOptions, ExecutionPlan, ExplainOptions, HistoryEntry, KeyValue, NodeRef, NoticeLevel,
-    ObjectKind, QueryError, QueryEvent, QueryHandle, QueryId, QueryService, Result, ResultChunk,
-    ResultId, ResultShape, Script, ServerNotice, SessionId, SessionInfo, TxMode,
+    ExecOptions, ExecutionPlan, ExplainOptions, HistoryEntry, KeyValue, NoticeLevel, QueryError,
+    QueryEvent, QueryHandle, QueryId, QueryService, Result, ResultChunk, ResultId, ResultShape,
+    Script, ServerNotice, SessionId, SessionInfo, TxMode,
 };
 use ferrodb_drivers::{CancellationToken, Connection, Request, ResultSink, SinkEvent};
 use ferrodb_lang::{
@@ -1114,6 +1113,9 @@ async fn forward(
     let mut pending: Option<SinkEvent> = None;
     // Editable document result: `_id`s are recorded as documents pass.
     let mut doc_result: Option<ResultId> = None;
+    // (dialect, database, collection) of the document result starting.
+    let mut doc_source: Option<(ferrodb_meta::Dialect, String, String)> = None;
+    let mut doc_dialect = ferrodb_meta::Dialect::Mongo;
 
     let unregister = |rid: ResultId| {
         core.state().results.remove(&rid);
@@ -1142,14 +1144,23 @@ async fn forward(
                 database,
                 collection,
             } => {
-                let node = match (&database, &collection) {
-                    (Some(db), Some(c)) => Some(
-                        NodeRef::root(session.data_source.clone())
-                            .child(ObjectKind::Database, db)
-                            .child(ObjectKind::Collection, c),
-                    ),
-                    _ => None,
-                };
+                // MongoDB: database → collection; Couchbase: bucket →
+                // scope → collection; DynamoDB: region → table.
+                let dialect = core
+                    .source_dialect(&session.data_source)
+                    .ok()
+                    .and_then(|(_, d)| d)
+                    .unwrap_or(ferrodb_meta::Dialect::Mongo);
+                let located = crate::documents::result_node(
+                    dialect,
+                    &session.data_source,
+                    database.as_deref(),
+                    collection.as_deref(),
+                );
+                doc_source = located
+                    .as_ref()
+                    .map(|(_, db, c)| (dialect, db.clone(), c.clone()));
+                let node = located.map(|(n, ..)| n);
                 (
                     Some(ResultShape::Documents {
                         container: collection.clone(),
@@ -1190,19 +1201,34 @@ async fn forward(
             let (ctx, crx) = mpsc::unbounded_channel();
             core.state().results.insert(rid, ctx);
             doc_result = None;
-            if let ResultShape::Documents {
-                node: Some(node), ..
-            } = &shape
+            if let (
+                ResultShape::Documents {
+                    node: Some(node), ..
+                },
+                Some((dialect, database, collection)),
+            ) = (&shape, doc_source.take())
             {
+                if dialect == ferrodb_meta::Dialect::DynamoDb {
+                    // Edits need the table's key schema: load it now.
+                    let me = core.arc();
+                    let ds = session.data_source.clone();
+                    let db = database.clone();
+                    let table = node.name().unwrap_or_default().to_owned();
+                    core.handle().spawn(async move {
+                        let _ = me.ensure_table(&ds, dialect, &db, &table).await;
+                    });
+                }
                 core.state().documents.insert(
                     rid,
                     crate::documents::DocResult {
                         session: session.id,
-                        database: node.path[0].1.clone(),
-                        collection: node.path[1].1.clone(),
+                        database,
+                        collection,
                         ids: Vec::new(),
+                        dialect,
                     },
                 );
+                doc_dialect = dialect;
                 doc_result = Some(rid);
             }
             if let (ResultShape::Table(arrow), Some((dialect, text, schema))) = (&shape, &run.edit)
@@ -1328,12 +1354,10 @@ async fn forward(
             if let Some(r) = st.documents.get_mut(&dr)
                 && r.ids.len() + docs.len() <= crate::documents::MAX_IDS
             {
-                r.ids.extend(docs.iter().map(|d| {
-                    d.get("_id")
-                        .ok()
-                        .flatten()
-                        .and_then(|v| Bson::try_from(v).ok())
-                }));
+                r.ids.extend(
+                    docs.iter()
+                        .map(|d| crate::documents::identity(doc_dialect, d)),
+                );
             }
         }
         let chunk = match (&run.keys, page) {
