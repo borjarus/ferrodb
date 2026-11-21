@@ -57,6 +57,16 @@ const CONTAINERS: &[Container] = &[
         ],
         &[],
     ),
+    // Phase 8: Redis 8 (RedisJSON built in) and Apache Cassandra 5 (about a
+    // minute to start; give Docker 3 GB for it).
+    ("ferrodb-tck-redis", "redis:8", "56401:6379", &[], &[]),
+    (
+        "ferrodb-tck-cassandra",
+        "cassandra:5",
+        "56442:9042",
+        &["MAX_HEAP_SIZE=1G", "HEAP_NEWSIZE=200M"],
+        &[],
+    ),
 ];
 
 const NETWORK: &str = "ferrodb-tck";
@@ -189,6 +199,13 @@ pub fn env_vars() -> Vec<(String, String)> {
         (
             "FERRODB_TCK_SSH".into(),
             format!("ssh://ferrodb:ferrodb@{h}:52222"),
+        ),
+        ("FERRODB_TCK_REDIS".into(), format!("redis://{h}:56401/0")),
+        (
+            "FERRODB_TCK_CASSANDRA".into(),
+            // The node advertises its container address: route through the
+            // published port.
+            format!("cassandra://{h}:56442/tck?address_translation=contact_point"),
         ),
     ]
 }

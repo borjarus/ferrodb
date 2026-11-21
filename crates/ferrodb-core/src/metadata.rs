@@ -39,6 +39,8 @@ pub(crate) fn dialect(lang: &QueryLanguage) -> Option<Dialect> {
     match lang {
         QueryLanguage::Sql(d) => Dialect::from_id(d.as_str()),
         QueryLanguage::Mql => Some(Dialect::Mongo),
+        QueryLanguage::Cql => Some(Dialect::Cassandra),
+        QueryLanguage::RedisCommands => Some(Dialect::Redis),
         _ => None,
     }
 }
@@ -215,6 +217,10 @@ impl Inner {
             return self.list(node).await;
         };
         let ds = &node.data_source;
+        if d == Dialect::Redis && !node.path.is_empty() {
+            // Keys are listed live, never cached.
+            return self.redis_children(node).await;
+        }
         let Some(((_, container), rest)) = node.path.split_first() else {
             let cat = self.ensure_containers(ds, d).await?;
             return Ok(tree::containers(

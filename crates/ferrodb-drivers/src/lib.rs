@@ -16,9 +16,12 @@
 
 pub mod columns;
 pub mod config;
+pub mod kv;
 pub mod registry;
 pub mod sink;
 
+#[cfg(feature = "cql")]
+pub mod cql;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "mongodb")]
@@ -27,6 +30,8 @@ pub mod mongodb;
 pub mod mysql;
 #[cfg(feature = "pgwire")]
 pub mod pgwire;
+#[cfg(feature = "redis")]
+pub mod redis;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 

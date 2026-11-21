@@ -317,7 +317,11 @@ impl LanguageService for Inner {
     }
 
     fn risks(&self, text: &str, lang: &QueryLanguage, all_modifications: bool) -> Vec<Risk> {
-        self.language.risks(text, lang, all_modifications)
+        match lang {
+            QueryLanguage::RedisCommands => crate::kv::redis_risks(text, all_modifications),
+            QueryLanguage::Cql => ferrodb_lang::sql::risks(text, "cql", all_modifications),
+            _ => self.language.risks(text, lang, all_modifications),
+        }
     }
 
     fn code_actions(&self, doc: DocSnapshot, range: Range<usize>) -> Vec<CodeAction> {

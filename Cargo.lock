@@ -300,6 +300,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arcstr"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03918c3dbd7701a85c6b9887732e2921175f26c350b4563841d0958c21d57e6d"
+
+[[package]]
 name = "arg_enum_proc_macro"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1408,7 +1414,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4356eba6976435498d05a311ee9fc486da3bc81c200d3f0d7dd9703b41913f92"
 dependencies = [
  "bytes",
+ "futures-core",
  "memchr",
+ "pin-project-lite",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -1660,6 +1670,12 @@ checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "crc16"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "338089f42c427b86394a5ee60ff321da23a5c89c9d89514c829687b26359fcff"
 
 [[package]]
 name = "crc32fast"
@@ -1917,6 +1933,20 @@ dependencies = [
  "darling_core 0.24.1",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "dashmap"
+version = "6.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -2619,6 +2649,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
+ "async-trait",
  "bson",
  "bytes",
  "chrono",
@@ -2629,8 +2660,11 @@ dependencies = [
  "futures",
  "mongodb",
  "mysql_async",
+ "redis",
  "rusqlite",
  "rustls",
+ "scylla",
+ "serde_json",
  "tempfile",
  "tokio",
  "tokio-postgres",
@@ -4387,6 +4421,8 @@ version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
+ "allocator-api2",
+ "equivalent",
  "foldhash 0.2.0",
 ]
 
@@ -5050,6 +5086,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5520,6 +5565,15 @@ dependencies = [
  "float_next_after",
  "lyon_path",
  "num-traits",
+]
+
+[[package]]
+name = "lz4_flex"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f56455fff36934a9500d69062aec1c77037179b6f0669e4d5d6b72b84722d6a3"
+dependencies = [
+ "twox-hash",
 ]
 
 [[package]]
@@ -7587,7 +7641,7 @@ dependencies = [
  "getrandom 0.4.3",
  "lru-slab",
  "rand 0.10.3",
- "rand_pcg",
+ "rand_pcg 0.10.2",
  "ring",
  "rustc-hash 2.1.3",
  "rustls",
@@ -7715,6 +7769,15 @@ name = "rand_core"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "rand_pcg"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b48ac3f7ffaab7fac4d2376632268aa5f89abdb55f7ebf8f4d11fffccb2320f7"
+dependencies = [
+ "rand_core 0.9.5",
+]
 
 [[package]]
 name = "rand_pcg"
@@ -7889,6 +7952,36 @@ checksum = "76009fbe0614077fc1a2ce255e3a1881a2e3a3527097d5dc6d8212c585e7e38b"
 dependencies = [
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "redis"
+version = "1.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bef8fa589dd53a8a379a7856de1365d0a1be50c6b8aebb5c01c1ec441a2c509"
+dependencies = [
+ "arcstr",
+ "async-lock",
+ "bytes",
+ "cfg-if",
+ "combine",
+ "crc16",
+ "futures-channel",
+ "futures-util",
+ "itoa",
+ "log",
+ "percent-encoding",
+ "pin-project-lite",
+ "rand 0.10.3",
+ "rustls",
+ "rustls-native-certs",
+ "ryu",
+ "socket2",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "url",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -8587,6 +8680,80 @@ dependencies = [
  "pbkdf2 0.13.0",
  "salsa20",
  "sha2 0.11.1",
+]
+
+[[package]]
+name = "scylla"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f26fa42ed36f44d8d252f309d7d225dae850dcf10dfe6f8aabb92b62353ee53"
+dependencies = [
+ "arc-swap",
+ "async-trait",
+ "bytes",
+ "chrono",
+ "dashmap",
+ "futures",
+ "hashbrown 0.17.1",
+ "itertools 0.15.0",
+ "rand 0.9.5",
+ "rand_pcg 0.9.0",
+ "scylla-cql",
+ "scylla-cql-core",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "socket2",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "scylla-cql"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c9fe89bdc46bc77d106e101ba5df20452e823932ffc9dbc4e3e17f2c9d9bfa3"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "itertools 0.15.0",
+ "lz4_flex",
+ "scylla-cql-core",
+ "snap",
+ "stable_deref_trait",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+ "yoke",
+]
+
+[[package]]
+name = "scylla-cql-core"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8afdf0197a0fb28c61a6ffc903af31aaa1921d18c6b67713f6ff5a2e71e0f139"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "chrono",
+ "itertools 0.15.0",
+ "scylla-macros",
+ "thiserror 2.0.21",
+ "uuid",
+]
+
+[[package]]
+name = "scylla-macros"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7397ad0a6351607c6aa3af0c9deec0f5c6aa805614a5f308ee3f0dbfbaa2e522"
+dependencies = [
+ "darling 0.24.1",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -11824,6 +11991,12 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 [[package]]
 name = "xtask"
 version = "0.1.0"
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40de123dbb523ebcc00d61ec01840ad192578afc378d859f3429caa38308fad5"
 
 [[package]]
 name = "y4m"
