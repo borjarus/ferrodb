@@ -1,0 +1,371 @@
+# SAP Adaptive Server Enterprise 16 (Sybase ASE) Transact-SQL; derived from tsql, removing
+# the SQL Server-only features and adding the ASE ones.
+id = "sybase"
+name = "Sybase ASE (Transact-SQL)"
+inherits = "tsql"
+identifier_quote = '['
+case_folding = "none"
+default_schema = "dbo"
+parser = "mssql"
+
+keywords = [
+  "arith_overflow", "at", "avg", "char_convert", "confirm", "connect", "controlrow", "count",
+  "decrypt", "deterministic", "dual_control", "dummy", "encrypt", "endtran", "errordata",
+  "errorexit", "exclusive", "exp_row_size", "func", "identity_gap", "identity_start", "inout",
+  "insensitive", "install", "isolation", "jar", "level", "lock", "materialized", "max",
+  "max_rows_per_page", "min", "mirror", "mirrorexit", "modify", "new", "noholdlock",
+  "nonscrollable", "non_sensitive", "numeric_truncation", "once", "online", "only", "out",
+  "output", "partition", "perm", "permanent", "prepare", "privileges", "processexit",
+  "proxy_table", "quiesce", "readpast", "remove", "reorg", "replace", "reservepagegap", "returns",
+  "role", "rows", "scroll", "scrollable", "semi_sensitive", "shared", "stringsize", "stripe",
+  "sum", "syb_identity", "syb_restree", "syb_terminate", "temp", "temporary", "tracefile",
+  "unpartition", "user_option", "work", "xmlextract", "xmlparse", "xmltest", "xmlvalidate",
+]
+
+soft_keywords = [
+  "allpages", "allrows_dss", "allrows_mix", "allrows_oltp", "chained", "checkalloc",
+  "checkcatalog", "checkdb", "checkstorage", "checktable", "compact", "datapages", "datarows",
+  "dml_logging", "existing", "forwarded_rows", "in_row", "list", "lob_compression", "lru",
+  "minimal", "mru", "off_row", "optgoal", "parallel_degree", "partitions", "prefetch",
+  "reclaim_space", "roundrobin", "showplan", "wait",
+]
+
+types = [
+  "bigdatetime", "bigtime", "longsysname", "unichar", "unitext", "univarchar", "unsigned bigint",
+  "unsigned int", "unsigned smallint",
+]
+
+removed_keywords = [
+  "backup", "containstable", "contains", "deny", "distributed", "file", "freetext",
+  "freetexttable", "identitycol", "opendatasource", "openquery", "openrowset", "openxml",
+  "percent", "pivot", "restore", "revert", "rowguidcol", "securityaudit",
+  "semantickeyphrasetable", "semanticsimilaritydetailstable", "semanticsimilaritytable",
+  "session_user", "system_user", "tablesample", "try_convert", "unpivot", "within",
+]
+
+removed_types = [
+  "cursor", "datetime2", "datetimeoffset", "geography", "geometry", "hierarchyid", "json",
+  "ntext", "rowversion", "sql_variant", "table", "uniqueidentifier", "vector", "xml",
+]
+
+removed_functions = [
+  "app_name", "approx_count_distinct", "approx_percentile_cont", "approx_percentile_disc",
+  "base64_decode", "base64_encode", "binary_checksum", "bit_count",
+  "change_tracking_current_version", "change_tracking_min_valid_version", "checksum",
+  "checksum_agg", "choose", "collationproperty", "columnproperty", "columns_updated", "compress",
+  "concat", "concat_ws", "connectionproperty", "containstable", "context_info", "cume_dist",
+  "current_request_id", "current_timezone", "current_timezone_id", "current_transaction_id",
+  "cursor_status", "database_principal_id", "databasepropertyex", "date_bucket", "datediff_big",
+  "datefromparts", "datetime2fromparts", "datetimefromparts", "datetimeoffsetfromparts",
+  "datetrunc", "decompress", "decryptbykey", "decryptbypassphrase", "encryptbykey",
+  "encryptbypassphrase", "eomonth", "error_line", "error_message", "error_number",
+  "error_procedure", "error_severity", "error_state", "file_id", "file_name", "filegroup_id",
+  "filegroup_name", "fileproperty", "first_value", "format", "formatmessage", "freetexttable",
+  "fulltextcatalogproperty", "fulltextserviceproperty", "generate_series", "get_bit",
+  "getansinull", "greatest", "grouping", "grouping_id", "has_perms_by_name", "ident_current",
+  "ident_incr", "ident_seed", "iif", "indexproperty", "is_member", "is_rolemember",
+  "is_srvrolemember", "isjson", "json_array", "json_arrayagg", "json_modify", "json_object",
+  "json_objectagg", "json_path_exists", "json_query", "json_value", "key_guid", "lag",
+  "last_value", "lead", "least", "left_shift", "min_active_rowversion", "nchar",
+  "newsequentialid", "ntile", "object_definition", "object_schema_name", "objectproperty",
+  "objectpropertyex", "opendatasource", "openjson", "openquery", "openrowset", "openxml",
+  "original_login", "parse", "parsename", "percent_rank", "percentile_cont", "percentile_disc",
+  "product", "quotename", "regexp_count", "regexp_instr", "regexp_like", "regexp_replace",
+  "regexp_substr", "replace", "right_shift", "rowcount_big", "schema_id", "schema_name",
+  "scope_identity", "serverproperty", "session_context", "sessionproperty", "set_bit",
+  "smalldatetimefromparts", "sql_variant_property", "stats_date", "string_agg", "string_escape",
+  "string_split", "suser_sid", "suser_sname", "switchoffset", "sysdatetime", "sysdatetimeoffset",
+  "sysutcdatetime", "timefromparts", "todatetimeoffset", "translate", "trigger_nestlevel", "trim",
+  "try_cast", "try_convert", "try_parse", "type_id", "type_name", "typeproperty", "unicode",
+  "unistr", "vector_distance", "vector_norm", "vector_normalize", "vectorproperty", "xact_state",
+]
+
+[[functions]]
+name = "char_length"
+signatures = ["char_length(char_expr varchar) -> int"]
+doc = "Number of characters of a string (or bytes of binary data)."
+
+[[functions]]
+name = "str_replace"
+signatures = ["str_replace(char_expr1 varchar, char_expr2 varchar, char_expr3 varchar) -> varchar"]
+doc = "Replaces every occurrence of `char_expr2` with `char_expr3` (NULL removes it)."
+
+[[functions]]
+name = "to_unichar"
+signatures = ["to_unichar(integer_expr int) -> unichar"]
+doc = "Unicode character with the given code."
+
+[[functions]]
+name = "uscalar"
+signatures = ["uscalar(uchar_expr univarchar) -> int"]
+doc = "Unicode scalar value of the first character."
+
+[[functions]]
+name = "uhighsurr"
+signatures = ["uhighsurr(uchar_expr univarchar, start int) -> int"]
+doc = "1 when the code unit at `start` is the high half of a surrogate pair."
+
+[[functions]]
+name = "ulowsurr"
+signatures = ["ulowsurr(uchar_expr univarchar, start int) -> int"]
+doc = "1 when the code unit at `start` is the low half of a surrogate pair."
+
+[[functions]]
+name = "sortkey"
+signatures = ["sortkey(char_expression varchar) -> varbinary", "sortkey(char_expression varchar, collation_name varchar) -> varbinary"]
+doc = "Collation key for sorting in a given collation."
+
+[[functions]]
+name = "compare"
+signatures = ["compare(char_expression1 varchar, char_expression2 varchar) -> int", "compare(char_expression1 varchar, char_expression2 varchar, collation_name varchar) -> int"]
+doc = "-1, 0 or 1 comparing two strings in a collation."
+
+[[functions]]
+name = "inttohex"
+signatures = ["inttohex(integer_expression int) -> varchar"]
+doc = "Integer as 8-digit hexadecimal text."
+
+[[functions]]
+name = "hextoint"
+signatures = ["hextoint(hexadecimal_string varchar) -> int"]
+doc = "Hexadecimal text converted to `int`."
+
+[[functions]]
+name = "hextobigint"
+signatures = ["hextobigint(hexadecimal_string varchar) -> bigint"]
+doc = "Hexadecimal text converted to `bigint`."
+
+[[functions]]
+name = "biginttohex"
+signatures = ["biginttohex(integer_expression bigint) -> varchar"]
+doc = "`bigint` as 16-digit hexadecimal text."
+
+[[functions]]
+name = "bintostr"
+signatures = ["bintostr(sequence_of_bytes varbinary) -> varchar"]
+doc = "Binary value as hexadecimal text."
+
+[[functions]]
+name = "strtobin"
+signatures = ["strtobin(char_expr varchar) -> varbinary"]
+doc = "Hexadecimal text converted to binary."
+
+[[functions]]
+name = "current_date"
+signatures = ["current_date() -> date"]
+doc = "Current date."
+
+[[functions]]
+name = "current_time"
+signatures = ["current_time() -> time"]
+doc = "Current time."
+
+[[functions]]
+name = "current_bigdatetime"
+signatures = ["current_bigdatetime() -> bigdatetime"]
+doc = "Current date and time with microsecond precision."
+
+[[functions]]
+name = "current_bigtime"
+signatures = ["current_bigtime() -> bigtime"]
+doc = "Current time with microsecond precision."
+
+[[functions]]
+name = "rand2"
+signatures = ["rand2() -> float", "rand2(seed int) -> float"]
+doc = "Random float between 0 and 1, evaluated per row."
+
+[[functions]]
+name = "truncnum"
+signatures = ["truncnum(numeric_expr numeric, integer_expr int) -> numeric"]
+doc = "Number truncated to `integer_expr` decimal places."
+
+[[functions]]
+name = "stddev"
+signatures = ["stddev(expression float) -> float"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(expression float) -> float"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(expression float) -> float"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "variance"
+signatures = ["variance(expression float) -> float"]
+doc = "Sample variance."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(expression float) -> float"]
+doc = "Sample variance."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(expression float) -> float"]
+doc = "Population variance."
+
+[[functions]]
+name = "newid"
+signatures = ["newid() -> varchar", "newid(optionflag int) -> varchar"]
+doc = "New GUID as text (`newid(1)` with dashes)."
+
+[[functions]]
+name = "index_col"
+signatures = ["index_col(object_name varchar, index_id int, key_ int) -> varchar", "index_col(object_name varchar, index_id int, key_ int, user_id int) -> varchar"]
+doc = "Name of an index key column."
+
+[[functions]]
+name = "index_colorder"
+signatures = ["index_colorder(object_name varchar, index_id int, key_ int) -> varchar", "index_colorder(object_name varchar, index_id int, key_ int, user_id int) -> varchar"]
+doc = "Order (`ASC`/`DESC`) of an index key column."
+
+[[functions]]
+name = "object_owner_id"
+signatures = ["object_owner_id(object_id int) -> int", "object_owner_id(object_id int, database_id int) -> int"]
+doc = "Owner ID of an object."
+
+[[functions]]
+name = "suser_id"
+signatures = ["suser_id() -> int", "suser_id(server_user_name varchar) -> int"]
+doc = "Server user ID of a login (current one when omitted)."
+
+[[functions]]
+name = "valid_name"
+signatures = ["valid_name(character_expression varchar) -> int", "valid_name(character_expression varchar, maximum_length int) -> int"]
+doc = "Non-zero when the string is a valid identifier."
+
+[[functions]]
+name = "valid_user"
+signatures = ["valid_user(server_user_id int) -> int", "valid_user(server_user_id int, database_id int) -> int"]
+doc = "1 when the login is a valid user or alias in the database."
+
+[[functions]]
+name = "show_role"
+signatures = ["show_role() -> varchar"]
+doc = "Roles currently active for the login."
+
+[[functions]]
+name = "proc_role"
+signatures = ["proc_role(role_name varchar) -> int"]
+doc = "1 or 2 when the user has the role (directly or contained), 0 otherwise."
+
+[[functions]]
+name = "has_role"
+signatures = ["has_role(role_name varchar) -> int", "has_role(role_name varchar, option int) -> int"]
+doc = "Whether the user has the role (active or not)."
+
+[[functions]]
+name = "role_id"
+signatures = ["role_id(role_name varchar) -> int"]
+doc = "Server role ID of a role."
+
+[[functions]]
+name = "role_name"
+signatures = ["role_name(role_id int) -> varchar"]
+doc = "Name of a server role."
+
+[[functions]]
+name = "role_contain"
+signatures = ["role_contain(role1 varchar, role2 varchar) -> int"]
+doc = "1 when `role2` contains `role1`."
+
+[[functions]]
+name = "mut_excl_roles"
+signatures = ["mut_excl_roles(role1 varchar, role2 varchar) -> int", "mut_excl_roles(role1 varchar, role2 varchar, level varchar) -> int"]
+doc = "1 when two roles are mutually exclusive (`'membership'` or `'activation'`)."
+
+[[functions]]
+name = "tsequal"
+signatures = ["tsequal(browsed_row_timestamp timestamp, stored_row_timestamp timestamp) -> int"]
+doc = "Compares timestamps to detect that a browsed row was updated."
+
+[[functions]]
+name = "pagesize"
+signatures = ["pagesize(object_name varchar) -> int", "pagesize(object_name varchar, index_name varchar) -> int", "pagesize(object_id int, db_id int, index_id int) -> int"]
+doc = "Page size in bytes of a table or index."
+
+[[functions]]
+name = "data_pages"
+signatures = ["data_pages(dbid int, object_id int) -> int", "data_pages(dbid int, object_id int, partition_id int) -> int"]
+doc = "Number of pages used by a table, index or partition."
+
+[[functions]]
+name = "reserved_pages"
+signatures = ["reserved_pages(dbid int, object_id int) -> int", "reserved_pages(dbid int, object_id int, indid int) -> int", "reserved_pages(dbid int, object_id int, indid int, partition_id int) -> int"]
+doc = "Number of pages reserved for a table, index or partition."
+
+[[functions]]
+name = "used_pages"
+signatures = ["used_pages(dbid int, object_id int) -> int", "used_pages(dbid int, object_id int, indid int) -> int", "used_pages(dbid int, object_id int, indid int, partition_id int) -> int"]
+doc = "Number of pages used by a table, index or partition (including OAM pages)."
+
+[[functions]]
+name = "row_count"
+signatures = ["row_count(dbid int, object_id int) -> bigint", "row_count(dbid int, object_id int, partition_id int) -> bigint"]
+doc = "Estimated number of rows of a table or partition."
+
+[[functions]]
+name = "lct_admin"
+signatures = ["lct_admin(option varchar, ...) -> int"]
+doc = "Manages the last-chance threshold and log space (`'logfull'`, `'reserve'`...)."
+
+[[functions]]
+name = "lockscheme"
+signatures = ["lockscheme(object_name varchar) -> varchar", "lockscheme(object_id int, db_id int) -> varchar"]
+doc = "Locking scheme (`allpages`, `datapages`, `datarows`) of a table."
+
+[[functions]]
+name = "datachange"
+signatures = ["datachange(object_name varchar, partition_name varchar, column_name varchar) -> float"]
+doc = "Percentage of data changed since the last `update statistics`."
+
+[[functions]]
+name = "next_identity"
+signatures = ["next_identity(table_name varchar) -> varchar"]
+doc = "Next identity value that will be assigned in the table."
+
+[[functions]]
+name = "asehostname"
+signatures = ["asehostname() -> varchar"]
+doc = "Name of the host running the server."
+
+[[functions]]
+name = "get_appcontext"
+signatures = ["get_appcontext(context_name varchar, attribute_name varchar) -> varchar"]
+doc = "Value of an application context attribute."
+
+[[functions]]
+name = "set_appcontext"
+signatures = ["set_appcontext(context_name varchar, attribute_name varchar, attribute_value varchar) -> int"]
+doc = "Sets an application context attribute."
+
+[[functions]]
+name = "xmlextract"
+signatures = ["xmlextract(xpath_query varchar, xml_data text) -> text"]
+doc = "Result of an XPath query on an XML document (`returns` clause optional)."
+
+[[functions]]
+name = "xmltest"
+signatures = ["xmltest(xpath_query varchar, xml_data text) -> int"]
+doc = "1 when the XPath query matches the XML document."
+
+[[functions]]
+name = "xmlparse"
+signatures = ["xmlparse(xml_data text) -> image"]
+doc = "XML document parsed into the internal representation."
+
+[[functions]]
+name = "xmlrepresentation"
+signatures = ["xmlrepresentation(parsed_xml image) -> int"]
+doc = "0 when the value is a parsed XML document."
+
+[[functions]]
+name = "xmlvalidate"
+signatures = ["xmlvalidate(xml_data text) -> text"]
+doc = "XML document validated (optionally against a schema); NULL or error when invalid."

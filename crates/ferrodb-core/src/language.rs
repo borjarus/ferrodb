@@ -6,6 +6,10 @@
 //! MQL: completion suggests the collections of the cached catalog and the
 //! fields of sampled collections (a collection is sampled in the
 //! background the first time its fields are needed).
+//! CQL: keyspaces are schemas of the SQL model. SQL++, PartiQL and Redis
+//! get a [`NoSqlSchema`] built from the catalog on each request: buckets,
+//! scopes, collections and inferred fields (Couchbase), tables with key
+//! schemas, indexes and inferred attributes (DynamoDB), key names (Redis).
 
 use std::{collections::HashMap, ops::Range, path::Path, sync::Arc};
 
@@ -17,10 +21,15 @@ use ferrodb_api::{
 use ferrodb_lang::{
     Engine,
     mql::complete::Schema,
-    service::complete_mql,
+    partiql,
+    service::{NoSqlSchema, complete_mql},
     sql::{schema::SchemaModel, templates},
+    sqlpp,
 };
-use ferrodb_meta::{model::Catalog, sql_model::sql_model};
+use ferrodb_meta::{
+    model::{Catalog, Table},
+    sql_model::sql_model,
+};
 
 use crate::Inner;
 
@@ -134,12 +143,151 @@ impl Inner {
         model
     }
 
+    /// Fields known for a document collection: catalog columns, then the
+    /// sampled fields cache.
+    fn doc_fields(
+        &self,
+        ds: &DataSourceId,
+        container: &str,
+        name: &str,
+        table: Option<&Table>,
+    ) -> Vec<String> {
+        let mut out: Vec<String> = table
+            .map(|t| t.columns.iter().map(|c| c.name.clone()).collect())
+            .unwrap_or_default();
+        let key = (ds.clone(), container.to_owned(), name.to_owned());
+        if let Some(sampled) = self.fields.lock().ok().and_then(|m| m.get(&key).cloned()) {
+            for f in sampled {
+                if !out.contains(&f) {
+                    out.push(f);
+                }
+            }
+        }
+        out
+    }
+
+    /// Schema knowledge of SQL++, PartiQL and Redis consoles.
+    pub(crate) fn nosql_schema(
+        &self,
+        ds: Option<&DataSourceId>,
+        lang: &QueryLanguage,
+    ) -> NoSqlSchema {
+        let mut out = NoSqlSchema::default();
+        let (Some(ds), true) = (
+            ds,
+            matches!(
+                lang,
+                QueryLanguage::SqlPlusPlus | QueryLanguage::PartiQl | QueryLanguage::RedisCommands
+            ),
+        ) else {
+            return out;
+        };
+        let Some(cat) = self.catalogs.peek(ds) else {
+            return out;
+        };
+        match lang {
+            QueryLanguage::SqlPlusPlus => out.couchbase = couchbase_schema(self, ds, &cat),
+            QueryLanguage::PartiQl => out.dynamodb = dynamodb_schema(self, ds, &cat),
+            _ => out.redis_keys = redis_keys(&cat),
+        }
+        out
+    }
+
     /// Runs `f` with an engine for the document's source.
     fn with_engine<T>(&self, doc: &DocSnapshot, f: impl FnOnce(&Engine<'_>) -> T) -> T {
         let model = self.sql_model(doc.data_source.as_ref());
-        let engine = Engine::new(&model, &self.templates);
+        let nosql = self.nosql_schema(doc.data_source.as_ref(), &doc.language);
+        let engine = Engine::new(&model, &self.templates).with_nosql(&nosql);
         f(&engine)
     }
+}
+
+/// Couchbase: containers are buckets (or `bucket.scope`); collections are
+/// `scope.collection` names (or plain names in the `_default` scope / the
+/// container's scope), listed as collections or as tables whose columns
+/// are the inferred fields.
+fn couchbase_schema(core: &Inner, ds: &DataSourceId, cat: &Catalog) -> sqlpp::Schema {
+    let mut out = sqlpp::Schema {
+        loaded: cat.loaded().next().is_some(),
+        ..Default::default()
+    };
+    for (c, content) in cat.loaded() {
+        let (bucket, scope) = match c.name.split_once('.') {
+            Some((b, s)) => (b.to_owned(), Some(s.to_owned())),
+            None => (c.name.clone(), None),
+        };
+        let names = content
+            .collections
+            .iter()
+            .map(|x| (x.name.clone(), None))
+            .chain(content.tables.iter().map(|t| (t.name.clone(), Some(t))));
+        for (name, table) in names {
+            let (sc, coll) = match (&scope, name.split_once('.')) {
+                (_, Some((s, c))) => (s.to_owned(), c.to_owned()),
+                (Some(s), None) => (s.clone(), name.clone()),
+                (None, None) => ("_default".to_owned(), name.clone()),
+            };
+            if out
+                .keyspaces
+                .iter()
+                .any(|k| k.bucket == bucket && k.scope == sc && k.collection == coll)
+            {
+                continue;
+            }
+            let fields = core.doc_fields(ds, &c.name, &name, table);
+            out.keyspaces.push(sqlpp::Keyspace {
+                bucket: bucket.clone(),
+                scope: sc,
+                collection: coll,
+                fields,
+            });
+        }
+    }
+    out
+}
+
+/// DynamoDB: tables with the key schema as primary key (partition key,
+/// then sort key), secondary indexes as indexes (their first columns are
+/// the index keys), inferred attributes as columns.
+fn dynamodb_schema(core: &Inner, ds: &DataSourceId, cat: &Catalog) -> partiql::Schema {
+    let mut out = partiql::Schema {
+        loaded: cat.loaded().next().is_some(),
+        ..Default::default()
+    };
+    for (c, content) in cat.loaded() {
+        for t in &content.tables {
+            let key: &[String] = t.primary_key.as_ref().map_or(&[], |k| k.columns.as_slice());
+            out.tables.push(partiql::KeyTable {
+                name: t.name.clone(),
+                partition_key: key.first().cloned(),
+                sort_key: key.get(1).cloned(),
+                indexes: t
+                    .indexes
+                    .iter()
+                    .filter_map(|i| {
+                        Some(partiql::KeyIndex {
+                            name: i.name.clone(),
+                            partition_key: i.columns.first()?.clone(),
+                            sort_key: i.columns.get(1).cloned(),
+                        })
+                    })
+                    .collect(),
+                attributes: core.doc_fields(ds, &c.name, &t.name, Some(t)),
+            });
+        }
+    }
+    out
+}
+
+/// Redis: key names loaded in the explorer (tables or collections of the
+/// database containers).
+fn redis_keys(cat: &Catalog) -> Vec<String> {
+    let mut out = Vec::new();
+    for (_, content) in cat.loaded() {
+        out.extend(content.tables.iter().map(|t| t.name.clone()));
+        out.extend(content.collections.iter().map(|c| c.name.clone()));
+    }
+    out
 }
 
 impl LanguageService for Inner {

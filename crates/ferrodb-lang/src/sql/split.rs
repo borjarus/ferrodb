@@ -5,6 +5,17 @@
 //! (`CREATE TRIGGER … BEGIN … END`, `BEGIN ATOMIC … END`, MySQL compound
 //! statements). A comment on the line right before a statement names its
 //! result tab.
+//!
+//! Dialect rules that are not data:
+//! - T-SQL: `GO [n]` alone on a line ends a batch (and the statement);
+//!   `BEGIN … END` blocks (`BEGIN TRY … END CATCH` too) keep their `;`; a
+//!   `CREATE|ALTER PROCEDURE/FUNCTION/TRIGGER` body runs to the end of the
+//!   batch, as the server reads it;
+//! - Oracle: anonymous PL/SQL blocks (`DECLARE`/`BEGIN … END;`) and stored
+//!   units (`CREATE [OR REPLACE] PROCEDURE/FUNCTION/PACKAGE [BODY]/TRIGGER/
+//!   TYPE BODY`) are one statement; `/` alone on a line ends one, as in
+//!   SQL*Plus;
+//! - CQL: `BEGIN BATCH … APPLY BATCH` is one statement.
 
 use std::ops::Range;
 
@@ -63,6 +74,26 @@ struct Current {
     words: usize,
     /// The previous word was `END` (`END CASE` does not open a CASE).
     after_end: bool,
+    /// T-SQL routine: the body runs to the end of the batch.
+    batch_body: bool,
+    /// PL/SQL block or stored unit.
+    plsql: bool,
+    /// Open PL/SQL blocks; `true` = declaration section before its `BEGIN`.
+    blocks: Vec<bool>,
+    /// A `PROCEDURE`/`FUNCTION` header was seen: its `IS`/`AS` opens a
+    /// declaration section.
+    pending_sub: bool,
+    /// Parenthesis depth (PL/SQL headers).
+    paren: i32,
+    /// Inside `BEGIN BATCH … APPLY BATCH` (CQL).
+    batch: bool,
+}
+
+impl Current {
+    /// `;` here does not end the statement.
+    fn in_block(&self) -> bool {
+        self.depth > 0 || self.batch_body || !self.blocks.is_empty() || self.batch
+    }
 }
 
 impl Splitter<'_> {
@@ -94,6 +125,26 @@ impl Splitter<'_> {
                 }
                 continue;
             }
+            // `GO [n]` (T-SQL) and `/` (Oracle) alone on their line.
+            if self.flavor.go_batches
+                && t.is_word(self.src, "go")
+                && self.at_line_start(t.range.start)
+                && self.rest_of_line_is(t.range.end, |r| r.bytes().all(|b| b.is_ascii_digit()))
+            {
+                self.finish(&mut cur);
+                i = self.skip_line(i);
+                continue;
+            }
+            if self.flavor.plsql
+                && t.kind == TokenKind::Punct
+                && t.text(self.src) == "/"
+                && self.at_line_start(t.range.start)
+                && self.rest_of_line_is(t.range.end, str::is_empty)
+            {
+                self.finish(&mut cur);
+                i = self.skip_line(i);
+                continue;
+            }
             // Terminator.
             if let Some(d) = &delimiter {
                 let code = matches!(
@@ -108,10 +159,18 @@ impl Splitter<'_> {
                     }
                     continue;
                 }
-            } else if t.kind == TokenKind::Punct && t.text(self.src) == ";" && cur.depth == 0 {
-                self.finish(&mut cur);
-                i += 1;
-                continue;
+            } else if t.kind == TokenKind::Punct && t.text(self.src) == ";" {
+                if !cur.in_block() {
+                    // PL/SQL needs the `;` after its final `END`.
+                    if cur.plsql && cur.first.is_some() {
+                        cur.last = Some(i);
+                    }
+                    self.finish(&mut cur);
+                    i += 1;
+                    continue;
+                }
+                // A forward declaration `PROCEDURE p;` has no body.
+                cur.pending_sub = false;
             }
             self.track_blocks(&mut cur, i);
             if cur.first.is_none() {
@@ -131,11 +190,187 @@ impl Splitter<'_> {
             .is_none_or(|l| l.trim().is_empty())
     }
 
+    /// The rest of the line after `pos`, without a trailing `--` comment and
+    /// surrounding blanks, satisfies `ok`.
+    fn rest_of_line_is(&self, pos: usize, ok: impl Fn(&str) -> bool) -> bool {
+        let end = self.src[pos..]
+            .find('\n')
+            .map_or(self.src.len(), |n| pos + n);
+        let rest = &self.src[pos..end];
+        let rest = rest.find("--").map_or(rest, |c| &rest[..c]);
+        ok(rest.trim())
+    }
+
+    /// Index of the first token on the line after token `i`.
+    fn skip_line(&self, mut i: usize) -> usize {
+        let start = self.toks[i].range.end;
+        let end = self.src[start..]
+            .find('\n')
+            .map_or(self.src.len(), |n| start + n);
+        while i < self.toks.len() && self.toks[i].range.start < end {
+            i += 1;
+        }
+        i
+    }
+
+    /// Index of the next significant token after `from`.
+    fn next_index(&self, from: usize) -> Option<usize> {
+        (from + 1..self.toks.len()).find(|&j| !self.toks[j].is_trivia())
+    }
+
     fn next_word(&self, from: usize) -> Option<&Token> {
-        self.toks[from + 1..].iter().find(|t| !t.is_trivia())
+        self.next_index(from).map(|j| &self.toks[j])
+    }
+
+    fn word_is(&self, t: Option<&Token>, words: &[&str]) -> bool {
+        t.is_some_and(|t| words.iter().any(|w| t.is_word(self.src, w)))
+    }
+
+    /// T-SQL: blocks anywhere, routine bodies to the end of the batch.
+    fn track_tsql(&self, cur: &mut Current, i: usize) {
+        let t = &self.toks[i];
+        if t.kind != TokenKind::Word {
+            return;
+        }
+        let w = t.text(self.src);
+        cur.words += 1;
+        let after_end = std::mem::replace(&mut cur.after_end, w.eq_ignore_ascii_case("end"));
+        if cur.words <= 5
+            && cur
+                .first
+                .is_some_and(|f| self.word_is(Some(&self.toks[f]), &["create", "alter"]))
+            && ["procedure", "proc", "function", "trigger"]
+                .iter()
+                .any(|k| w.eq_ignore_ascii_case(k))
+        {
+            cur.batch_body = true;
+        }
+        if w.eq_ignore_ascii_case("begin") {
+            let next = self.next_word(i);
+            let not_block = next.is_none_or(|n| n.text(self.src) == ";")
+                || self.word_is(
+                    next,
+                    &[
+                        "tran",
+                        "transaction",
+                        "distributed",
+                        "dialog",
+                        "conversation",
+                    ],
+                );
+            if !not_block {
+                cur.depth += 1;
+            }
+        } else if cur.depth > 0 && !after_end && w.eq_ignore_ascii_case("case") {
+            cur.depth += 1;
+        } else if w.eq_ignore_ascii_case("end") && cur.depth > 0 {
+            cur.depth -= 1;
+        }
+    }
+
+    /// Oracle: PL/SQL blocks and stored units.
+    fn track_plsql(&self, cur: &mut Current, i: usize) {
+        let t = &self.toks[i];
+        match (t.kind, t.text(self.src)) {
+            (TokenKind::Punct, "(") => cur.paren += 1,
+            (TokenKind::Punct, ")") => cur.paren -= 1,
+            _ => {}
+        }
+        if t.kind != TokenKind::Word {
+            return;
+        }
+        let w = t.text(self.src).to_ascii_lowercase();
+        cur.words += 1;
+        let after_end = std::mem::replace(&mut cur.after_end, w == "end");
+        let first = cur.first.is_none();
+        if first && (w == "declare" || w == "begin") {
+            cur.plsql = true;
+        }
+        if cur.words <= 6
+            && !first
+            && !cur.plsql
+            && cur
+                .first
+                .is_some_and(|f| self.toks[f].is_word(self.src, "create"))
+        {
+            match w.as_str() {
+                "procedure" | "function" | "package" => {
+                    cur.plsql = true;
+                    cur.pending_sub = true;
+                    return;
+                }
+                "trigger" => {
+                    cur.plsql = true;
+                    return;
+                }
+                // `CREATE TYPE BODY`; a type specification is a plain statement.
+                "type" if self.word_is(self.next_word(i), &["body"]) => {
+                    cur.plsql = true;
+                    cur.pending_sub = true;
+                    return;
+                }
+                _ => {}
+            }
+        }
+        if !cur.plsql {
+            return;
+        }
+        let in_decl = cur.blocks.last() == Some(&true);
+        match w.as_str() {
+            "procedure" | "function" if in_decl => cur.pending_sub = true,
+            "is" | "as" if cur.pending_sub && cur.paren == 0 => {
+                cur.pending_sub = false;
+                cur.blocks.push(true);
+            }
+            "declare" => cur.blocks.push(true),
+            "begin" => {
+                if in_decl {
+                    if let Some(b) = cur.blocks.last_mut() {
+                        *b = false;
+                    }
+                } else {
+                    cur.blocks.push(false);
+                }
+            }
+            "case" if !after_end && !cur.blocks.is_empty() => cur.blocks.push(false),
+            // `END IF` / `END LOOP` close blocks that were not counted.
+            "end"
+                if !cur.blocks.is_empty() && !self.word_is(self.next_word(i), &["if", "loop"]) =>
+            {
+                cur.blocks.pop();
+            }
+            _ => {}
+        }
+    }
+
+    /// CQL: `BEGIN [UNLOGGED|COUNTER] BATCH … APPLY BATCH`.
+    fn track_cql(&self, cur: &mut Current, i: usize) {
+        let t = &self.toks[i];
+        if t.kind != TokenKind::Word {
+            return;
+        }
+        let next = self.next_index(i);
+        let next_tok = next.map(|j| &self.toks[j]);
+        if cur.first.is_none() && t.is_word(self.src, "begin") {
+            let after = next.and_then(|j| self.next_word(j));
+            cur.batch = self.word_is(next_tok, &["batch"])
+                || (self.word_is(next_tok, &["unlogged", "counter"])
+                    && self.word_is(after, &["batch"]));
+        } else if cur.batch && t.is_word(self.src, "apply") && self.word_is(next_tok, &["batch"]) {
+            cur.batch = false;
+        }
     }
 
     fn track_blocks(&self, cur: &mut Current, i: usize) {
+        if self.flavor.go_batches {
+            return self.track_tsql(cur, i);
+        }
+        if self.flavor.plsql {
+            return self.track_plsql(cur, i);
+        }
+        if self.flavor.cql_batches {
+            return self.track_cql(cur, i);
+        }
         let t = &self.toks[i];
         if t.kind != TokenKind::Word {
             return;

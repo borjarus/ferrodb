@@ -6,7 +6,8 @@
 //! abbreviation = "lim"
 //! description = "LIMIT clause"
 //! body = "LIMIT $count$$END$"
-//! language = "sql"   # sql | mql | any (default: sql)
+//! language = "sql"   # sql | mql | cql | sqlpp | partiql | redis | any
+//!                    # or an SQL dialect id (tsql, oracle…); default: sql
 //! ```
 //!
 //! `$NAME$` is a variable (its name is the placeholder text, the first one
@@ -17,6 +18,9 @@ use std::ops::Range;
 
 use ferrodb_api::{LiveTemplate, QueryLanguage, TemplateExpansion};
 use serde::Deserialize;
+
+/// (abbreviation, description, body).
+type Templates = &'static [(&'static str, &'static str, &'static str)];
 
 const SQL: &[(&str, &str, &str)] = &[
     ("sel", "SELECT * FROM table", "SELECT * FROM $table$$END$"),
@@ -92,22 +96,174 @@ const MQL: &[(&str, &str, &str)] = &[
     ),
 ];
 
+/// T-SQL (SQL Server, Azure SQL, Sybase ASE): replace or extend the SQL ones.
+const TSQL: &[(&str, &str, &str)] = &[
+    (
+        "sel",
+        "SELECT TOP 100 * FROM table",
+        "SELECT TOP 100 * FROM $table$$END$",
+    ),
+    (
+        "top",
+        "SELECT TOP (n) … ORDER BY",
+        "SELECT TOP ($count$) * FROM $table$ ORDER BY $END$",
+    ),
+    (
+        "decl",
+        "DECLARE @variable",
+        "DECLARE @$name$ $type$ = $END$;",
+    ),
+    (
+        "tc",
+        "BEGIN TRY … END TRY BEGIN CATCH … END CATCH",
+        "BEGIN TRY\n    $SELECTION$$END$\nEND TRY\nBEGIN CATCH\n    THROW;\nEND CATCH",
+    ),
+    (
+        "tran",
+        "Transaction with TRY/CATCH",
+        "BEGIN TRY\n    BEGIN TRANSACTION;\n    $SELECTION$$END$\n    COMMIT TRANSACTION;\nEND TRY\nBEGIN CATCH\n    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;\n    THROW;\nEND CATCH",
+    ),
+    (
+        "proc",
+        "CREATE OR ALTER PROCEDURE",
+        "CREATE OR ALTER PROCEDURE $schema$.$name$\n    @$param$ $type$\nAS\nBEGIN\n    SET NOCOUNT ON;\n    $END$\nEND\nGO",
+    ),
+    (
+        "fn",
+        "CREATE OR ALTER FUNCTION (scalar)",
+        "CREATE OR ALTER FUNCTION $schema$.$name$(@$param$ $type$)\nRETURNS $returns$\nAS\nBEGIN\n    RETURN $END$;\nEND\nGO",
+    ),
+    (
+        "tmp",
+        "CREATE TABLE #temp",
+        "CREATE TABLE #$name$ (\n    $END$\n);",
+    ),
+    (
+        "ifex",
+        "IF EXISTS (…)",
+        "IF EXISTS (SELECT 1 FROM $table$ WHERE $condition$)\nBEGIN\n    $END$\nEND",
+    ),
+    (
+        "while",
+        "WHILE loop",
+        "WHILE $condition$\nBEGIN\n    $END$\nEND",
+    ),
+    (
+        "cur",
+        "Cursor loop",
+        "DECLARE @$var$ $type$;\nDECLARE $cursor$ CURSOR LOCAL FAST_FORWARD FOR\n    SELECT $column$ FROM $table$;\nOPEN $cursor$;\nFETCH NEXT FROM $cursor$ INTO @$var$;\nWHILE @@FETCH_STATUS = 0\nBEGIN\n    $END$\n    FETCH NEXT FROM $cursor$ INTO @$var$;\nEND\nCLOSE $cursor$;\nDEALLOCATE $cursor$;",
+    ),
+    (
+        "mer",
+        "MERGE … USING … WHEN MATCHED",
+        "MERGE INTO $target$ AS t\nUSING $source$ AS s ON t.$key$ = s.$key$\nWHEN MATCHED THEN UPDATE SET $END$\nWHEN NOT MATCHED THEN INSERT ($columns$) VALUES ($values$);",
+    ),
+    (
+        "ca",
+        "CROSS APPLY (subquery)",
+        "CROSS APPLY (SELECT TOP 1 * FROM $table$ WHERE $END$) AS $alias$",
+    ),
+    ("go", "GO batch separator", "\nGO\n$END$"),
+];
+
+/// Oracle SQL and PL/SQL.
+const ORACLE: &[(&str, &str, &str)] = &[
+    (
+        "sel",
+        "SELECT … FETCH FIRST n ROWS",
+        "SELECT * FROM $table$ FETCH FIRST 100 ROWS ONLY$END$",
+    ),
+    (
+        "rn",
+        "SELECT … WHERE ROWNUM <= n",
+        "SELECT * FROM $table$ WHERE ROWNUM <= $count$$END$",
+    ),
+    (
+        "blk",
+        "PL/SQL anonymous block",
+        "DECLARE\n    $name$ $type$;\nBEGIN\n    $SELECTION$$END$\nEXCEPTION\n    WHEN OTHERS THEN\n        RAISE;\nEND;\n/",
+    ),
+    (
+        "proc",
+        "CREATE OR REPLACE PROCEDURE",
+        "CREATE OR REPLACE PROCEDURE $name$ (\n    p_$param$ IN $type$\n) AS\nBEGIN\n    $END$\nEND $name$;\n/",
+    ),
+    (
+        "fn",
+        "CREATE OR REPLACE FUNCTION",
+        "CREATE OR REPLACE FUNCTION $name$ (\n    p_$param$ IN $type$\n) RETURN $returns$ AS\nBEGIN\n    RETURN $END$;\nEND $name$;\n/",
+    ),
+    (
+        "pkg",
+        "CREATE OR REPLACE PACKAGE",
+        "CREATE OR REPLACE PACKAGE $name$ AS\n    $END$\nEND $name$;\n/",
+    ),
+    (
+        "forc",
+        "FOR record IN (SELECT …) LOOP",
+        "FOR $rec$ IN (SELECT * FROM $table$) LOOP\n    $END$\nEND LOOP;",
+    ),
+    (
+        "exc",
+        "EXCEPTION WHEN … THEN",
+        "EXCEPTION\n    WHEN NO_DATA_FOUND THEN\n        $END$\n    WHEN OTHERS THEN\n        RAISE;",
+    ),
+    (
+        "out",
+        "DBMS_OUTPUT.PUT_LINE",
+        "DBMS_OUTPUT.PUT_LINE($END$);",
+    ),
+    (
+        "seq",
+        "CREATE SEQUENCE",
+        "CREATE SEQUENCE $name$ START WITH 1 INCREMENT BY 1$END$",
+    ),
+    (
+        "nv",
+        "sequence.NEXTVAL FROM dual",
+        "SELECT $sequence$.NEXTVAL FROM dual$END$",
+    ),
+    (
+        "cby",
+        "Hierarchical query (CONNECT BY)",
+        "SELECT LEVEL, $columns$ FROM $table$\nSTART WITH $parent$ IS NULL\nCONNECT BY PRIOR $id$ = $parent$$END$",
+    ),
+    (
+        "mer",
+        "MERGE … USING … WHEN MATCHED",
+        "MERGE INTO $target$ t\nUSING $source$ s ON (t.$key$ = s.$key$)\nWHEN MATCHED THEN UPDATE SET $END$\nWHEN NOT MATCHED THEN INSERT ($columns$) VALUES ($values$)",
+    ),
+];
+
 fn lang_key(lang: &QueryLanguage) -> Option<&'static str> {
     match lang {
         QueryLanguage::Sql(_) => Some("sql"),
         QueryLanguage::Mql => Some("mql"),
-        _ => None,
+        QueryLanguage::Cql => Some("cql"),
+        QueryLanguage::SqlPlusPlus => Some("sqlpp"),
+        QueryLanguage::PartiQl => Some("partiql"),
+        QueryLanguage::RedisCommands => Some("redis"),
     }
 }
 
 /// Built-in templates of a language.
 pub fn builtin(lang: &QueryLanguage) -> Vec<LiveTemplate> {
-    let list = match lang_key(lang) {
-        Some("sql") => SQL,
-        Some("mql") => MQL,
-        _ => &[],
+    let (list, extra): (Templates, Templates) = match lang {
+        QueryLanguage::Sql(d) => match d.as_str() {
+            "tsql" | "sybase" | "sqlserver" | "azuresql" => (TSQL, SQL),
+            "oracle" => (ORACLE, SQL),
+            _ => (SQL, &[]),
+        },
+        QueryLanguage::Mql => (MQL, &[]),
+        QueryLanguage::Cql => (crate::cql::TEMPLATES, &[]),
+        QueryLanguage::SqlPlusPlus => (crate::sqlpp::TEMPLATES, &[]),
+        QueryLanguage::PartiQl => (crate::partiql::TEMPLATES, &[]),
+        QueryLanguage::RedisCommands => (crate::redis::TEMPLATES, &[]),
     };
+    let mut seen = std::collections::HashSet::new();
     list.iter()
+        .chain(extra)
+        .filter(|(a, _, _)| seen.insert(*a))
         .map(|(a, d, b)| LiveTemplate {
             abbreviation: (*a).into(),
             description: (*d).into(),
@@ -160,9 +316,13 @@ pub fn parse_user(text: &str) -> Result<Vec<(String, LiveTemplate)>, String> {
 /// same abbreviation).
 pub fn for_language(lang: &QueryLanguage, user: &[(String, LiveTemplate)]) -> Vec<LiveTemplate> {
     let key = lang_key(lang);
+    let dialect = match lang {
+        QueryLanguage::Sql(d) => Some(d.as_str()),
+        _ => None,
+    };
     let mut out: Vec<LiveTemplate> = user
         .iter()
-        .filter(|(l, _)| l == "any" || Some(l.as_str()) == key)
+        .filter(|(l, _)| l == "any" || Some(l.as_str()) == key || Some(l.as_str()) == dialect)
         .map(|(_, t)| t.clone())
         .collect();
     for b in builtin(lang) {

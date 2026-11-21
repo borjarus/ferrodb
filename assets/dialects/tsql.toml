@@ -1,4 +1,5 @@
-# Skeleton (phase 5); completed with the SQL Server driver in phase 8.
+# Microsoft SQL Server 2022 / Azure SQL Database Transact-SQL (functions marked 2025 need
+# SQL Server 2025 or Azure SQL).
 id = "tsql"
 name = "Transact-SQL"
 inherits = "sql"
@@ -8,34 +9,114 @@ default_schema = "dbo"
 parser = "mssql"
 
 keywords = [
-  "backup", "begin", "break", "browse", "bulk", "checkpoint", "clustered", "compute",
-  "contains", "containstable", "continue", "deallocate", "declare", "deny", "disk", "dump",
-  "exec", "execute", "file", "fillfactor", "freetext", "goto", "holdlock", "identity",
-  "identity_insert", "if", "index", "kill", "merge", "nocheck", "nonclustered", "nullif",
-  "off", "offsets", "open", "openquery", "option", "over", "percent", "pivot", "plan",
-  "print", "proc", "procedure", "raiserror", "readtext", "reconfigure", "replication",
-  "restore", "return", "revert", "revoke", "rowcount", "rowguidcol", "rule", "save",
-  "schema", "setuser", "shutdown", "statistics", "top", "tran", "transaction", "trigger",
-  "truncate", "try_convert", "unpivot", "use", "view", "waitfor", "while", "writetext",
+  "add", "authorization", "backup", "begin", "break", "browse", "bulk", "cascade", "checkpoint",
+  "close", "clustered", "coalesce", "collate", "commit", "compute", "contains", "containstable",
+  "continue", "convert", "current", "cursor", "database", "dbcc", "deallocate", "declare", "deny",
+  "disk", "distributed", "double", "dump", "errlvl", "escape", "exec", "execute", "exit",
+  "external", "file", "fillfactor", "freetext", "freetexttable", "function", "goto", "holdlock",
+  "identity", "identity_insert", "identitycol", "if", "index", "key", "kill", "lineno", "load",
+  "merge", "national", "nocheck", "nonclustered", "nullif", "of", "off", "offsets", "open",
+  "opendatasource", "openquery", "openrowset", "openxml", "option", "over", "percent", "pivot",
+  "plan", "precision", "print", "proc", "procedure", "public", "raiserror", "read", "readtext",
+  "reconfigure", "replication", "restore", "restrict", "return", "revert", "revoke", "rollback",
+  "rowcount", "rowguidcol", "rule", "save", "schema", "securityaudit", "semantickeyphrasetable",
+  "semanticsimilaritydetailstable", "semanticsimilaritytable", "session_user", "setuser",
+  "shutdown", "statistics", "system_user", "tablesample", "textsize", "top", "tran",
+  "transaction", "trigger", "truncate", "try_convert", "tsequal", "unpivot", "updatetext", "use",
+  "user", "varying", "view", "waitfor", "while", "within", "writetext",
 ]
 
-soft_keywords = ["go", "nocount", "output", "try", "catch"]
+soft_keywords = [
+  "absolute", "allow_page_locks", "allow_row_locks", "always", "ansi_nulls", "ansi_padding",
+  "ansi_warnings", "apply", "arithabort", "assembly", "asymmetric", "at", "audit", "auto",
+  "base64", "both", "bucket_count", "caller", "catalog", "catch", "certificate",
+  "change_tracking", "columnstore", "committed", "compression", "concat_null_yields_null",
+  "contained", "conversation", "copy_only", "credential", "cube", "data_compression",
+  "data_source", "datefirst", "dateformat", "deadlock_priority", "delay", "delayed_durability",
+  "deleted", "dialog", "differential", "disable", "drop_existing", "durability", "dynamic",
+  "elements", "enable", "encryption", "endpoint", "event", "expand", "explicit",
+  "external_access", "fast", "fast_forward", "filegroup", "filestream", "filetable", "fmtonly",
+  "forceplan", "forcescan", "forceseek", "forward_only", "fulltext", "global", "go", "grouping",
+  "hash", "hidden", "history_table", "ignore_dup_key", "implicit_transactions", "include",
+  "include_null_values", "inline", "input", "inserted", "io", "isolation", "json", "keep",
+  "keepfixed", "keyset", "language", "ledger", "leading", "level", "local", "lock_timeout",
+  "login", "loop", "masked", "master", "matched", "max", "maxdop", "memory_optimized", "message",
+  "move", "native_compilation", "next", "nocount", "noexpand", "noexec", "nolock", "none",
+  "norecovery", "nowait", "numeric_roundabort", "online", "openjson", "optimistic", "optimize",
+  "output", "owner", "pad_index", "page", "paglock", "parameterization", "parseonly", "path",
+  "period", "permission_set", "persisted", "prior", "profile", "queue", "querytraceon",
+  "quoted_identifier", "raw", "read_only", "readcommitted", "readcommittedlock", "readpast",
+  "readuncommitted", "rebuild", "receive", "recompile", "recovery", "relative", "remote",
+  "reorganize", "repeatable", "repeatableread", "resumable", "retention", "returns", "robust",
+  "role", "rollup", "root", "rowlock", "safe", "schema_and_data", "schema_only", "schemabinding",
+  "scroll", "scroll_locks", "self", "send", "serializable", "service", "sets", "showplan_all",
+  "showplan_text", "showplan_xml", "simple", "snapshot", "sort_in_tempdb", "sparse", "spatial",
+  "standby", "start", "static", "statistics_norecompute", "stats", "stoplist", "symmetric",
+  "synonym", "system_time", "system_versioning", "tablock", "tablockx", "throw", "ties", "time",
+  "timeout", "trailing", "try", "type", "type_warning", "uncommitted", "unknown", "unsafe",
+  "updlock", "view_metadata", "views", "without_array_wrapper", "xact_abort", "xlock", "xmldata",
+  "xmlschema", "zone",
+]
 
 types = [
-  "bit", "datetime", "datetime2", "datetimeoffset", "image", "money", "nchar", "ntext",
-  "nvarchar", "smalldatetime", "smallmoney", "sql_variant", "text", "tinyint",
-  "uniqueidentifier", "varbinary", "xml",
+  "binary", "bit", "cursor", "datetime", "datetime2", "datetimeoffset", "dec", "geography",
+  "geometry", "hierarchyid", "image", "json", "money", "nchar", "ntext", "nvarchar", "rowversion",
+  "smalldatetime", "smallmoney", "sql_variant", "sysname", "table", "text", "tinyint",
+  "uniqueidentifier", "varbinary", "vector", "xml",
+]
+
+removed_keywords = [
+  "both", "false", "leading", "natural", "trailing", "true",
+]
+
+removed_types = [
+  "boolean",
 ]
 
 [[functions]]
-name = "getdate"
-signatures = ["getdate() -> datetime"]
-doc = "Current date and time."
+name = "ascii"
+signatures = ["ascii(character_expression varchar) -> int"]
+doc = "ASCII code of the leftmost character."
 
 [[functions]]
-name = "isnull"
-signatures = ["isnull(check_expression any, replacement_value any) -> any"]
-doc = "Replacement value for NULL."
+name = "char"
+signatures = ["char(integer_expression int) -> char"]
+doc = "Single-byte character with the given code."
+
+[[functions]]
+name = "charindex"
+signatures = ["charindex(expression_to_find nvarchar, expression_to_search nvarchar) -> int", "charindex(expression_to_find nvarchar, expression_to_search nvarchar, start_location int) -> int"]
+doc = "1-based position of a substring (0 when not found)."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(string_value1 any, string_value2 any, ...) -> nvarchar"]
+doc = "Concatenates values (NULL treated as empty string)."
+
+[[functions]]
+name = "concat_ws"
+signatures = ["concat_ws(separator nvarchar, argument1 any, argument2 any, ...) -> nvarchar"]
+doc = "Concatenates values with a separator, skipping NULLs."
+
+[[functions]]
+name = "datalength"
+signatures = ["datalength(expression any) -> int"]
+doc = "Number of bytes used to represent the value."
+
+[[functions]]
+name = "difference"
+signatures = ["difference(character_expression1 varchar, character_expression2 varchar) -> int"]
+doc = "Similarity (0-4) of the SOUNDEX codes of two strings."
+
+[[functions]]
+name = "format"
+signatures = ["format(value any, format nvarchar) -> nvarchar", "format(value any, format nvarchar, culture nvarchar) -> nvarchar"]
+doc = "Formats a value with a .NET format string and optional culture."
+
+[[functions]]
+name = "left"
+signatures = ["left(character_expression nvarchar, integer_expression int) -> nvarchar"]
+doc = "Leftmost `n` characters."
 
 [[functions]]
 name = "len"
@@ -43,21 +124,1106 @@ signatures = ["len(string_expression nvarchar) -> int"]
 doc = "Number of characters (trailing spaces excluded)."
 
 [[functions]]
+name = "ltrim"
+signatures = ["ltrim(character_expression nvarchar) -> nvarchar", "ltrim(character_expression nvarchar, characters nvarchar) -> nvarchar"]
+doc = "Removes leading spaces (or the given characters, 2022+)."
+
+[[functions]]
+name = "nchar"
+signatures = ["nchar(integer_expression int) -> nchar"]
+doc = "Unicode character with the given code point."
+
+[[functions]]
+name = "patindex"
+signatures = ["patindex(pattern nvarchar, expression nvarchar) -> int"]
+doc = "1-based position of the first match of a `LIKE` pattern (`'%x%'`)."
+
+[[functions]]
+name = "quotename"
+signatures = ["quotename(character_string sysname) -> nvarchar", "quotename(character_string sysname, quote_character char) -> nvarchar"]
+doc = "String delimited as a valid identifier (`[name]`)."
+
+[[functions]]
+name = "replicate"
+signatures = ["replicate(string_expression nvarchar, integer_expression int) -> nvarchar"]
+doc = "String repeated `n` times."
+
+[[functions]]
+name = "reverse"
+signatures = ["reverse(string_expression nvarchar) -> nvarchar"]
+doc = "String with the characters in reverse order."
+
+[[functions]]
+name = "right"
+signatures = ["right(character_expression nvarchar, integer_expression int) -> nvarchar"]
+doc = "Rightmost `n` characters."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(character_expression nvarchar) -> nvarchar", "rtrim(character_expression nvarchar, characters nvarchar) -> nvarchar"]
+doc = "Removes trailing spaces (or the given characters, 2022+)."
+
+[[functions]]
+name = "soundex"
+signatures = ["soundex(character_expression varchar) -> varchar"]
+doc = "Four-character SOUNDEX code of a string."
+
+[[functions]]
+name = "space"
+signatures = ["space(integer_expression int) -> varchar"]
+doc = "String of `n` spaces."
+
+[[functions]]
+name = "str"
+signatures = ["str(float_expression float) -> varchar", "str(float_expression float, length int) -> varchar", "str(float_expression float, length int, decimal int) -> varchar"]
+doc = "Number converted to right-aligned text."
+
+[[functions]]
+name = "string_escape"
+signatures = ["string_escape(text nvarchar, type nvarchar) -> nvarchar"]
+doc = "Escapes special characters (`type` is `'json'`)."
+
+[[functions]]
+name = "string_split"
+signatures = ["string_split(string nvarchar, separator nvarchar) -> table", "string_split(string nvarchar, separator nvarchar, enable_ordinal int) -> table"]
+doc = "Table-valued: splits a string into rows (`value`, optional `ordinal`)."
+
+[[functions]]
+name = "stuff"
+signatures = ["stuff(character_expression nvarchar, start int, length int, replace_with_expression nvarchar) -> nvarchar"]
+doc = "Deletes `length` characters at `start` and inserts another string there."
+
+[[functions]]
+name = "substring"
+signatures = ["substring(expression nvarchar, start int, length int) -> nvarchar"]
+doc = "Part of a string, binary, text or image value."
+
+[[functions]]
+name = "translate"
+signatures = ["translate(input_string nvarchar, characters nvarchar, translations nvarchar) -> nvarchar"]
+doc = "Replaces each character of `characters` with the matching one of `translations`."
+
+[[functions]]
+name = "trim"
+signatures = ["trim(string nvarchar) -> nvarchar"]
+doc = "Removes leading and trailing spaces; `TRIM([LEADING|TRAILING|BOTH] chars FROM s)` removes given characters."
+
+[[functions]]
+name = "unicode"
+signatures = ["unicode(ncharacter_expression nvarchar) -> int"]
+doc = "Unicode code point of the first character."
+
+[[functions]]
+name = "unistr"
+signatures = ["unistr(character_expression nvarchar) -> nvarchar", "unistr(character_expression nvarchar, unicode_escape_character nchar) -> nvarchar"]
+doc = "Interprets Unicode escapes (`\\0041`) in a string (2025, Azure SQL)."
+
+[[functions]]
+name = "regexp_like"
+signatures = ["regexp_like(string_expression nvarchar, pattern_expression nvarchar) -> bit", "regexp_like(string_expression nvarchar, pattern_expression nvarchar, flags varchar) -> bit"]
+doc = "True when the string matches a regular expression (2025, Azure SQL)."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(string_expression nvarchar, pattern_expression nvarchar) -> nvarchar", "regexp_replace(string_expression nvarchar, pattern_expression nvarchar, string_replacement nvarchar) -> nvarchar", "regexp_replace(string_expression nvarchar, pattern_expression nvarchar, string_replacement nvarchar, start int, occurrence int, flags varchar) -> nvarchar"]
+doc = "Replaces regular-expression matches (2025, Azure SQL)."
+
+[[functions]]
+name = "regexp_substr"
+signatures = ["regexp_substr(string_expression nvarchar, pattern_expression nvarchar) -> nvarchar", "regexp_substr(string_expression nvarchar, pattern_expression nvarchar, start int, occurrence int, flags varchar, group int) -> nvarchar"]
+doc = "Substring matching a regular expression (2025, Azure SQL)."
+
+[[functions]]
+name = "regexp_instr"
+signatures = ["regexp_instr(string_expression nvarchar, pattern_expression nvarchar) -> int", "regexp_instr(string_expression nvarchar, pattern_expression nvarchar, start int, occurrence int, return_option int, flags varchar, group int) -> int"]
+doc = "Position of a regular-expression match (2025, Azure SQL)."
+
+[[functions]]
+name = "regexp_count"
+signatures = ["regexp_count(string_expression nvarchar, pattern_expression nvarchar) -> int", "regexp_count(string_expression nvarchar, pattern_expression nvarchar, start int, flags varchar) -> int"]
+doc = "Number of regular-expression matches (2025, Azure SQL)."
+
+[[functions]]
+name = "base64_encode"
+signatures = ["base64_encode(expression varbinary) -> varchar", "base64_encode(expression varbinary, url_safe bit) -> varchar"]
+doc = "Base64 text of a binary value (2025, Azure SQL)."
+
+[[functions]]
+name = "base64_decode"
+signatures = ["base64_decode(expression varchar) -> varbinary"]
+doc = "Binary value decoded from Base64 text (2025, Azure SQL)."
+
+[[functions]]
+name = "getdate"
+signatures = ["getdate() -> datetime"]
+doc = "Current date and time of the server (`datetime`)."
+
+[[functions]]
+name = "getutcdate"
+signatures = ["getutcdate() -> datetime"]
+doc = "Current UTC date and time (`datetime`)."
+
+[[functions]]
+name = "sysdatetime"
+signatures = ["sysdatetime() -> datetime2"]
+doc = "Current date and time with `datetime2(7)` precision."
+
+[[functions]]
+name = "sysutcdatetime"
+signatures = ["sysutcdatetime() -> datetime2"]
+doc = "Current UTC date and time with `datetime2(7)` precision."
+
+[[functions]]
+name = "sysdatetimeoffset"
+signatures = ["sysdatetimeoffset() -> datetimeoffset"]
+doc = "Current date and time including the server time-zone offset."
+
+[[functions]]
+name = "current_timezone"
+signatures = ["current_timezone() -> varchar"]
+doc = "Name of the time zone of the server or instance."
+
+[[functions]]
+name = "current_timezone_id"
+signatures = ["current_timezone_id() -> varchar"]
+doc = "Windows time-zone ID of the server or instance."
+
+[[functions]]
 name = "dateadd"
 signatures = ["dateadd(datepart keyword, number int, date datetime) -> datetime"]
-doc = "Adds a number of date parts."
+doc = "Date with `number` date parts added (`dateadd(day, 1, d)`)."
 
 [[functions]]
 name = "datediff"
 signatures = ["datediff(datepart keyword, startdate datetime, enddate datetime) -> int"]
-doc = "Number of date-part boundaries crossed."
+doc = "Number of date-part boundaries crossed between two dates."
+
+[[functions]]
+name = "datediff_big"
+signatures = ["datediff_big(datepart keyword, startdate datetime, enddate datetime) -> bigint"]
+doc = "Like `datediff`, returning `bigint`."
+
+[[functions]]
+name = "datefromparts"
+signatures = ["datefromparts(year int, month int, day int) -> date"]
+doc = "`date` built from its parts."
+
+[[functions]]
+name = "datetime2fromparts"
+signatures = ["datetime2fromparts(year int, month int, day int, hour int, minute int, seconds int, fractions int, precision int) -> datetime2"]
+doc = "`datetime2` built from its parts."
+
+[[functions]]
+name = "datetimefromparts"
+signatures = ["datetimefromparts(year int, month int, day int, hour int, minute int, seconds int, milliseconds int) -> datetime"]
+doc = "`datetime` built from its parts."
+
+[[functions]]
+name = "datetimeoffsetfromparts"
+signatures = ["datetimeoffsetfromparts(year int, month int, day int, hour int, minute int, seconds int, fractions int, hour_offset int, minute_offset int, precision int) -> datetimeoffset"]
+doc = "`datetimeoffset` built from its parts."
+
+[[functions]]
+name = "smalldatetimefromparts"
+signatures = ["smalldatetimefromparts(year int, month int, day int, hour int, minute int) -> smalldatetime"]
+doc = "`smalldatetime` built from its parts."
+
+[[functions]]
+name = "timefromparts"
+signatures = ["timefromparts(hour int, minute int, seconds int, fractions int, precision int) -> time"]
+doc = "`time` built from its parts."
+
+[[functions]]
+name = "datename"
+signatures = ["datename(datepart keyword, date datetime) -> nvarchar"]
+doc = "Name of a date part as text (`datename(month, d)`)."
+
+[[functions]]
+name = "datepart"
+signatures = ["datepart(datepart keyword, date datetime) -> int"]
+doc = "Integer value of a date part."
+
+[[functions]]
+name = "datetrunc"
+signatures = ["datetrunc(datepart keyword, date datetime2) -> datetime2"]
+doc = "Date truncated to the given part (2022+)."
+
+[[functions]]
+name = "date_bucket"
+signatures = ["date_bucket(datepart keyword, number int, date datetime2) -> datetime2", "date_bucket(datepart keyword, number int, date datetime2, origin datetime2) -> datetime2"]
+doc = "Start of the fixed-width bucket containing the date (2022+)."
+
+[[functions]]
+name = "day"
+signatures = ["day(date datetime) -> int"]
+doc = "Day of the month."
+
+[[functions]]
+name = "month"
+signatures = ["month(date datetime) -> int"]
+doc = "Month number."
+
+[[functions]]
+name = "year"
+signatures = ["year(date datetime) -> int"]
+doc = "Year."
+
+[[functions]]
+name = "eomonth"
+signatures = ["eomonth(start_date date) -> date", "eomonth(start_date date, month_to_add int) -> date"]
+doc = "Last day of the month (optionally `month_to_add` months later)."
+
+[[functions]]
+name = "isdate"
+signatures = ["isdate(expression varchar) -> int"]
+doc = "1 when the expression is a valid `datetime` value."
+
+[[functions]]
+name = "switchoffset"
+signatures = ["switchoffset(datetimeoffset_expression datetimeoffset, timezoneoffset_expression varchar) -> datetimeoffset"]
+doc = "Same instant expressed in another time-zone offset."
+
+[[functions]]
+name = "todatetimeoffset"
+signatures = ["todatetimeoffset(datetime_expression datetime2, timezoneoffset_expression varchar) -> datetimeoffset"]
+doc = "Date/time combined with a time-zone offset."
+
+[[functions]]
+name = "generate_series"
+signatures = ["generate_series(start int, stop int) -> table", "generate_series(start int, stop int, step int) -> table"]
+doc = "Table-valued: series of numbers in column `value` (2022+)."
+
+[[functions]]
+name = "acos"
+signatures = ["acos(float_expression float) -> float"]
+doc = "Arccosine, in radians."
+
+[[functions]]
+name = "asin"
+signatures = ["asin(float_expression float) -> float"]
+doc = "Arcsine, in radians."
+
+[[functions]]
+name = "atan"
+signatures = ["atan(float_expression float) -> float"]
+doc = "Arctangent, in radians."
+
+[[functions]]
+name = "atn2"
+signatures = ["atn2(float_expression float, float_expression2 float) -> float"]
+doc = "Angle in radians between the x-axis and the point (`y`, `x`)."
+
+[[functions]]
+name = "ceiling"
+signatures = ["ceiling(numeric_expression numeric) -> numeric"]
+doc = "Smallest integer greater than or equal to the value."
+
+[[functions]]
+name = "cos"
+signatures = ["cos(float_expression float) -> float"]
+doc = "Cosine of an angle in radians."
+
+[[functions]]
+name = "cot"
+signatures = ["cot(float_expression float) -> float"]
+doc = "Cotangent of an angle in radians."
+
+[[functions]]
+name = "degrees"
+signatures = ["degrees(numeric_expression numeric) -> numeric"]
+doc = "Radians converted to degrees."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(float_expression float) -> float"]
+doc = "e raised to the given power."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(numeric_expression numeric) -> numeric"]
+doc = "Largest integer less than or equal to the value."
+
+[[functions]]
+name = "log"
+signatures = ["log(float_expression float) -> float", "log(float_expression float, base float) -> float"]
+doc = "Natural logarithm, or logarithm in the given base."
+
+[[functions]]
+name = "log10"
+signatures = ["log10(float_expression float) -> float"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "pi"
+signatures = ["pi() -> float"]
+doc = "The constant pi."
+
+[[functions]]
+name = "power"
+signatures = ["power(float_expression float, y float) -> float"]
+doc = "Value raised to the power `y`."
+
+[[functions]]
+name = "radians"
+signatures = ["radians(numeric_expression numeric) -> numeric"]
+doc = "Degrees converted to radians."
+
+[[functions]]
+name = "rand"
+signatures = ["rand() -> float", "rand(seed int) -> float"]
+doc = "Pseudo-random float between 0 and 1."
+
+[[functions]]
+name = "round"
+signatures = ["round(numeric_expression numeric, length int) -> numeric", "round(numeric_expression numeric, length int, function int) -> numeric"]
+doc = "Rounds (or truncates when `function` <> 0) to `length` decimal places."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(numeric_expression numeric) -> int"]
+doc = "-1, 0 or 1 according to the sign."
+
+[[functions]]
+name = "sin"
+signatures = ["sin(float_expression float) -> float"]
+doc = "Sine of an angle in radians."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(float_expression float) -> float"]
+doc = "Square root."
+
+[[functions]]
+name = "square"
+signatures = ["square(float_expression float) -> float"]
+doc = "Square of the value."
+
+[[functions]]
+name = "tan"
+signatures = ["tan(float_expression float) -> float"]
+doc = "Tangent of an angle in radians."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(expression1 any, ...) -> any"]
+doc = "Largest value of the list (2022+)."
+
+[[functions]]
+name = "least"
+signatures = ["least(expression1 any, ...) -> any"]
+doc = "Smallest value of the list (2022+)."
+
+[[functions]]
+name = "left_shift"
+signatures = ["left_shift(expression_value bigint, shift_amount int) -> bigint"]
+doc = "Bits shifted left (2022+)."
+
+[[functions]]
+name = "right_shift"
+signatures = ["right_shift(expression_value bigint, shift_amount int) -> bigint"]
+doc = "Bits shifted right (2022+)."
+
+[[functions]]
+name = "bit_count"
+signatures = ["bit_count(expression_value bigint) -> bigint"]
+doc = "Number of bits set to 1 (2022+)."
+
+[[functions]]
+name = "get_bit"
+signatures = ["get_bit(expression_value bigint, bit_offset int) -> bit"]
+doc = "Value of the bit at the given offset (2022+)."
+
+[[functions]]
+name = "set_bit"
+signatures = ["set_bit(expression_value bigint, bit_offset int) -> bigint", "set_bit(expression_value bigint, bit_offset int, bit_value bit) -> bigint"]
+doc = "Value with the bit at the given offset set (2022+)."
 
 [[functions]]
 name = "convert"
 signatures = ["convert(data_type type, expression any) -> any", "convert(data_type type, expression any, style int) -> any"]
-doc = "Converts with an optional style."
+doc = "Converts to a data type, with an optional style code."
+
+[[functions]]
+name = "parse"
+signatures = ["parse(string_value nvarchar, data_type type) -> any"]
+doc = "`PARSE(string AS type [USING culture])`: converts text to a date/time or number type."
+
+[[functions]]
+name = "try_cast"
+signatures = ["try_cast(expression any, data_type type) -> any"]
+doc = "`TRY_CAST(expr AS type)`: cast that returns NULL on failure."
+
+[[functions]]
+name = "try_convert"
+signatures = ["try_convert(data_type type, expression any) -> any", "try_convert(data_type type, expression any, style int) -> any"]
+doc = "`convert` that returns NULL on failure."
+
+[[functions]]
+name = "try_parse"
+signatures = ["try_parse(string_value nvarchar, data_type type) -> any"]
+doc = "`TRY_PARSE(string AS type [USING culture])`: `parse` that returns NULL on failure."
+
+[[functions]]
+name = "choose"
+signatures = ["choose(index int, val_1 any, val_2 any, ...) -> any"]
+doc = "Item at the given 1-based index of the list."
+
+[[functions]]
+name = "iif"
+signatures = ["iif(boolean_expression bit, true_value any, false_value any) -> any"]
+doc = "`true_value` when the condition holds, otherwise `false_value`."
+
+[[functions]]
+name = "isnull"
+signatures = ["isnull(check_expression any, replacement_value any) -> any"]
+doc = "`replacement_value` when the first argument is NULL."
+
+[[functions]]
+name = "isjson"
+signatures = ["isjson(expression nvarchar) -> int", "isjson(expression nvarchar, json_type_constraint keyword) -> int"]
+doc = "1 when the string is valid JSON (optionally of type VALUE/ARRAY/OBJECT/SCALAR)."
+
+[[functions]]
+name = "json_value"
+signatures = ["json_value(expression nvarchar, path nvarchar) -> nvarchar"]
+doc = "Scalar value extracted from JSON (`'$.a.b'`)."
+
+[[functions]]
+name = "json_query"
+signatures = ["json_query(expression nvarchar) -> nvarchar", "json_query(expression nvarchar, path nvarchar) -> nvarchar"]
+doc = "Object or array extracted from JSON."
+
+[[functions]]
+name = "json_modify"
+signatures = ["json_modify(expression nvarchar, path nvarchar, newValue any) -> nvarchar"]
+doc = "JSON with the value at the path updated."
+
+[[functions]]
+name = "json_object"
+signatures = ["json_object(key_value any, ...) -> nvarchar"]
+doc = "JSON object from `'key':value` pairs (2022+)."
+
+[[functions]]
+name = "json_array"
+signatures = ["json_array(value any, ...) -> nvarchar"]
+doc = "JSON array from the values (2022+)."
+
+[[functions]]
+name = "json_path_exists"
+signatures = ["json_path_exists(value_expression nvarchar, sql_json_path nvarchar) -> bit"]
+doc = "1 when the JSON path exists in the input (2022+)."
+
+[[functions]]
+name = "json_objectagg"
+signatures = ["json_objectagg(key_value any) -> nvarchar"]
+doc = "Aggregate: JSON object from `key:value` pairs of the rows (2025, Azure SQL)."
+
+[[functions]]
+name = "json_arrayagg"
+signatures = ["json_arrayagg(value_expression any) -> nvarchar"]
+doc = "Aggregate: JSON array of the row values (2025, Azure SQL)."
+
+[[functions]]
+name = "openjson"
+signatures = ["openjson(jsonExpression nvarchar) -> table", "openjson(jsonExpression nvarchar, path nvarchar) -> table"]
+doc = "Table-valued: rows from a JSON text (`WITH (...)` for typed columns)."
+
+[[functions]]
+name = "count"
+signatures = ["count(expression any) -> int", "count(*) -> int"]
+doc = "Number of rows / non-null values (`int`)."
+
+[[functions]]
+name = "count_big"
+signatures = ["count_big(expression any) -> bigint", "count_big(*) -> bigint"]
+doc = "Number of rows / non-null values (`bigint`)."
+
+[[functions]]
+name = "checksum_agg"
+signatures = ["checksum_agg(expression int) -> int"]
+doc = "Checksum of the values of a group."
+
+[[functions]]
+name = "grouping"
+signatures = ["grouping(column_expression any) -> tinyint"]
+doc = "1 when the column is aggregated in a ROLLUP/CUBE/GROUPING SETS row."
+
+[[functions]]
+name = "grouping_id"
+signatures = ["grouping_id(column_expression any, ...) -> int"]
+doc = "Bit mask of the grouping level."
+
+[[functions]]
+name = "stdev"
+signatures = ["stdev(expression float) -> float"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "stdevp"
+signatures = ["stdevp(expression float) -> float"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "var"
+signatures = ["var(expression float) -> float"]
+doc = "Sample variance."
+
+[[functions]]
+name = "varp"
+signatures = ["varp(expression float) -> float"]
+doc = "Population variance."
+
+[[functions]]
+name = "string_agg"
+signatures = ["string_agg(expression nvarchar, separator nvarchar) -> nvarchar"]
+doc = "Concatenates the values with a separator (`WITHIN GROUP (ORDER BY ...)` optional)."
+
+[[functions]]
+name = "approx_count_distinct"
+signatures = ["approx_count_distinct(expression any) -> bigint"]
+doc = "Approximate number of distinct non-null values."
+
+[[functions]]
+name = "approx_percentile_cont"
+signatures = ["approx_percentile_cont(numeric_literal float) -> float"]
+doc = "Approximate interpolated percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "approx_percentile_disc"
+signatures = ["approx_percentile_disc(numeric_literal float) -> any"]
+doc = "Approximate percentile from the existing values (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "product"
+signatures = ["product(expression numeric) -> numeric"]
+doc = "Product of the values (2025, Azure SQL)."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> bigint"]
+doc = "Sequential number of the row within its partition."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> bigint"]
+doc = "Rank of the row, with gaps for ties."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> bigint"]
+doc = "Rank of the row, without gaps."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(integer_expression int) -> bigint"]
+doc = "Number of the group (1..n) the row falls into."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(scalar_expression any) -> any", "lag(scalar_expression any, offset bigint) -> any", "lag(scalar_expression any, offset bigint, default any) -> any"]
+doc = "Value from a previous row of the partition."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(scalar_expression any) -> any", "lead(scalar_expression any, offset bigint) -> any", "lead(scalar_expression any, offset bigint, default any) -> any"]
+doc = "Value from a row of the partition."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(scalar_expression any) -> any"]
+doc = "First value of the window frame."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(scalar_expression any) -> any"]
+doc = "Last value of the window frame."
+
+[[functions]]
+name = "cume_dist"
+signatures = ["cume_dist() -> float"]
+doc = "Cumulative distribution of the row in its partition."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> float"]
+doc = "Relative rank (0..1) of the row in its partition."
+
+[[functions]]
+name = "percentile_cont"
+signatures = ["percentile_cont(numeric_literal float) -> float"]
+doc = "Interpolated percentile (`WITHIN GROUP (ORDER BY ...) OVER (...)`)."
+
+[[functions]]
+name = "percentile_disc"
+signatures = ["percentile_disc(numeric_literal float) -> any"]
+doc = "Percentile taken from the existing values (`WITHIN GROUP (ORDER BY ...) OVER (...)`)."
+
+[[functions]]
+name = "object_id"
+signatures = ["object_id(object_name nvarchar) -> int", "object_id(object_name nvarchar, object_type char) -> int"]
+doc = "ID of a schema-scoped object (`object_id('dbo.t', 'U')`)."
+
+[[functions]]
+name = "object_name"
+signatures = ["object_name(object_id int) -> sysname", "object_name(object_id int, database_id int) -> sysname"]
+doc = "Name of an object from its ID."
+
+[[functions]]
+name = "object_schema_name"
+signatures = ["object_schema_name(object_id int) -> sysname", "object_schema_name(object_id int, database_id int) -> sysname"]
+doc = "Schema name of an object from its ID."
+
+[[functions]]
+name = "object_definition"
+signatures = ["object_definition(object_id int) -> nvarchar"]
+doc = "T-SQL source of a module (view, procedure, function, trigger)."
+
+[[functions]]
+name = "objectproperty"
+signatures = ["objectproperty(id int, property varchar) -> int"]
+doc = "Property of a schema-scoped object (`'IsUserTable'`...)."
+
+[[functions]]
+name = "objectpropertyex"
+signatures = ["objectpropertyex(id int, property sysname) -> sql_variant"]
+doc = "Extended property of a schema-scoped object."
+
+[[functions]]
+name = "columnproperty"
+signatures = ["columnproperty(id int, column sysname, property varchar) -> int"]
+doc = "Property of a column or parameter."
+
+[[functions]]
+name = "col_length"
+signatures = ["col_length(table varchar, column varchar) -> smallint"]
+doc = "Defined length of a column, in bytes."
+
+[[functions]]
+name = "col_name"
+signatures = ["col_name(table_id int, column_id int) -> sysname"]
+doc = "Name of a column from table and column IDs."
+
+[[functions]]
+name = "index_col"
+signatures = ["index_col(table_or_view_name nvarchar, index_id int, key_id int) -> nvarchar"]
+doc = "Name of an index key column."
+
+[[functions]]
+name = "indexproperty"
+signatures = ["indexproperty(object_id int, index_or_statistics_name nvarchar, property nvarchar) -> int"]
+doc = "Property of an index or statistics."
+
+[[functions]]
+name = "schema_id"
+signatures = ["schema_id() -> int", "schema_id(schema_name sysname) -> int"]
+doc = "ID of a schema (default schema of the caller when omitted)."
+
+[[functions]]
+name = "schema_name"
+signatures = ["schema_name() -> sysname", "schema_name(schema_id int) -> sysname"]
+doc = "Name of a schema (default schema of the caller when omitted)."
+
+[[functions]]
+name = "db_id"
+signatures = ["db_id() -> int", "db_id(database_name nvarchar) -> int"]
+doc = "ID of a database (current one when omitted)."
+
+[[functions]]
+name = "db_name"
+signatures = ["db_name() -> nvarchar", "db_name(database_id int) -> nvarchar"]
+doc = "Name of a database (current one when omitted)."
+
+[[functions]]
+name = "databasepropertyex"
+signatures = ["databasepropertyex(database nvarchar, property nvarchar) -> sql_variant"]
+doc = "Current setting of a database option or property."
+
+[[functions]]
+name = "serverproperty"
+signatures = ["serverproperty(propertyname nvarchar) -> sql_variant"]
+doc = "Property of the server instance (`'ProductVersion'`, `'Edition'`...)."
+
+[[functions]]
+name = "sessionproperty"
+signatures = ["sessionproperty(option nvarchar) -> sql_variant"]
+doc = "SET option of the session."
+
+[[functions]]
+name = "connectionproperty"
+signatures = ["connectionproperty(property varchar) -> sql_variant"]
+doc = "Property of the current connection (`'net_transport'`...)."
+
+[[functions]]
+name = "type_id"
+signatures = ["type_id(type_name nvarchar) -> int"]
+doc = "ID of a data type."
+
+[[functions]]
+name = "type_name"
+signatures = ["type_name(type_id int) -> sysname"]
+doc = "Name of a data type from its ID."
+
+[[functions]]
+name = "typeproperty"
+signatures = ["typeproperty(type nvarchar, property nvarchar) -> int"]
+doc = "Property of a data type."
+
+[[functions]]
+name = "sql_variant_property"
+signatures = ["sql_variant_property(expression sql_variant, property varchar) -> sql_variant"]
+doc = "Base type or other information about a `sql_variant` value."
+
+[[functions]]
+name = "collationproperty"
+signatures = ["collationproperty(collation_name nvarchar, property nvarchar) -> sql_variant"]
+doc = "Property of a collation."
+
+[[functions]]
+name = "parsename"
+signatures = ["parsename(object_name nvarchar, object_piece int) -> nchar"]
+doc = "Part (1=object .. 4=server) of a dotted object name."
+
+[[functions]]
+name = "file_id"
+signatures = ["file_id(file_name nvarchar) -> smallint"]
+doc = "ID of a database file."
+
+[[functions]]
+name = "file_name"
+signatures = ["file_name(file_id int) -> nvarchar"]
+doc = "Logical name of a database file."
+
+[[functions]]
+name = "filegroup_id"
+signatures = ["filegroup_id(filegroup_name nvarchar) -> int"]
+doc = "ID of a filegroup."
+
+[[functions]]
+name = "filegroup_name"
+signatures = ["filegroup_name(filegroup_id smallint) -> nvarchar"]
+doc = "Name of a filegroup."
+
+[[functions]]
+name = "fileproperty"
+signatures = ["fileproperty(file_name nvarchar, property varchar) -> int"]
+doc = "Property of a database file (`'SpaceUsed'`...)."
+
+[[functions]]
+name = "stats_date"
+signatures = ["stats_date(object_id int, stats_id int) -> datetime"]
+doc = "Date the statistics were last updated."
+
+[[functions]]
+name = "cursor_status"
+signatures = ["cursor_status(scope varchar, cursor nvarchar) -> smallint"]
+doc = "Status of a cursor (open, empty, closed...)."
+
+[[functions]]
+name = "fulltextserviceproperty"
+signatures = ["fulltextserviceproperty(property nvarchar) -> sql_variant"]
+doc = "Property of the full-text engine."
+
+[[functions]]
+name = "fulltextcatalogproperty"
+signatures = ["fulltextcatalogproperty(catalog_name sysname, property nvarchar) -> int"]
+doc = "Property of a full-text catalog."
+
+[[functions]]
+name = "change_tracking_current_version"
+signatures = ["change_tracking_current_version() -> bigint"]
+doc = "Version of the last committed change-tracking transaction."
+
+[[functions]]
+name = "change_tracking_min_valid_version"
+signatures = ["change_tracking_min_valid_version(table_object_id int) -> bigint"]
+doc = "Minimum valid change-tracking version of a table."
+
+[[functions]]
+name = "min_active_rowversion"
+signatures = ["min_active_rowversion() -> binary"]
+doc = "Lowest active `rowversion` value of the database."
+
+[[functions]]
+name = "user_id"
+signatures = ["user_id() -> int", "user_id(user nvarchar) -> int"]
+doc = "ID of a database user (deprecated, use `database_principal_id`)."
+
+[[functions]]
+name = "user_name"
+signatures = ["user_name() -> nvarchar", "user_name(id int) -> nvarchar"]
+doc = "Name of a database user (current one when omitted)."
+
+[[functions]]
+name = "database_principal_id"
+signatures = ["database_principal_id() -> int", "database_principal_id(principal_name sysname) -> int"]
+doc = "ID of a database principal."
+
+[[functions]]
+name = "suser_name"
+signatures = ["suser_name() -> nvarchar", "suser_name(server_user_id int) -> nvarchar"]
+doc = "Login name from its ID (current login when omitted)."
+
+[[functions]]
+name = "suser_sname"
+signatures = ["suser_sname() -> nvarchar", "suser_sname(server_user_sid varbinary) -> nvarchar"]
+doc = "Login name from its security identifier."
+
+[[functions]]
+name = "suser_sid"
+signatures = ["suser_sid() -> varbinary", "suser_sid(login nvarchar) -> varbinary"]
+doc = "Security identifier of a login."
+
+[[functions]]
+name = "original_login"
+signatures = ["original_login() -> sysname"]
+doc = "Login that first connected (before any impersonation)."
+
+[[functions]]
+name = "is_member"
+signatures = ["is_member(group_or_role sysname) -> int"]
+doc = "1 when the user is a member of the Windows group or database role."
+
+[[functions]]
+name = "is_rolemember"
+signatures = ["is_rolemember(role sysname) -> int", "is_rolemember(role sysname, database_principal sysname) -> int"]
+doc = "1 when the principal is a member of the database role."
+
+[[functions]]
+name = "is_srvrolemember"
+signatures = ["is_srvrolemember(role sysname) -> int", "is_srvrolemember(role sysname, login sysname) -> int"]
+doc = "1 when the login is a member of the server role."
+
+[[functions]]
+name = "has_perms_by_name"
+signatures = ["has_perms_by_name(securable sysname, securable_class nvarchar, permission sysname) -> int"]
+doc = "1 when the user has the permission on the securable."
+
+[[functions]]
+name = "host_name"
+signatures = ["host_name() -> nvarchar"]
+doc = "Name of the client workstation."
+
+[[functions]]
+name = "host_id"
+signatures = ["host_id() -> char"]
+doc = "Process ID of the client workstation."
+
+[[functions]]
+name = "app_name"
+signatures = ["app_name() -> nvarchar"]
+doc = "Application name of the session."
+
+[[functions]]
+name = "session_context"
+signatures = ["session_context(key sysname) -> sql_variant"]
+doc = "Value stored with `sp_set_session_context`."
+
+[[functions]]
+name = "context_info"
+signatures = ["context_info() -> varbinary"]
+doc = "Value set with `SET CONTEXT_INFO`."
+
+[[functions]]
+name = "current_request_id"
+signatures = ["current_request_id() -> smallint"]
+doc = "ID of the current request in the session."
+
+[[functions]]
+name = "current_transaction_id"
+signatures = ["current_transaction_id() -> bigint"]
+doc = "ID of the current transaction."
+
+[[functions]]
+name = "scope_identity"
+signatures = ["scope_identity() -> numeric"]
+doc = "Last identity value inserted in the current scope."
+
+[[functions]]
+name = "ident_current"
+signatures = ["ident_current(table_or_view varchar) -> numeric"]
+doc = "Last identity value generated for a table in any session."
+
+[[functions]]
+name = "ident_seed"
+signatures = ["ident_seed(table_or_view varchar) -> numeric"]
+doc = "Seed of the identity column."
+
+[[functions]]
+name = "ident_incr"
+signatures = ["ident_incr(table_or_view varchar) -> numeric"]
+doc = "Increment of the identity column."
 
 [[functions]]
 name = "newid"
 signatures = ["newid() -> uniqueidentifier"]
-doc = "New unique identifier."
+doc = "New random `uniqueidentifier`."
+
+[[functions]]
+name = "newsequentialid"
+signatures = ["newsequentialid() -> uniqueidentifier"]
+doc = "Sequential GUID (only in a column `DEFAULT`)."
+
+[[functions]]
+name = "error_number"
+signatures = ["error_number() -> int"]
+doc = "Number of the error caught by a `CATCH` block."
+
+[[functions]]
+name = "error_message"
+signatures = ["error_message() -> nvarchar"]
+doc = "Message of the error caught by a `CATCH` block."
+
+[[functions]]
+name = "error_severity"
+signatures = ["error_severity() -> int"]
+doc = "Severity of the error caught by a `CATCH` block."
+
+[[functions]]
+name = "error_state"
+signatures = ["error_state() -> int"]
+doc = "State of the error caught by a `CATCH` block."
+
+[[functions]]
+name = "error_line"
+signatures = ["error_line() -> int"]
+doc = "Line number of the error caught by a `CATCH` block."
+
+[[functions]]
+name = "error_procedure"
+signatures = ["error_procedure() -> nvarchar"]
+doc = "Module in which the caught error occurred."
+
+[[functions]]
+name = "xact_state"
+signatures = ["xact_state() -> smallint"]
+doc = "Transaction state: 1 committable, -1 uncommittable, 0 none."
+
+[[functions]]
+name = "rowcount_big"
+signatures = ["rowcount_big() -> bigint"]
+doc = "Rows affected by the last statement (`bigint`)."
+
+[[functions]]
+name = "trigger_nestlevel"
+signatures = ["trigger_nestlevel() -> int", "trigger_nestlevel(object_id int) -> int"]
+doc = "Nesting level of the executing trigger(s)."
+
+[[functions]]
+name = "columns_updated"
+signatures = ["columns_updated() -> varbinary"]
+doc = "Bit mask of the columns inserted or updated (in a trigger)."
+
+[[functions]]
+name = "formatmessage"
+signatures = ["formatmessage(msg_number int, param_value any, ...) -> nvarchar", "formatmessage(msg_string nvarchar, param_value any, ...) -> nvarchar"]
+doc = "Message built from `sys.messages` or a format string."
+
+[[functions]]
+name = "getansinull"
+signatures = ["getansinull() -> int", "getansinull(database nvarchar) -> int"]
+doc = "Default nullability of new columns in the database."
+
+[[functions]]
+name = "checksum"
+signatures = ["checksum(expression any, ...) -> int"]
+doc = "Hash value over the arguments (or `*`)."
+
+[[functions]]
+name = "binary_checksum"
+signatures = ["binary_checksum(expression any, ...) -> int"]
+doc = "Binary hash value over the arguments (or `*`)."
+
+[[functions]]
+name = "hashbytes"
+signatures = ["hashbytes(algorithm varchar, input varbinary) -> varbinary"]
+doc = "Hash (`'SHA2_256'`, `'SHA2_512'`, `'MD5'`...) of the input."
+
+[[functions]]
+name = "compress"
+signatures = ["compress(expression any) -> varbinary"]
+doc = "Value compressed with GZIP."
+
+[[functions]]
+name = "decompress"
+signatures = ["decompress(expression varbinary) -> varbinary"]
+doc = "GZIP-compressed value decompressed."
+
+[[functions]]
+name = "isnumeric"
+signatures = ["isnumeric(expression any) -> int"]
+doc = "1 when the expression is a valid numeric type."
+
+[[functions]]
+name = "encryptbykey"
+signatures = ["encryptbykey(key_guid uniqueidentifier, cleartext varbinary) -> varbinary"]
+doc = "Data encrypted with an open symmetric key."
+
+[[functions]]
+name = "decryptbykey"
+signatures = ["decryptbykey(ciphertext varbinary) -> varbinary"]
+doc = "Data decrypted with an open symmetric key."
+
+[[functions]]
+name = "key_guid"
+signatures = ["key_guid(key_name nvarchar) -> uniqueidentifier"]
+doc = "GUID of a symmetric key."
+
+[[functions]]
+name = "encryptbypassphrase"
+signatures = ["encryptbypassphrase(passphrase nvarchar, cleartext nvarchar) -> varbinary"]
+doc = "Data encrypted with a passphrase."
+
+[[functions]]
+name = "decryptbypassphrase"
+signatures = ["decryptbypassphrase(passphrase nvarchar, ciphertext varbinary) -> varbinary"]
+doc = "Data decrypted with a passphrase."
+
+[[functions]]
+name = "openrowset"
+signatures = ["openrowset(provider_name nvarchar, datasource nvarchar, query nvarchar) -> table"]
+doc = "Table-valued: ad hoc rows from an OLE DB source or `BULK` file."
+
+[[functions]]
+name = "openquery"
+signatures = ["openquery(linked_server sysname, query nvarchar) -> table"]
+doc = "Table-valued: pass-through query on a linked server."
+
+[[functions]]
+name = "opendatasource"
+signatures = ["opendatasource(provider_name nvarchar, init_string nvarchar) -> table"]
+doc = "Ad hoc connection used as the server part of a four-part name."
+
+[[functions]]
+name = "openxml"
+signatures = ["openxml(idoc int, rowpattern nvarchar) -> table", "openxml(idoc int, rowpattern nvarchar, flags tinyint) -> table"]
+doc = "Table-valued: rowset over an XML document prepared with `sp_xml_preparedocument`."
+
+[[functions]]
+name = "containstable"
+signatures = ["containstable(table sysname, column sysname, contains_search_condition nvarchar) -> table"]
+doc = "Table-valued: full-text `CONTAINS` matches with `KEY` and `RANK`."
+
+[[functions]]
+name = "freetexttable"
+signatures = ["freetexttable(table sysname, column sysname, freetext_string nvarchar) -> table"]
+doc = "Table-valued: full-text `FREETEXT` matches with `KEY` and `RANK`."
+
+[[functions]]
+name = "vector_distance"
+signatures = ["vector_distance(distance_metric varchar, vector1 vector, vector2 vector) -> float"]
+doc = "Distance (`'cosine'`, `'euclidean'`, `'dot'`) between two vectors."
+
+[[functions]]
+name = "vector_norm"
+signatures = ["vector_norm(vector vector, norm_type varchar) -> float"]
+doc = "Norm (`'norm1'`, `'norm2'`, `'norminf'`) of a vector."
+
+[[functions]]
+name = "vector_normalize"
+signatures = ["vector_normalize(vector vector, norm_type varchar) -> vector"]
+doc = "Vector scaled to unit length for the given norm."
+
+[[functions]]
+name = "vectorproperty"
+signatures = ["vectorproperty(vector vector, property sysname) -> int"]
+doc = "Property (`'Dimensions'`, `'BaseType'`) of a vector."

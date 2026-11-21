@@ -1,0 +1,486 @@
+# Apache Cassandra CQL 3 (Cassandra 4.1 / 5.0), including cqlsh shell commands as soft keywords.
+# Standalone dialect (not SQL): nothing is inherited.
+id = "cql"
+name = "CQL"
+identifier_quote = '"'
+case_folding = "lower"
+parser = ""
+
+keywords = [
+  "add", "allow", "alter", "and", "apply", "asc", "authorize", "batch", "begin", "by",
+  "columnfamily", "create", "delete", "desc", "describe", "drop", "entries", "execute", "from",
+  "full", "grant", "if", "in", "index", "infinity", "insert", "into", "is", "keyspace", "limit",
+  "modify", "nan", "norecursive", "not", "null", "of", "on", "or", "order", "primary", "rename",
+  "replace", "revoke", "schema", "select", "set", "table", "to", "token", "truncate",
+  "unlogged", "update", "use", "using", "view", "where", "with",
+]
+
+soft_keywords = [
+  "aggregate", "all", "access", "ann", "as", "between", "called", "cidrs", "clustering",
+  "compact", "contains", "counter", "custom", "datacenters", "default", "distinct", "exists",
+  "filtering", "finalfunc", "function", "functions", "group", "initcond", "input", "json",
+  "key", "keys", "keyspaces", "language", "like", "login", "masked", "materialized", "mbean",
+  "mbeans", "nologin", "nosuperuser", "options", "partition", "password", "per", "permission",
+  "permissions", "returns", "role", "roles", "select_masked", "sfunc", "static", "storage",
+  "stype", "superuser", "trigger", "ttl", "type", "unmask", "unset", "user", "users", "values",
+  "writetime", "maxwritetime", "cast", "deterministic", "monotonic", "any", "one", "two",
+  "three", "quorum", "local_quorum", "each_quorum", "serial", "local_serial", "local_one",
+  "consistency", "tracing", "paging", "expand", "capture", "copy", "source", "show", "timing",
+  "help", "exit", "clear", "cls", "off",
+]
+
+types = [
+  "ascii", "bigint", "blob", "boolean", "counter", "date", "decimal", "double", "duration",
+  "float", "inet", "int", "smallint", "text", "time", "timestamp", "timeuuid", "tinyint",
+  "uuid", "varchar", "varint", "list", "set", "map", "tuple", "frozen", "vector",
+]
+
+[[functions]]
+name = "count"
+signatures = ["count(*) -> bigint", "count(column any) -> bigint"]
+doc = "Number of rows (or non-null values of the column)."
+
+[[functions]]
+name = "min"
+signatures = ["min(column any) -> any"]
+doc = "Smallest value of the column."
+
+[[functions]]
+name = "max"
+signatures = ["max(column any) -> any"]
+doc = "Largest value of the column."
+
+[[functions]]
+name = "sum"
+signatures = ["sum(column any) -> any"]
+doc = "Sum of the numeric column values."
+
+[[functions]]
+name = "avg"
+signatures = ["avg(column any) -> any"]
+doc = "Average of the numeric column values."
+
+[[functions]]
+name = "token"
+signatures = ["token(partition_key any, ...) -> bigint"]
+doc = "Token of the partition key computed by the partitioner."
+
+[[functions]]
+name = "writetime"
+signatures = ["writetime(column any) -> bigint"]
+doc = "Write timestamp (microseconds) of the column value."
+
+[[functions]]
+name = "write_time"
+signatures = ["write_time(column any) -> bigint"]
+doc = "Write timestamp (microseconds) of the column value (Cassandra 5 alias of `writetime`)."
+
+[[functions]]
+name = "maxwritetime"
+signatures = ["maxwritetime(column any) -> bigint"]
+doc = "Largest write timestamp among the cells of a (multi-cell) column."
+
+[[functions]]
+name = "max_write_time"
+signatures = ["max_write_time(column any) -> bigint"]
+doc = "Largest write timestamp among the cells of a column (Cassandra 5 alias of `maxwritetime`)."
+
+[[functions]]
+name = "ttl"
+signatures = ["ttl(column any) -> int"]
+doc = "Remaining time to live (seconds) of the column value, or null."
+
+[[functions]]
+name = "uuid"
+signatures = ["uuid() -> uuid"]
+doc = "New random type 4 UUID."
+
+[[functions]]
+name = "now"
+signatures = ["now() -> timeuuid"]
+doc = "New unique timeuuid for the current time."
+
+[[functions]]
+name = "current_timeuuid"
+signatures = ["current_timeuuid() -> timeuuid"]
+doc = "Current time as a timeuuid."
+
+[[functions]]
+name = "current_timestamp"
+signatures = ["current_timestamp() -> timestamp"]
+doc = "Current time as a timestamp."
+
+[[functions]]
+name = "current_date"
+signatures = ["current_date() -> date"]
+doc = "Current date."
+
+[[functions]]
+name = "current_time"
+signatures = ["current_time() -> time"]
+doc = "Current time of day."
+
+[[functions]]
+name = "mintimeuuid"
+signatures = ["mintimeuuid(value timestamp) -> timeuuid"]
+doc = "Smallest possible timeuuid for the timestamp (range queries)."
+
+[[functions]]
+name = "min_timeuuid"
+signatures = ["min_timeuuid(value timestamp) -> timeuuid"]
+doc = "Smallest possible timeuuid for the timestamp (Cassandra 5 alias)."
+
+[[functions]]
+name = "maxtimeuuid"
+signatures = ["maxtimeuuid(value timestamp) -> timeuuid"]
+doc = "Largest possible timeuuid for the timestamp (range queries)."
+
+[[functions]]
+name = "max_timeuuid"
+signatures = ["max_timeuuid(value timestamp) -> timeuuid"]
+doc = "Largest possible timeuuid for the timestamp (Cassandra 5 alias)."
+
+[[functions]]
+name = "todate"
+signatures = ["todate(value timeuuid) -> date", "todate(value timestamp) -> date"]
+doc = "Converts a timeuuid or timestamp to a date."
+
+[[functions]]
+name = "to_date"
+signatures = ["to_date(value timeuuid) -> date", "to_date(value timestamp) -> date"]
+doc = "Converts a timeuuid or timestamp to a date (Cassandra 5 alias)."
+
+[[functions]]
+name = "totimestamp"
+signatures = ["totimestamp(value timeuuid) -> timestamp", "totimestamp(value date) -> timestamp"]
+doc = "Converts a timeuuid or date to a timestamp."
+
+[[functions]]
+name = "to_timestamp"
+signatures = ["to_timestamp(value timeuuid) -> timestamp", "to_timestamp(value date) -> timestamp"]
+doc = "Converts a timeuuid or date to a timestamp (Cassandra 5 alias)."
+
+[[functions]]
+name = "tounixtimestamp"
+signatures = ["tounixtimestamp(value timeuuid) -> bigint", "tounixtimestamp(value timestamp) -> bigint", "tounixtimestamp(value date) -> bigint"]
+doc = "Converts to milliseconds since the Unix epoch."
+
+[[functions]]
+name = "to_unix_timestamp"
+signatures = ["to_unix_timestamp(value timeuuid) -> bigint", "to_unix_timestamp(value timestamp) -> bigint", "to_unix_timestamp(value date) -> bigint"]
+doc = "Converts to milliseconds since the Unix epoch (Cassandra 5 alias)."
+
+[[functions]]
+name = "tojson"
+signatures = ["tojson(value any) -> text"]
+doc = "JSON encoding of the selected value."
+
+[[functions]]
+name = "to_json"
+signatures = ["to_json(value any) -> text"]
+doc = "JSON encoding of the selected value (Cassandra 5 alias)."
+
+[[functions]]
+name = "fromjson"
+signatures = ["fromjson(json text) -> any"]
+doc = "Parses a JSON string into a value of the target column type (INSERT/UPDATE)."
+
+[[functions]]
+name = "from_json"
+signatures = ["from_json(json text) -> any"]
+doc = "Parses a JSON string into a value of the target column type (Cassandra 5 alias)."
+
+[[functions]]
+name = "abs"
+signatures = ["abs(value any) -> any"]
+doc = "Absolute value of the number."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(value any) -> any"]
+doc = "e raised to the power of the number."
+
+[[functions]]
+name = "log"
+signatures = ["log(value any) -> any"]
+doc = "Natural logarithm of the number."
+
+[[functions]]
+name = "log10"
+signatures = ["log10(value any) -> any"]
+doc = "Base-10 logarithm of the number."
+
+[[functions]]
+name = "round"
+signatures = ["round(value any) -> any"]
+doc = "Number rounded to the nearest integer (half up)."
+
+[[functions]]
+name = "map_keys"
+signatures = ["map_keys(value map) -> set"]
+doc = "Set of the keys of the map."
+
+[[functions]]
+name = "map_values"
+signatures = ["map_values(value map) -> list"]
+doc = "List of the values of the map."
+
+[[functions]]
+name = "collection_count"
+signatures = ["collection_count(value any) -> int"]
+doc = "Number of elements of the list, set or map."
+
+[[functions]]
+name = "collection_min"
+signatures = ["collection_min(value any) -> any"]
+doc = "Smallest element of the list or set."
+
+[[functions]]
+name = "collection_max"
+signatures = ["collection_max(value any) -> any"]
+doc = "Largest element of the list or set."
+
+[[functions]]
+name = "collection_sum"
+signatures = ["collection_sum(value any) -> any"]
+doc = "Sum of the numeric elements of the list or set."
+
+[[functions]]
+name = "collection_avg"
+signatures = ["collection_avg(value any) -> any"]
+doc = "Average of the numeric elements of the list or set."
+
+[[functions]]
+name = "mask_null"
+signatures = ["mask_null(value any) -> any"]
+doc = "Masks the value by replacing it with null."
+
+[[functions]]
+name = "mask_default"
+signatures = ["mask_default(value any) -> any"]
+doc = "Masks the value with a fixed default of its type (e.g. `****` for text, 0 for numbers)."
+
+[[functions]]
+name = "mask_replace"
+signatures = ["mask_replace(value any, replacement any) -> any"]
+doc = "Masks the value with the given replacement of the same type."
+
+[[functions]]
+name = "mask_inner"
+signatures = ["mask_inner(value text, begin int, end int) -> text", "mask_inner(value text, begin int, end int, padding text) -> text"]
+doc = "Masks the text except its first `begin` and last `end` characters."
+
+[[functions]]
+name = "mask_outer"
+signatures = ["mask_outer(value text, begin int, end int) -> text", "mask_outer(value text, begin int, end int, padding text) -> text"]
+doc = "Masks the first `begin` and last `end` characters of the text."
+
+[[functions]]
+name = "mask_hash"
+signatures = ["mask_hash(value any) -> blob", "mask_hash(value any, algorithm text) -> blob"]
+doc = "Masks the value with its hash (SHA-256 by default)."
+
+[[functions]]
+name = "similarity_cosine"
+signatures = ["similarity_cosine(v1 vector, v2 vector) -> float"]
+doc = "Cosine similarity of two float vectors."
+
+[[functions]]
+name = "similarity_euclidean"
+signatures = ["similarity_euclidean(v1 vector, v2 vector) -> float"]
+doc = "Euclidean-distance based similarity of two float vectors."
+
+[[functions]]
+name = "similarity_dot_product"
+signatures = ["similarity_dot_product(v1 vector, v2 vector) -> float"]
+doc = "Dot-product similarity of two normalized float vectors."
+
+[[functions]]
+name = "asciiasblob"
+signatures = ["asciiasblob(value ascii) -> blob"]
+doc = "Converts a `ascii` value to its blob representation."
+
+[[functions]]
+name = "blobasascii"
+signatures = ["blobasascii(value blob) -> ascii"]
+doc = "Interprets a blob as a `ascii` value."
+
+[[functions]]
+name = "bigintasblob"
+signatures = ["bigintasblob(value bigint) -> blob"]
+doc = "Converts a `bigint` value to its blob representation."
+
+[[functions]]
+name = "blobasbigint"
+signatures = ["blobasbigint(value blob) -> bigint"]
+doc = "Interprets a blob as a `bigint` value."
+
+[[functions]]
+name = "booleanasblob"
+signatures = ["booleanasblob(value boolean) -> blob"]
+doc = "Converts a `boolean` value to its blob representation."
+
+[[functions]]
+name = "blobasboolean"
+signatures = ["blobasboolean(value blob) -> boolean"]
+doc = "Interprets a blob as a `boolean` value."
+
+[[functions]]
+name = "dateasblob"
+signatures = ["dateasblob(value date) -> blob"]
+doc = "Converts a `date` value to its blob representation."
+
+[[functions]]
+name = "blobasdate"
+signatures = ["blobasdate(value blob) -> date"]
+doc = "Interprets a blob as a `date` value."
+
+[[functions]]
+name = "decimalasblob"
+signatures = ["decimalasblob(value decimal) -> blob"]
+doc = "Converts a `decimal` value to its blob representation."
+
+[[functions]]
+name = "blobasdecimal"
+signatures = ["blobasdecimal(value blob) -> decimal"]
+doc = "Interprets a blob as a `decimal` value."
+
+[[functions]]
+name = "doubleasblob"
+signatures = ["doubleasblob(value double) -> blob"]
+doc = "Converts a `double` value to its blob representation."
+
+[[functions]]
+name = "blobasdouble"
+signatures = ["blobasdouble(value blob) -> double"]
+doc = "Interprets a blob as a `double` value."
+
+[[functions]]
+name = "durationasblob"
+signatures = ["durationasblob(value duration) -> blob"]
+doc = "Converts a `duration` value to its blob representation."
+
+[[functions]]
+name = "blobasduration"
+signatures = ["blobasduration(value blob) -> duration"]
+doc = "Interprets a blob as a `duration` value."
+
+[[functions]]
+name = "floatasblob"
+signatures = ["floatasblob(value float) -> blob"]
+doc = "Converts a `float` value to its blob representation."
+
+[[functions]]
+name = "blobasfloat"
+signatures = ["blobasfloat(value blob) -> float"]
+doc = "Interprets a blob as a `float` value."
+
+[[functions]]
+name = "inetasblob"
+signatures = ["inetasblob(value inet) -> blob"]
+doc = "Converts a `inet` value to its blob representation."
+
+[[functions]]
+name = "blobasinet"
+signatures = ["blobasinet(value blob) -> inet"]
+doc = "Interprets a blob as a `inet` value."
+
+[[functions]]
+name = "intasblob"
+signatures = ["intasblob(value int) -> blob"]
+doc = "Converts a `int` value to its blob representation."
+
+[[functions]]
+name = "blobasint"
+signatures = ["blobasint(value blob) -> int"]
+doc = "Interprets a blob as a `int` value."
+
+[[functions]]
+name = "smallintasblob"
+signatures = ["smallintasblob(value smallint) -> blob"]
+doc = "Converts a `smallint` value to its blob representation."
+
+[[functions]]
+name = "blobassmallint"
+signatures = ["blobassmallint(value blob) -> smallint"]
+doc = "Interprets a blob as a `smallint` value."
+
+[[functions]]
+name = "textasblob"
+signatures = ["textasblob(value text) -> blob"]
+doc = "Converts a `text` value to its blob representation."
+
+[[functions]]
+name = "blobastext"
+signatures = ["blobastext(value blob) -> text"]
+doc = "Interprets a blob as a `text` value."
+
+[[functions]]
+name = "timeasblob"
+signatures = ["timeasblob(value time) -> blob"]
+doc = "Converts a `time` value to its blob representation."
+
+[[functions]]
+name = "blobastime"
+signatures = ["blobastime(value blob) -> time"]
+doc = "Interprets a blob as a `time` value."
+
+[[functions]]
+name = "timestampasblob"
+signatures = ["timestampasblob(value timestamp) -> blob"]
+doc = "Converts a `timestamp` value to its blob representation."
+
+[[functions]]
+name = "blobastimestamp"
+signatures = ["blobastimestamp(value blob) -> timestamp"]
+doc = "Interprets a blob as a `timestamp` value."
+
+[[functions]]
+name = "timeuuidasblob"
+signatures = ["timeuuidasblob(value timeuuid) -> blob"]
+doc = "Converts a `timeuuid` value to its blob representation."
+
+[[functions]]
+name = "blobastimeuuid"
+signatures = ["blobastimeuuid(value blob) -> timeuuid"]
+doc = "Interprets a blob as a `timeuuid` value."
+
+[[functions]]
+name = "tinyintasblob"
+signatures = ["tinyintasblob(value tinyint) -> blob"]
+doc = "Converts a `tinyint` value to its blob representation."
+
+[[functions]]
+name = "blobastinyint"
+signatures = ["blobastinyint(value blob) -> tinyint"]
+doc = "Interprets a blob as a `tinyint` value."
+
+[[functions]]
+name = "uuidasblob"
+signatures = ["uuidasblob(value uuid) -> blob"]
+doc = "Converts a `uuid` value to its blob representation."
+
+[[functions]]
+name = "blobasuuid"
+signatures = ["blobasuuid(value blob) -> uuid"]
+doc = "Interprets a blob as a `uuid` value."
+
+[[functions]]
+name = "varcharasblob"
+signatures = ["varcharasblob(value varchar) -> blob"]
+doc = "Converts a `varchar` value to its blob representation."
+
+[[functions]]
+name = "blobasvarchar"
+signatures = ["blobasvarchar(value blob) -> varchar"]
+doc = "Interprets a blob as a `varchar` value."
+
+[[functions]]
+name = "varintasblob"
+signatures = ["varintasblob(value varint) -> blob"]
+doc = "Converts a `varint` value to its blob representation."
+
+[[functions]]
+name = "blobasvarint"
+signatures = ["blobasvarint(value blob) -> varint"]
+doc = "Interprets a blob as a `varint` value."

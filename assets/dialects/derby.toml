@@ -1,0 +1,347 @@
+# Apache Derby 10.16 / 10.17 (also Java DB). Reserved words are the documented Derby list,
+# which really cannot be used as bare identifiers.
+id = "derby"
+name = "Apache Derby"
+inherits = "sql"
+identifier_quote = '"'
+case_folding = "upper"
+default_schema = "APP"
+parser = "generic"
+
+keywords = [
+  "add", "allocate", "are", "assertion", "at", "authorization", "avg", "begin", "bigint", "bit",
+  "boolean", "call", "cascade", "cascaded", "char", "char_length", "character",
+  "character_length", "close", "coalesce", "collate", "collation", "commit", "connect",
+  "connection", "constraints", "continue", "convert", "corresponding", "current", "current_role",
+  "cursor", "deallocate", "dec", "decimal", "declare", "deferrable", "deferred", "describe",
+  "diagnostics", "disconnect", "double", "escape", "exception", "exec", "execute", "explain",
+  "external", "first", "float", "found", "function", "get", "getcurrentconnection", "global",
+  "go", "goto", "hour", "identity", "immediate", "indicator", "initially", "inout", "input",
+  "insensitive", "int", "integer", "isolation", "key", "last", "lower", "ltrim", "match", "max",
+  "min", "minute", "national", "nchar", "next", "no", "none", "nullif", "numeric", "nvarchar",
+  "of", "only", "open", "option", "output", "overlaps", "pad", "partial", "prepare", "preserve",
+  "prior", "privileges", "procedure", "public", "read", "real", "relative", "restrict", "revoke",
+  "rollback", "row_number", "rows", "rtrim", "schema", "scroll", "second", "session_user",
+  "smallint", "space", "sql", "sqlcode", "sqlerror", "sqlstate", "substr", "substring", "sum",
+  "system_user", "temporary", "timezone_hour", "timezone_minute", "transaction", "translate",
+  "translation", "trim", "unknown", "upper", "user", "varchar", "varying", "view", "whenever",
+  "work", "write", "xml", "xmlexists", "xmlparse", "xmlquery", "xmlserialize", "year",
+]
+
+soft_keywords = [
+  "always", "called", "compress", "contains", "cycle", "derby_jdbc_result_set", "deterministic",
+  "dynamic", "exclusive", "generated", "ignore", "increment", "java", "language", "lock", "locks",
+  "maxvalue", "minvalue", "mode", "modifies", "new", "new_table", "nocycle", "old", "old_table",
+  "parameter", "reads", "referencing", "restart", "result", "returns", "role", "sets", "share",
+  "start", "statement", "style", "synonym", "value",
+]
+
+types = [
+  "binary large object", "blob", "char for bit data", "char varying", "character large object",
+  "character varying", "clob", "dec", "double", "long varchar", "long varchar for bit data",
+  "varchar for bit data", "xml",
+]
+
+removed_functions = [
+  "replace", "round",
+]
+
+[[functions]]
+name = "absval"
+signatures = ["absval(x numeric) -> numeric"]
+doc = "Absolute value (synonym of `ABS`)."
+
+[[functions]]
+name = "acos"
+signatures = ["acos(x double) -> double"]
+doc = "Arc cosine in radians."
+
+[[functions]]
+name = "asin"
+signatures = ["asin(x double) -> double"]
+doc = "Arc sine in radians."
+
+[[functions]]
+name = "atan"
+signatures = ["atan(x double) -> double"]
+doc = "Arc tangent in radians."
+
+[[functions]]
+name = "atan2"
+signatures = ["atan2(y double, x double) -> double"]
+doc = "Angle in radians of the point (x, y)."
+
+[[functions]]
+name = "bigint"
+signatures = ["bigint(value any) -> bigint"]
+doc = "Number or character string converted to BIGINT."
+
+[[functions]]
+name = "ceil"
+signatures = ["ceil(x double) -> double"]
+doc = "Smallest integer not less than the argument."
+
+[[functions]]
+name = "ceiling"
+signatures = ["ceiling(x double) -> double"]
+doc = "Smallest integer not less than the argument."
+
+[[functions]]
+name = "char"
+signatures = ["char(value any) -> char", "char(value any, length integer) -> char"]
+doc = "Fixed-length character string representation of a value."
+
+[[functions]]
+name = "cos"
+signatures = ["cos(x double) -> double"]
+doc = "Cosine of an angle in radians."
+
+[[functions]]
+name = "cosh"
+signatures = ["cosh(x double) -> double"]
+doc = "Hyperbolic cosine."
+
+[[functions]]
+name = "cot"
+signatures = ["cot(x double) -> double"]
+doc = "Cotangent of an angle in radians."
+
+[[functions]]
+name = "date"
+signatures = ["date(value any) -> date"]
+doc = "Date from a timestamp, a string or a day number."
+
+[[functions]]
+name = "day"
+signatures = ["day(value any) -> integer"]
+doc = "Day-of-month part of a date or timestamp."
+
+[[functions]]
+name = "degrees"
+signatures = ["degrees(x double) -> double"]
+doc = "Radians converted to degrees."
+
+[[functions]]
+name = "double"
+signatures = ["double(value any) -> double"]
+doc = "Number or character string converted to DOUBLE."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(x double) -> double"]
+doc = "e raised to the power of the argument."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(x double) -> double"]
+doc = "Largest integer not greater than the argument."
+
+[[functions]]
+name = "hour"
+signatures = ["hour(value any) -> integer"]
+doc = "Hour part of a time or timestamp."
+
+[[functions]]
+name = "identity_val_local"
+signatures = ["identity_val_local() -> decimal"]
+doc = "Most recently assigned identity value of the connection (single-row INSERT)."
+
+[[functions]]
+name = "integer"
+signatures = ["integer(value any) -> integer"]
+doc = "Number or character string converted to INTEGER (alias `INT`)."
+
+[[functions]]
+name = "lcase"
+signatures = ["lcase(string varchar) -> varchar"]
+doc = "String converted to lower case (synonym of `LOWER`)."
+
+[[functions]]
+name = "length"
+signatures = ["length(value any) -> integer"]
+doc = "Number of characters (or bytes for binary strings)."
+
+[[functions]]
+name = "ln"
+signatures = ["ln(x double) -> double"]
+doc = "Natural logarithm (alias `LOG`)."
+
+[[functions]]
+name = "log"
+signatures = ["log(x double) -> double"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log10"
+signatures = ["log10(x double) -> double"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "locate"
+signatures = ["locate(search varchar, string varchar) -> integer", "locate(search varchar, string varchar, start integer) -> integer"]
+doc = "Position of `search` in the string (0 if absent)."
+
+[[functions]]
+name = "ltrim"
+signatures = ["ltrim(string varchar) -> varchar"]
+doc = "Removes leading blanks."
+
+[[functions]]
+name = "minute"
+signatures = ["minute(value any) -> integer"]
+doc = "Minute part of a time or timestamp."
+
+[[functions]]
+name = "mod"
+signatures = ["mod(dividend integer, divisor integer) -> integer"]
+doc = "Remainder of an integer division."
+
+[[functions]]
+name = "month"
+signatures = ["month(value any) -> integer"]
+doc = "Month part of a date or timestamp."
+
+[[functions]]
+name = "pi"
+signatures = ["pi() -> double"]
+doc = "The constant pi."
+
+[[functions]]
+name = "radians"
+signatures = ["radians(x double) -> double"]
+doc = "Degrees converted to radians."
+
+[[functions]]
+name = "random"
+signatures = ["random() -> double"]
+doc = "Random number between 0 and 1."
+
+[[functions]]
+name = "rand"
+signatures = ["rand(seed integer) -> double"]
+doc = "Random number between 0 and 1 from a seed."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(string varchar) -> varchar"]
+doc = "Removes trailing blanks."
+
+[[functions]]
+name = "second"
+signatures = ["second(value any) -> integer"]
+doc = "Seconds part of a time or timestamp."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(x double) -> integer"]
+doc = "Sign of the argument (-1, 0 or 1)."
+
+[[functions]]
+name = "sin"
+signatures = ["sin(x double) -> double"]
+doc = "Sine of an angle in radians."
+
+[[functions]]
+name = "sinh"
+signatures = ["sinh(x double) -> double"]
+doc = "Hyperbolic sine."
+
+[[functions]]
+name = "smallint"
+signatures = ["smallint(value any) -> smallint"]
+doc = "Number or character string converted to SMALLINT."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(x double) -> double"]
+doc = "Square root."
+
+[[functions]]
+name = "substr"
+signatures = ["substr(string varchar, start integer) -> varchar", "substr(string varchar, start integer, length integer) -> varchar"]
+doc = "Substring starting at a position, optionally of a given length."
+
+[[functions]]
+name = "tan"
+signatures = ["tan(x double) -> double"]
+doc = "Tangent of an angle in radians."
+
+[[functions]]
+name = "tanh"
+signatures = ["tanh(x double) -> double"]
+doc = "Hyperbolic tangent."
+
+[[functions]]
+name = "time"
+signatures = ["time(value any) -> time"]
+doc = "Time from a timestamp or a string."
+
+[[functions]]
+name = "timestamp"
+signatures = ["timestamp(value any) -> timestamp", "timestamp(date date, time time) -> timestamp"]
+doc = "Timestamp from a value, or from a date and a time."
+
+[[functions]]
+name = "trim"
+signatures = ["trim(string varchar) -> varchar"]
+doc = "Removes leading and trailing blanks (also `TRIM(LEADING 'x' FROM s)`)."
+
+[[functions]]
+name = "ucase"
+signatures = ["ucase(string varchar) -> varchar"]
+doc = "String converted to upper case (synonym of `UPPER`)."
+
+[[functions]]
+name = "varchar"
+signatures = ["varchar(value any) -> varchar", "varchar(value any, length integer) -> varchar"]
+doc = "Varying-length character string representation of a value."
+
+[[functions]]
+name = "year"
+signatures = ["year(value any) -> integer"]
+doc = "Year part of a date or timestamp."
+
+[[functions]]
+name = "xmlparse"
+signatures = ["xmlparse(document varchar) -> xml"]
+doc = "Parses a string into an XML value (`XMLPARSE(DOCUMENT s PRESERVE WHITESPACE)`)."
+
+[[functions]]
+name = "xmlserialize"
+signatures = ["xmlserialize(value xml) -> varchar"]
+doc = "XML value serialized to a string (`XMLSERIALIZE(x AS CLOB)`)."
+
+[[functions]]
+name = "xmlexists"
+signatures = ["xmlexists(xpath varchar) -> boolean"]
+doc = "Whether an XPath expression returns nodes (`XMLEXISTS(p PASSING BY REF x)`)."
+
+[[functions]]
+name = "xmlquery"
+signatures = ["xmlquery(xpath varchar) -> xml"]
+doc = "Result of an XPath expression (`XMLQUERY(p PASSING BY REF x EMPTY ON EMPTY)`)."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> bigint"]
+doc = "Number of the current row (window function, `OVER ()` only)."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(value double) -> double"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(value double) -> double"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(value double) -> double"]
+doc = "Population variance."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(value double) -> double"]
+doc = "Sample variance."

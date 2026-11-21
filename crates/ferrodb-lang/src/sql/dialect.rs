@@ -23,6 +23,18 @@ const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../../assets/dialects/postgresql.toml"),
     ),
     (
+        "greenplum",
+        include_str!("../../../../assets/dialects/greenplum.toml"),
+    ),
+    (
+        "cockroachdb",
+        include_str!("../../../../assets/dialects/cockroachdb.toml"),
+    ),
+    (
+        "redshift",
+        include_str!("../../../../assets/dialects/redshift.toml"),
+    ),
+    (
         "mysql",
         include_str!("../../../../assets/dialects/mysql.toml"),
     ),
@@ -39,12 +51,59 @@ const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../../assets/dialects/tsql.toml"),
     ),
     (
+        "sybase",
+        include_str!("../../../../assets/dialects/sybase.toml"),
+    ),
+    (
         "oracle",
         include_str!("../../../../assets/dialects/oracle.toml"),
     ),
     (
         "duckdb",
         include_str!("../../../../assets/dialects/duckdb.toml"),
+    ),
+    ("db2", include_str!("../../../../assets/dialects/db2.toml")),
+    ("h2", include_str!("../../../../assets/dialects/h2.toml")),
+    (
+        "derby",
+        include_str!("../../../../assets/dialects/derby.toml"),
+    ),
+    (
+        "hsqldb",
+        include_str!("../../../../assets/dialects/hsqldb.toml"),
+    ),
+    (
+        "exasol",
+        include_str!("../../../../assets/dialects/exasol.toml"),
+    ),
+    (
+        "vertica",
+        include_str!("../../../../assets/dialects/vertica.toml"),
+    ),
+    (
+        "hiveql",
+        include_str!("../../../../assets/dialects/hiveql.toml"),
+    ),
+    (
+        "snowflake",
+        include_str!("../../../../assets/dialects/snowflake.toml"),
+    ),
+    (
+        "googlesql",
+        include_str!("../../../../assets/dialects/googlesql.toml"),
+    ),
+    (
+        "clickhouse",
+        include_str!("../../../../assets/dialects/clickhouse.toml"),
+    ),
+    ("cql", include_str!("../../../../assets/dialects/cql.toml")),
+    (
+        "sqlpp",
+        include_str!("../../../../assets/dialects/sqlpp.toml"),
+    ),
+    (
+        "partiql",
+        include_str!("../../../../assets/dialects/partiql.toml"),
     ),
 ];
 
@@ -90,6 +149,13 @@ struct RawDialect {
     types: Vec<String>,
     #[serde(default)]
     functions: Vec<RawFunction>,
+    /// Inherited names the product does not have.
+    #[serde(default)]
+    removed_keywords: Vec<String>,
+    #[serde(default)]
+    removed_types: Vec<String>,
+    #[serde(default)]
+    removed_functions: Vec<String>,
 }
 
 /// A built-in function with its overloads.
@@ -123,13 +189,14 @@ pub struct Dialect {
 }
 
 impl Dialect {
-    /// Dialect for a `SqlDialectId`. Derived dialects without their own file
-    /// map to their base; unknown ids get the base SQL dialect.
+    /// Dialect for a `SqlDialectId` (every id has its own file; product
+    /// aliases map to their dialect); unknown ids get the base SQL dialect.
     pub fn get(id: &str) -> &'static Dialect {
         let all = registry();
         let key = match id {
-            "greenplum" | "cockroachdb" | "redshift" => "postgresql",
-            "azuresql" | "sybase" | "sqlserver" => "tsql",
+            "azuresql" | "sqlserver" => "tsql",
+            "bigquery" => "googlesql",
+            "hive" => "hiveql",
             other => other,
         };
         all.get(key)
@@ -267,10 +334,32 @@ fn build(id: &str, raw: &HashMap<String, RawDialect>) -> Dialect {
                 d.types.push(t.to_ascii_lowercase());
             }
         }
+        for k in &r.removed_keywords {
+            let k = k.to_ascii_lowercase();
+            d.keywords.remove(&k);
+            d.soft_keywords.remove(&k);
+        }
+        d.types
+            .retain(|t| !r.removed_types.iter().any(|x| x.eq_ignore_ascii_case(t)));
+        if !r.removed_functions.is_empty() {
+            d.functions.retain(|f| {
+                !r.removed_functions
+                    .iter()
+                    .any(|x| x.eq_ignore_ascii_case(&f.name))
+            });
+            d.function_index = d
+                .functions
+                .iter()
+                .enumerate()
+                .map(|(i, f)| (f.name.to_ascii_lowercase(), i))
+                .collect();
+        }
         for f in &r.functions {
             let key = f.name.to_ascii_lowercase();
+            // The product's spelling is kept (ClickHouse names are
+            // case-sensitive); lookups are case-insensitive.
             let func = Function {
-                name: key.clone(),
+                name: f.name.clone(),
                 signatures: f.signatures.clone(),
                 doc: f.doc.clone(),
             };
@@ -348,12 +437,14 @@ mod tests {
         for id in Dialect::ids() {
             let d = Dialect::get(id);
             assert_eq!(d.id, id);
-            assert!(d.keywords.contains("select"), "{id}");
-            assert!(d.function("count").is_some(), "{id}");
+            if !matches!(id, "cql" | "sqlpp" | "partiql") {
+                assert!(d.keywords.contains("select"), "{id}");
+                assert!(d.function("count").is_some(), "{id}");
+            }
             for f in &d.functions {
                 for s in &f.signatures {
                     let p = parse_signature(s);
-                    assert_eq!(p.name, f.name, "{id}: {s}");
+                    assert!(p.name.eq_ignore_ascii_case(&f.name), "{id}: {s}");
                 }
             }
         }
@@ -361,7 +452,9 @@ mod tests {
         assert_eq!(maria.quote, '`');
         assert!(maria.function("group_concat").is_some());
         assert!(maria.function("json_detailed").is_some());
-        assert_eq!(Dialect::get("greenplum").id, "postgresql");
+        assert_eq!(Dialect::get("greenplum").id, "greenplum");
+        assert!(Dialect::get("greenplum").function("date_trunc").is_some());
+        assert_eq!(Dialect::get("sqlserver").id, "tsql");
         assert_eq!(Dialect::get("nonsense").id, "sql");
         // Reserved in PostgreSQL, so not soft there.
         assert!(!Dialect::get("postgresql").is_soft_keyword("limit"));

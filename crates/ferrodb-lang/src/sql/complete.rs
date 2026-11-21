@@ -18,7 +18,7 @@ use super::{
     matcher,
     resolve::{SourceColumn, TableTarget},
     schema::{TableId, TableInfo},
-    syntax::{Clause, Ident, Parsed, Source, SourceKind, unquote},
+    syntax::{Clause, Ident, Parsed, Source, SourceKind, StmtKind, unquote},
     templates,
 };
 
@@ -132,6 +132,34 @@ pub fn complete(
         }
         _ => (offset..offset, String::new()),
     };
+    // Inside a T-SQL block or a PL/SQL unit: complete the SQL statement
+    // around the cursor as if it stood alone (same offsets, rest blanked).
+    if let Some(inner) = block_statement(doc, replace.start) {
+        let text = doc.text;
+        let mut masked = String::with_capacity(text.len());
+        masked.push_str(&" ".repeat(inner.start));
+        masked.push_str(&text[inner.clone()]);
+        masked.push_str(&" ".repeat(text.len() - inner.end));
+        let current = doc
+            .env
+            .order
+            .first()
+            .map(|&i| doc.env.model.schemas[i].name.clone());
+        let sub = Document::analyze(
+            &masked,
+            &doc.dialect().id,
+            doc.env.model,
+            current.as_deref(),
+        );
+        let mut c = Ctx {
+            doc: &sub,
+            stmt: sub.statement_at(replace.start),
+            replace: replace.clone(),
+            cands: Vec::new(),
+        };
+        c.collect(templates);
+        return rank(c.cands, &prefix, replace);
+    }
     let mut c = Ctx {
         doc,
         stmt: doc.statement_at(replace.start),
@@ -142,9 +170,100 @@ pub fn complete(
     rank(c.cands, &prefix, replace)
 }
 
+/// Words after which a statement starts inside a block.
+const BLOCK_WORDS: &[&str] = &[
+    "begin",
+    "then",
+    "else",
+    "loop",
+    "as",
+    "is",
+    "declare",
+    "try",
+    "catch",
+    "exception",
+];
+
+/// Words that start a SQL statement inside a block.
+const INNER_STARTS: &[&str] = &[
+    "select", "insert", "update", "delete", "merge", "with", "values", "open", "for",
+];
+
+/// Range of the SQL statement around `pos` inside a T-SQL block or batch
+/// or a PL/SQL unit; `None` outside them.
+fn block_statement(doc: &Document<'_>, pos: usize) -> Option<Range<usize>> {
+    let d = doc.dialect();
+    if !(d.flavor.go_batches || d.flavor.plsql) {
+        return None;
+    }
+    let si = doc.statement_at(pos)?;
+    let s = &doc.stmts[si];
+    if !matches!(s.parsed.kind, StmtKind::Other | StmtKind::Ddl) {
+        return None;
+    }
+    let src = doc.text;
+    let toks = &s.toks;
+    let lower = |t: &Token| t.text(src).to_ascii_lowercase();
+    let block_word =
+        |t: &Token| t.kind == TokenKind::Word && BLOCK_WORDS.contains(&lower(t).as_str());
+    let n = toks.partition_point(|t| t.range.end <= pos);
+    let mut start = None;
+    for i in (0..n).rev() {
+        let t = &toks[i];
+        if t.text(src) == ";" || block_word(t) {
+            start = Some(toks.get(i + 1).map_or(pos, |x| x.range.start.min(pos)));
+            break;
+        }
+        if i > 0 && t.kind == TokenKind::Word && INNER_STARTS.contains(&lower(t).as_str()) {
+            let p = &toks[i - 1];
+            let new_line = src[p.range.end..t.range.start].contains('\n');
+            let complete_before = matches!(
+                p.kind,
+                TokenKind::Number | TokenKind::String | TokenKind::QuotedIdent | TokenKind::Param
+            ) || p.text(src) == ")"
+                || (p.kind == TokenKind::Word && !d.is_keyword(p.text(src)));
+            if new_line && complete_before {
+                start = Some(t.range.start);
+                break;
+            }
+        }
+    }
+    let start = start?;
+    if start <= s.span.body.start {
+        return None;
+    }
+    let mut depth = 0i32;
+    let mut end = s.span.body.end;
+    for t in &toks[n..] {
+        match t.text(src) {
+            "(" => depth += 1,
+            ")" => depth -= 1,
+            ";" if depth <= 0 => {
+                end = t.range.start;
+                break;
+            }
+            _ => {}
+        }
+        if depth <= 0
+            && t.kind == TokenKind::Word
+            && ["end", "else", "elsif", "exception"].contains(&lower(t).as_str())
+        {
+            end = t.range.start;
+            break;
+        }
+    }
+    Some(start..end.max(pos))
+}
+
 fn closed_string(src: &str, t: &Token) -> bool {
     let s = t.text(src);
-    s.len() >= 2 && s.ends_with('\'')
+    let open = s.find(['\'', '"']).unwrap_or(0);
+    let q = if s[open..].starts_with('"') {
+        '"'
+    } else {
+        '\''
+    };
+    s.len() >= open + 2 && s.ends_with(q)
 }
 
 fn rank(cands: Vec<Cand>, prefix: &str, replace: Range<usize>) -> Vec<CompletionItem> {
@@ -246,12 +365,12 @@ impl Ctx<'_, '_> {
         let in_from = matches!(clause, Clause::From | Clause::Join);
         if matches!(
             prev.as_str(),
-            "from" | "join" | "update" | "into" | "table" | "lateral" | "only"
+            "from" | "join" | "update" | "into" | "table" | "lateral" | "only" | "apply" | "merge"
         ) || (lt == "," && in_from)
             || (prev == "using"
                 && self
                     .parsed()
-                    .is_some_and(|p| p.kind == super::syntax::StmtKind::Delete))
+                    .is_some_and(|p| matches!(p.kind, StmtKind::Delete | StmtKind::Merge)))
         {
             if prev == "join" {
                 self.joins(scope);
@@ -570,6 +689,23 @@ impl Ctx<'_, '_> {
         // Schema: its tables and routines.
         let env = &self.doc.env;
         let Some(si) = env.model.schema(&qn) else {
+            // Oracle: `seq.NEXTVAL`, and `table.` outside a query
+            // (`v emp.ename%TYPE` in PL/SQL declarations).
+            if d.flavor.plsql {
+                for k in ["NEXTVAL", "CURRVAL"] {
+                    self.keyword(k, 10);
+                }
+                if qual.len() == 1 {
+                    let tables = env.model.find_tables(None, &qn, false, &env.order);
+                    if let Some(id) = tables.first() {
+                        let t = env.model.table(*id).clone();
+                        for c in table_columns(&t, env.model.schema_name(*id)) {
+                            self.column_cand(&c, None, Some(t.name.clone()), 100);
+                        }
+                    }
+                }
+                return;
+            }
             // `schema.table.` → columns of the table.
             if qual.len() >= 2 {
                 let tables =

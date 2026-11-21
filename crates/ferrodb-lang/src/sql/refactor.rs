@@ -501,7 +501,11 @@ pub fn structure(doc: &Document<'_>) -> Vec<StructureItem> {
                 ),
                 (
                     None,
-                    StmtKind::Select | StmtKind::Insert | StmtKind::Update | StmtKind::Delete,
+                    StmtKind::Select
+                    | StmtKind::Insert
+                    | StmtKind::Update
+                    | StmtKind::Delete
+                    | StmtKind::Merge,
                 ) => {
                     let tables: Vec<String> = p
                         .refs
@@ -519,6 +523,7 @@ pub fn structure(doc: &Document<'_>) -> Vec<StructureItem> {
                         StmtKind::Insert => "INSERT",
                         StmtKind::Update => "UPDATE",
                         StmtKind::Delete => "DELETE",
+                        StmtKind::Merge => "MERGE",
                         _ => "SELECT",
                     };
                     if tables.is_empty() {

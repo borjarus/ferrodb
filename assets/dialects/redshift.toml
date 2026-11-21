@@ -1,0 +1,663 @@
+# Amazon Redshift (provisioned and serverless, 2025): derived from PostgreSQL 8.0, with the
+# PostgreSQL types/functions it lacks removed and its own functions (SUPER, HLL, date math) added.
+id = "redshift"
+name = "Amazon Redshift"
+inherits = "postgresql"
+parser = "redshift"
+
+keywords = [
+  "aes128", "aes256", "allowoverwrite", "authorization", "az64", "backup", "binary",
+  "blanksasnull", "bytedict", "bzip2", "credentials", "current_user_id", "deflate", "defrag",
+  "delta", "delta32k", "disable", "emptyasnull", "enable", "encode", "encrypt", "encryption",
+  "explicit", "globaldict256", "globaldict64k", "gzip", "identity", "ignore", "interval",
+  "lun", "luns", "lzo", "lzop", "minus", "mostly16", "mostly32", "mostly8", "new", "nulls",
+  "off", "offline", "oid", "old", "open", "parallel", "partition", "percent", "permissions",
+  "pivot", "raw", "readratio", "recover", "rejectlog", "resort", "respect", "restore",
+  "snapshot", "sysdate", "system", "tag", "tdes", "text255", "text32k", "timestamp", "top",
+  "truncatecolumns", "unnest", "unpivot", "wallet", "without",
+]
+
+soft_keywords = [
+  "approximate", "auto", "compound", "copy", "datashare", "distkey", "diststyle", "even",
+  "external", "iam_role", "interleaved", "library", "manifest", "model", "qualify", "sortkey",
+  "stl", "unload", "within",
+]
+
+types = [
+  "binary varying", "bpchar", "geography", "geometry", "hllsketch", "nchar", "nvarchar",
+  "super", "time with time zone", "time without time zone", "timestamp with time zone",
+  "timestamp without time zone", "varbinary", "varbyte",
+]
+
+removed_keywords = [
+  "asymmetric", "concurrently", "current_catalog", "current_role", "current_schema", "lateral",
+  "returning", "symmetric", "tablesample", "variadic", "window",
+]
+
+removed_types = [
+  "bigserial", "bit", "bit varying", "box", "bytea", "cidr", "circle", "daterange", "inet",
+  "int4range", "int8range", "json", "jsonb", "line", "lseg", "macaddr", "money", "numrange",
+  "path", "point", "polygon", "serial", "smallserial", "tsquery", "tsrange", "tstzrange",
+  "tsvector", "uuid", "xml",
+]
+
+removed_functions = [
+  "array_agg", "array_length", "concat_ws", "currval", "gen_random_uuid", "json_agg",
+  "jsonb_agg", "jsonb_array_elements", "jsonb_build_object", "jsonb_extract_path_text",
+  "nextval", "string_agg", "unnest",
+]
+
+[[functions]]
+name = "concat"
+signatures = ["concat(value1 varchar, value2 varchar) -> varchar"]
+doc = "Concatenation of exactly two strings (use `||` for more)."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(source varchar, pattern varchar) -> varchar", "regexp_replace(source varchar, pattern varchar, replace_string varchar) -> varchar", "regexp_replace(source varchar, pattern varchar, replace_string varchar, position int) -> varchar", "regexp_replace(source varchar, pattern varchar, replace_string varchar, position int, parameters varchar) -> varchar"]
+doc = "Replaces substrings matching a POSIX regular expression."
+
+[[functions]]
+name = "regexp_substr"
+signatures = ["regexp_substr(source varchar, pattern varchar) -> varchar", "regexp_substr(source varchar, pattern varchar, position int) -> varchar", "regexp_substr(source varchar, pattern varchar, position int, occurrence int) -> varchar", "regexp_substr(source varchar, pattern varchar, position int, occurrence int, parameters varchar) -> varchar"]
+doc = "Substring matching a regular expression."
+
+[[functions]]
+name = "regexp_count"
+signatures = ["regexp_count(source varchar, pattern varchar) -> int", "regexp_count(source varchar, pattern varchar, position int) -> int", "regexp_count(source varchar, pattern varchar, position int, parameters varchar) -> int"]
+doc = "Number of matches of a regular expression."
+
+[[functions]]
+name = "regexp_instr"
+signatures = ["regexp_instr(source varchar, pattern varchar) -> int", "regexp_instr(source varchar, pattern varchar, position int) -> int", "regexp_instr(source varchar, pattern varchar, position int, occurrence int) -> int", "regexp_instr(source varchar, pattern varchar, position int, occurrence int, option int) -> int", "regexp_instr(source varchar, pattern varchar, position int, occurrence int, option int, parameters varchar) -> int"]
+doc = "Position of a regular expression match."
+
+[[functions]]
+name = "listagg"
+signatures = ["listagg(expression varchar) -> varchar", "listagg(expression varchar, delimiter varchar) -> varchar"]
+doc = "Concatenates the group's values (`WITHIN GROUP (ORDER BY ...)` optional)."
+
+[[functions]]
+name = "getdate"
+signatures = ["getdate() -> timestamp"]
+doc = "Current date and time of the current statement (without fractional seconds)."
+
+[[functions]]
+name = "nvl"
+signatures = ["nvl(expression any, ...) -> any"]
+doc = "First non-null expression (same as `COALESCE`)."
+
+[[functions]]
+name = "nvl2"
+signatures = ["nvl2(expression any, not_null_return any, null_return any) -> any"]
+doc = "Second argument when the first is not null, otherwise the third."
+
+[[functions]]
+name = "decode"
+signatures = ["decode(expression any, search any, result any, ...) -> any"]
+doc = "Compares to each search value and returns the matching result (last odd argument is the default)."
+
+[[functions]]
+name = "dateadd"
+signatures = ["dateadd(datepart varchar, interval int, value timestamp) -> timestamp"]
+doc = "Date/time incremented by a number of dateparts."
+
+[[functions]]
+name = "datediff"
+signatures = ["datediff(datepart varchar, start timestamp, end timestamp) -> bigint"]
+doc = "Number of datepart boundaries crossed between two dates."
+
+[[functions]]
+name = "months_between"
+signatures = ["months_between(date1 date, date2 date) -> float8"]
+doc = "Number of months between two dates (fractional)."
+
+[[functions]]
+name = "add_months"
+signatures = ["add_months(value timestamp, num_months int) -> timestamp"]
+doc = "Date/time plus a number of months."
+
+[[functions]]
+name = "last_day"
+signatures = ["last_day(value date) -> date"]
+doc = "Last day of the month of the date."
+
+[[functions]]
+name = "next_day"
+signatures = ["next_day(value date, day varchar) -> date"]
+doc = "First given weekday after the date."
+
+[[functions]]
+name = "convert_timezone"
+signatures = ["convert_timezone(target_timezone varchar, value timestamp) -> timestamp", "convert_timezone(source_timezone varchar, target_timezone varchar, value timestamp) -> timestamp"]
+doc = "Converts a timestamp between time zones."
+
+[[functions]]
+name = "trunc"
+signatures = ["trunc(value timestamp) -> date", "trunc(number numeric) -> numeric", "trunc(number numeric, integer int) -> numeric"]
+doc = "Truncates a timestamp to its date or a number to a precision."
+
+[[functions]]
+name = "date_cmp"
+signatures = ["date_cmp(date1 date, date2 date) -> int"]
+doc = "Compares two dates: -1, 0 or 1."
+
+[[functions]]
+name = "timestamp_cmp"
+signatures = ["timestamp_cmp(ts1 timestamp, ts2 timestamp) -> int"]
+doc = "Compares two timestamps: -1, 0 or 1."
+
+[[functions]]
+name = "to_timestamp"
+signatures = ["to_timestamp(value varchar, format varchar) -> timestamptz", "to_timestamp(value varchar, format varchar, is_strict boolean) -> timestamptz"]
+doc = "Parses a timestamp with a format."
+
+[[functions]]
+name = "to_number"
+signatures = ["to_number(value varchar, format varchar) -> numeric"]
+doc = "Parses a number with a format."
+
+[[functions]]
+name = "convert"
+signatures = ["convert(type any, expression any) -> any"]
+doc = "Expression converted to a type (like `CAST`)."
+
+[[functions]]
+name = "json_extract_path_text"
+signatures = ["json_extract_path_text(json_string varchar, path_elem varchar, ...) -> varchar"]
+doc = "JSON value at the path of keys, as text."
+
+[[functions]]
+name = "json_extract_array_element_text"
+signatures = ["json_extract_array_element_text(json_string varchar, pos int) -> varchar", "json_extract_array_element_text(json_string varchar, pos int, null_if_invalid boolean) -> varchar"]
+doc = "JSON array element at a zero-based position, as text."
+
+[[functions]]
+name = "json_array_length"
+signatures = ["json_array_length(json_array varchar) -> int", "json_array_length(json_array varchar, null_if_invalid boolean) -> int"]
+doc = "Number of elements of a JSON array string."
+
+[[functions]]
+name = "is_valid_json"
+signatures = ["is_valid_json(json_string varchar) -> boolean"]
+doc = "Whether the string is valid JSON."
+
+[[functions]]
+name = "is_valid_json_array"
+signatures = ["is_valid_json_array(json_array varchar) -> boolean"]
+doc = "Whether the string is a valid JSON array."
+
+[[functions]]
+name = "json_parse"
+signatures = ["json_parse(json_string varchar) -> super"]
+doc = "Parses JSON text into a `SUPER` value."
+
+[[functions]]
+name = "can_json_parse"
+signatures = ["can_json_parse(json_string varchar) -> boolean"]
+doc = "Whether `JSON_PARSE` would succeed."
+
+[[functions]]
+name = "json_serialize"
+signatures = ["json_serialize(value super) -> varchar"]
+doc = "`SUPER` value serialized to JSON text."
+
+[[functions]]
+name = "json_serialize_to_varbyte"
+signatures = ["json_serialize_to_varbyte(value super) -> varbyte"]
+doc = "`SUPER` value serialized to JSON as `VARBYTE`."
+
+[[functions]]
+name = "json_typeof"
+signatures = ["json_typeof(value super) -> varchar"]
+doc = "Type of a `SUPER` value (`array`, `object`, `string`...)."
+
+[[functions]]
+name = "is_array"
+signatures = ["is_array(value super) -> boolean"]
+doc = "Whether a `SUPER` value is an array."
+
+[[functions]]
+name = "is_object"
+signatures = ["is_object(value super) -> boolean"]
+doc = "Whether a `SUPER` value is an object."
+
+[[functions]]
+name = "is_scalar"
+signatures = ["is_scalar(value super) -> boolean"]
+doc = "Whether a `SUPER` value is a scalar."
+
+[[functions]]
+name = "get_array_length"
+signatures = ["get_array_length(value super) -> bigint"]
+doc = "Number of elements of a `SUPER` array."
+
+[[functions]]
+name = "split_to_array"
+signatures = ["split_to_array(string varchar) -> super", "split_to_array(string varchar, delimiter varchar) -> super"]
+doc = "Splits a string into a `SUPER` array."
+
+[[functions]]
+name = "subarray"
+signatures = ["subarray(value super, start_position int, length int) -> super"]
+doc = "Part of a `SUPER` array."
+
+[[functions]]
+name = "array_concat"
+signatures = ["array_concat(array1 super, array2 super) -> super"]
+doc = "Concatenation of two `SUPER` arrays."
+
+[[functions]]
+name = "array_flatten"
+signatures = ["array_flatten(value super) -> super"]
+doc = "Nested `SUPER` arrays flattened to one array."
+
+[[functions]]
+name = "array"
+signatures = ["array(value any, ...) -> super"]
+doc = "`SUPER` array from the arguments."
+
+[[functions]]
+name = "median"
+signatures = ["median(expression numeric) -> numeric"]
+doc = "Median of the values (aggregate or window)."
+
+[[functions]]
+name = "percentile_cont"
+signatures = ["percentile_cont(percentile float8) -> float8"]
+doc = "Continuous percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "percentile_disc"
+signatures = ["percentile_disc(percentile float8) -> any"]
+doc = "Discrete percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "ratio_to_report"
+signatures = ["ratio_to_report(expression numeric) -> numeric"]
+doc = "Ratio of a value to the sum of its window partition."
+
+[[functions]]
+name = "cume_dist"
+signatures = ["cume_dist() -> float8"]
+doc = "Cumulative distribution of the current row (window function)."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> float8"]
+doc = "Relative rank of the current row (window function)."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(num_buckets int) -> int"]
+doc = "Bucket number of the current row (window function)."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(expression any) -> any"]
+doc = "First value of the window frame (`IGNORE NULLS` supported)."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(expression any) -> any"]
+doc = "Last value of the window frame (`IGNORE NULLS` supported)."
+
+[[functions]]
+name = "nth_value"
+signatures = ["nth_value(expression any, offset int) -> any"]
+doc = "Value at the n-th row of the window frame."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(expression numeric) -> float8"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(expression numeric) -> float8"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(expression numeric) -> float8"]
+doc = "Sample variance."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(expression numeric) -> float8"]
+doc = "Population variance."
+
+[[functions]]
+name = "bit_and"
+signatures = ["bit_and(expression int) -> int"]
+doc = "Bitwise AND of the values (aggregate)."
+
+[[functions]]
+name = "bit_or"
+signatures = ["bit_or(expression int) -> int"]
+doc = "Bitwise OR of the values (aggregate)."
+
+[[functions]]
+name = "bool_and"
+signatures = ["bool_and(expression boolean) -> boolean"]
+doc = "True when all values are true (aggregate)."
+
+[[functions]]
+name = "bool_or"
+signatures = ["bool_or(expression boolean) -> boolean"]
+doc = "True when any value is true (aggregate)."
+
+[[functions]]
+name = "strtol"
+signatures = ["strtol(num_string varchar, base int) -> bigint"]
+doc = "Integer parsed from a string in the given base."
+
+[[functions]]
+name = "charindex"
+signatures = ["charindex(substring varchar, string varchar) -> int"]
+doc = "Position of a substring (0 when not found)."
+
+[[functions]]
+name = "strpos"
+signatures = ["strpos(string varchar, substring varchar) -> int"]
+doc = "Position of a substring (0 when not found)."
+
+[[functions]]
+name = "len"
+signatures = ["len(expression varchar) -> int"]
+doc = "Number of characters (trailing blanks of `CHAR` ignored)."
+
+[[functions]]
+name = "textlen"
+signatures = ["textlen(expression varchar) -> int"]
+doc = "Number of characters (same as `LEN`)."
+
+[[functions]]
+name = "octet_length"
+signatures = ["octet_length(expression varchar) -> int"]
+doc = "Number of bytes."
+
+[[functions]]
+name = "left"
+signatures = ["left(string varchar, n int) -> varchar"]
+doc = "The first n characters."
+
+[[functions]]
+name = "right"
+signatures = ["right(string varchar, n int) -> varchar"]
+doc = "The last n characters."
+
+[[functions]]
+name = "lpad"
+signatures = ["lpad(string varchar, length int) -> varchar", "lpad(string varchar, length int, fill varchar) -> varchar"]
+doc = "String left-padded to a length."
+
+[[functions]]
+name = "rpad"
+signatures = ["rpad(string varchar, length int) -> varchar", "rpad(string varchar, length int, fill varchar) -> varchar"]
+doc = "String right-padded to a length."
+
+[[functions]]
+name = "ltrim"
+signatures = ["ltrim(string varchar) -> varchar", "ltrim(string varchar, trim_chars varchar) -> varchar"]
+doc = "Removes leading characters."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(string varchar) -> varchar", "rtrim(string varchar, trim_chars varchar) -> varchar"]
+doc = "Removes trailing characters."
+
+[[functions]]
+name = "btrim"
+signatures = ["btrim(string varchar) -> varchar", "btrim(string varchar, trim_chars varchar) -> varchar"]
+doc = "Removes leading and trailing characters."
+
+[[functions]]
+name = "initcap"
+signatures = ["initcap(string varchar) -> varchar"]
+doc = "First letter of each word in upper case."
+
+[[functions]]
+name = "repeat"
+signatures = ["repeat(string varchar, n int) -> varchar"]
+doc = "String repeated n times."
+
+[[functions]]
+name = "replicate"
+signatures = ["replicate(string varchar, n int) -> varchar"]
+doc = "String repeated n times (same as `REPEAT`)."
+
+[[functions]]
+name = "reverse"
+signatures = ["reverse(string varchar) -> varchar"]
+doc = "Characters in reverse order."
+
+[[functions]]
+name = "translate"
+signatures = ["translate(expression varchar, characters_to_replace varchar, characters_to_substitute varchar) -> varchar"]
+doc = "Replaces characters one by one."
+
+[[functions]]
+name = "ascii"
+signatures = ["ascii(string varchar) -> int"]
+doc = "Code point of the first character."
+
+[[functions]]
+name = "chr"
+signatures = ["chr(number int) -> char"]
+doc = "Character with the given code point."
+
+[[functions]]
+name = "soundex"
+signatures = ["soundex(string varchar) -> varchar"]
+doc = "Soundex code of a string."
+
+[[functions]]
+name = "difference"
+signatures = ["difference(string1 varchar, string2 varchar) -> int"]
+doc = "Number of matching Soundex code characters (0-4)."
+
+[[functions]]
+name = "quote_ident"
+signatures = ["quote_ident(string varchar) -> varchar"]
+doc = "String quoted as an identifier when necessary."
+
+[[functions]]
+name = "quote_literal"
+signatures = ["quote_literal(string varchar) -> varchar"]
+doc = "String quoted as a SQL literal."
+
+[[functions]]
+name = "md5"
+signatures = ["md5(string varchar) -> varchar"]
+doc = "MD5 hash as hex text."
+
+[[functions]]
+name = "sha1"
+signatures = ["sha1(string varchar) -> varchar"]
+doc = "SHA-1 hash as hex text."
+
+[[functions]]
+name = "func_sha1"
+signatures = ["func_sha1(string varchar) -> varchar"]
+doc = "SHA-1 hash as hex text."
+
+[[functions]]
+name = "sha2"
+signatures = ["sha2(string varchar, bits int) -> varchar"]
+doc = "SHA-2 hash (224, 256, 384 or 512 bits) as hex text."
+
+[[functions]]
+name = "fnv_hash"
+signatures = ["fnv_hash(value any) -> bigint", "fnv_hash(value any, seed bigint) -> bigint"]
+doc = "64-bit FNV-1a hash (chainable with a seed)."
+
+[[functions]]
+name = "crc32"
+signatures = ["crc32(string varchar) -> bigint"]
+doc = "CRC-32 checksum."
+
+[[functions]]
+name = "hll"
+signatures = ["hll(expression any) -> bigint"]
+doc = "HyperLogLog estimate of the number of distinct values (aggregate)."
+
+[[functions]]
+name = "hll_create_sketch"
+signatures = ["hll_create_sketch(expression any) -> hllsketch"]
+doc = "HyperLogLog sketch of the values (aggregate)."
+
+[[functions]]
+name = "hll_cardinality"
+signatures = ["hll_cardinality(sketch hllsketch) -> bigint"]
+doc = "Distinct count estimated from a sketch."
+
+[[functions]]
+name = "hll_combine"
+signatures = ["hll_combine(sketch hllsketch) -> hllsketch"]
+doc = "Union of the sketches of a group (aggregate)."
+
+[[functions]]
+name = "hll_combine_sketches"
+signatures = ["hll_combine_sketches(sketch1 hllsketch, sketch2 hllsketch) -> hllsketch"]
+doc = "Union of two sketches."
+
+[[functions]]
+name = "cbrt"
+signatures = ["cbrt(number float8) -> float8"]
+doc = "Cube root."
+
+[[functions]]
+name = "ceiling"
+signatures = ["ceiling(number numeric) -> numeric"]
+doc = "Smallest integer not less than the number."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(number numeric) -> numeric"]
+doc = "Largest integer not greater than the number."
+
+[[functions]]
+name = "dexp"
+signatures = ["dexp(number float8) -> float8"]
+doc = "e raised to the power of the number."
+
+[[functions]]
+name = "dlog1"
+signatures = ["dlog1(number float8) -> float8"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "dlog10"
+signatures = ["dlog10(number float8) -> float8"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(number float8) -> float8"]
+doc = "e raised to the power of the number."
+
+[[functions]]
+name = "ln"
+signatures = ["ln(number float8) -> float8"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log"
+signatures = ["log(number float8) -> float8"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "mod"
+signatures = ["mod(number1 numeric, number2 numeric) -> numeric"]
+doc = "Remainder of the division."
+
+[[functions]]
+name = "pi"
+signatures = ["pi() -> float8"]
+doc = "The constant pi."
+
+[[functions]]
+name = "power"
+signatures = ["power(base float8, exponent float8) -> float8"]
+doc = "Base raised to the exponent."
+
+[[functions]]
+name = "random"
+signatures = ["random() -> float8"]
+doc = "Random value between 0 and 1."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(number numeric) -> int"]
+doc = "Sign of the number (-1, 0 or 1)."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(number float8) -> float8"]
+doc = "Square root."
+
+[[functions]]
+name = "current_database"
+signatures = ["current_database() -> varchar"]
+doc = "Name of the current database."
+
+[[functions]]
+name = "current_schema"
+signatures = ["current_schema() -> varchar"]
+doc = "Name of the first schema of the search path."
+
+[[functions]]
+name = "has_table_privilege"
+signatures = ["has_table_privilege(user varchar, table varchar, privilege varchar) -> boolean", "has_table_privilege(table varchar, privilege varchar) -> boolean"]
+doc = "Whether the user has the privilege on the table."
+
+[[functions]]
+name = "pg_backend_pid"
+signatures = ["pg_backend_pid() -> int"]
+doc = "Process id of the session."
+
+[[functions]]
+name = "pg_last_query_id"
+signatures = ["pg_last_query_id() -> int"]
+doc = "Query id of the last query of the session."
+
+[[functions]]
+name = "pg_last_copy_id"
+signatures = ["pg_last_copy_id() -> int"]
+doc = "Query id of the last `COPY` of the session."
+
+[[functions]]
+name = "pg_last_copy_count"
+signatures = ["pg_last_copy_count() -> bigint"]
+doc = "Number of rows loaded by the last `COPY`."
+
+[[functions]]
+name = "version"
+signatures = ["version() -> varchar"]
+doc = "Redshift version string."
+
+[[functions]]
+name = "st_geomfromtext"
+signatures = ["st_geomfromtext(wkt varchar) -> geometry", "st_geomfromtext(wkt varchar, srid int) -> geometry"]
+doc = "Geometry from its WKT representation."
+
+[[functions]]
+name = "st_astext"
+signatures = ["st_astext(geom geometry) -> varchar"]
+doc = "WKT representation of a geometry."
+
+[[functions]]
+name = "st_distance"
+signatures = ["st_distance(geom1 geometry, geom2 geometry) -> float8"]
+doc = "Distance between two geometries."
+
+[[functions]]
+name = "st_contains"
+signatures = ["st_contains(geom1 geometry, geom2 geometry) -> boolean"]
+doc = "Whether the first geometry contains the second."
+
+[[functions]]
+name = "st_point"
+signatures = ["st_point(x float8, y float8) -> geometry"]
+doc = "Point geometry from coordinates."

@@ -26,6 +26,25 @@ pub struct Flavor {
     pub question_params: bool,
     /// `$1` placeholders (PostgreSQL).
     pub dollar_params: bool,
+    /// `@name` placeholders and variables (T-SQL, GoogleSQL); `@@name` is a
+    /// system function, not a parameter.
+    pub at_params: bool,
+    /// `#temp` / `##global` table names are words (T-SQL).
+    pub hash_idents: bool,
+    /// `q'[…]'` alternative quoting (Oracle).
+    pub q_quotes: bool,
+    /// `// comment` (CQL).
+    pub slash_comments: bool,
+    /// `"…"` is a string literal, not an identifier (SQL++, HiveQL, GoogleSQL).
+    pub dq_strings: bool,
+    /// `GO [n]` alone on a line separates batches (T-SQL).
+    pub go_batches: bool,
+    /// PL/SQL blocks and units, `/` alone on a line ends one (Oracle).
+    pub plsql: bool,
+    /// `BEGIN BATCH … APPLY BATCH` is one statement (CQL).
+    pub cql_batches: bool,
+    /// `$name` named parameters next to `$1` (SQL++).
+    pub dollar_names: bool,
 }
 
 impl Flavor {
@@ -39,6 +58,15 @@ impl Flavor {
         delimiter_command: false,
         question_params: true,
         dollar_params: false,
+        at_params: false,
+        hash_idents: false,
+        q_quotes: false,
+        slash_comments: false,
+        dq_strings: false,
+        go_batches: false,
+        plsql: false,
+        cql_batches: false,
+        dollar_names: false,
     };
 
     /// Flavor for a dialect id (`SqlDialectId`). Unknown dialects get the
@@ -64,12 +92,54 @@ impl Flavor {
                 bracket_idents: true,
                 ..Self::GENERIC
             },
-            "tsql" | "sybase" => Self {
+            "tsql" | "sybase" | "sqlserver" | "azuresql" => Self {
                 bracket_idents: true,
+                at_params: true,
+                hash_idents: true,
+                question_params: false,
+                go_batches: true,
                 ..Self::GENERIC
             },
-            "clickhouse" | "hiveql" | "bigquery" | "databricks" => Self {
+            "oracle" => Self {
+                q_quotes: true,
+                question_params: false,
+                plsql: true,
+                ..Self::GENERIC
+            },
+            "snowflake" | "h2" => Self {
+                dollar_quotes: true,
+                ..Self::GENERIC
+            },
+            "clickhouse" => Self {
                 backtick_idents: true,
+                backslash_escapes: true,
+                ..Self::GENERIC
+            },
+            "hiveql" | "databricks" => Self {
+                backtick_idents: true,
+                backslash_escapes: true,
+                dq_strings: true,
+                ..Self::GENERIC
+            },
+            "googlesql" | "bigquery" => Self {
+                backtick_idents: true,
+                backslash_escapes: true,
+                dq_strings: true,
+                hash_comments: true,
+                at_params: true,
+                ..Self::GENERIC
+            },
+            "cql" => Self {
+                slash_comments: true,
+                cql_batches: true,
+                ..Self::GENERIC
+            },
+            "sqlpp" => Self {
+                backtick_idents: true,
+                backslash_escapes: true,
+                dq_strings: true,
+                dollar_params: true,
+                dollar_names: true,
                 ..Self::GENERIC
             },
             _ => Self::GENERIC,
@@ -184,9 +254,11 @@ impl Lexer<'_> {
                 TokenKind::Whitespace
             }
             b'-' if self.peek(1) == Some(b'-') => self.line_comment(),
+            b'/' if f.slash_comments && self.peek(1) == Some(b'/') => self.line_comment(),
             b'#' if f.hash_comments => self.line_comment(),
             b'/' if self.peek(1) == Some(b'*') => self.block_comment(),
             b'\'' => self.quoted(b'\'', f.backslash_escapes, TokenKind::String),
+            b'"' if f.dq_strings => self.quoted(b'"', f.backslash_escapes, TokenKind::String),
             b'"' => self.quoted(b'"', f.backslash_escapes, TokenKind::QuotedIdent),
             b'`' if f.backtick_idents => self.quoted(b'`', false, TokenKind::QuotedIdent),
             b'[' if f.bracket_idents => {
@@ -199,6 +271,13 @@ impl Lexer<'_> {
                 }
                 TokenKind::QuotedIdent
             }
+            b'$' if f.dollar_names && self.peek(1).is_some_and(is_ident_start) => {
+                self.pos += 1;
+                while self.peek(0).is_some_and(|b| is_ident_char(b) && b != b'$') {
+                    self.pos += 1;
+                }
+                TokenKind::Param
+            }
             b'$' if f.dollar_params && self.peek(1).is_some_and(|b| b.is_ascii_digit()) => {
                 self.pos += 1;
                 while self.peek(0).is_some_and(|b| b.is_ascii_digit()) {
@@ -210,6 +289,38 @@ impl Lexer<'_> {
                 self.pos += 1;
                 TokenKind::Punct
             }),
+            b'@' if f.at_params && self.peek(1) == Some(b'@') => {
+                // `@@ROWCOUNT`: a system function.
+                self.pos += 2;
+                while self.peek(0).is_some_and(is_ident_char) {
+                    self.pos += 1;
+                }
+                TokenKind::Word
+            }
+            b'@' if f.at_params && self.peek(1).is_some_and(is_ident_start) => {
+                self.pos += 1;
+                while self.peek(0).is_some_and(|b| is_ident_char(b) || b == b'#') {
+                    self.pos += 1;
+                }
+                TokenKind::Param
+            }
+            // `$action`, `$identity`, `$rowguid` pseudo-columns (T-SQL).
+            b'$' if f.hash_idents && self.peek(1).is_some_and(is_ident_start) => {
+                self.pos += 1;
+                while self.peek(0).is_some_and(is_ident_char) {
+                    self.pos += 1;
+                }
+                TokenKind::Word
+            }
+            b'#' if f.hash_idents
+                && (self.peek(1).is_some_and(is_ident_start) || self.peek(1) == Some(b'#')) =>
+            {
+                self.pos += 1;
+                while self.peek(0).is_some_and(|b| is_ident_char(b) || b == b'#') {
+                    self.pos += 1;
+                }
+                TokenKind::Word
+            }
             b'?' if f.question_params => {
                 self.pos += 1;
                 TokenKind::Param
@@ -245,6 +356,7 @@ impl Lexer<'_> {
                 }
                 TokenKind::Number
             }
+            _ if f.q_quotes && self.q_quote_start().is_some() => self.q_quoted(),
             c if is_ident_start(c) => {
                 // E'…' escape strings (PostgreSQL), N'…', X'…', B'…'.
                 if matches!(c, b'e' | b'E' | b'n' | b'N' | b'x' | b'X' | b'b' | b'B')
@@ -318,6 +430,46 @@ impl Lexer<'_> {
         }
         self.pos = self.pos.min(self.b.len());
         kind
+    }
+
+    /// Length of the `q'` / `nq'` prefix when the input at `pos` starts an
+    /// Oracle alternative-quote literal.
+    fn q_quote_start(&self) -> Option<usize> {
+        let mut off = 0;
+        if matches!(self.peek(0), Some(b'n' | b'N')) {
+            off = 1;
+        }
+        let q = matches!(self.peek(off), Some(b'q' | b'Q'))
+            && self.peek(off + 1) == Some(b'\'')
+            && self
+                .peek(off + 2)
+                .is_some_and(|d| !d.is_ascii_whitespace() && d != b'\'');
+        // Not the end of a longer word.
+        let standalone = self.pos == 0 || !is_ident_char(self.b[self.pos - 1]);
+        (q && standalone).then_some(off + 2)
+    }
+
+    /// `q'[…]'`: the closing delimiter followed by a quote ends it.
+    fn q_quoted(&mut self) -> TokenKind {
+        let prefix = self.q_quote_start().unwrap_or(2);
+        self.pos += prefix;
+        let open = self.b[self.pos];
+        let close = match open {
+            b'[' => b']',
+            b'{' => b'}',
+            b'(' => b')',
+            b'<' => b'>',
+            c => c,
+        };
+        self.pos += 1;
+        while self.pos < self.b.len() {
+            if self.b[self.pos] == close && self.peek(1) == Some(b'\'') {
+                self.pos += 2;
+                return TokenKind::String;
+            }
+            self.pos += 1;
+        }
+        TokenKind::String
     }
 
     /// `$tag$ … $tag$`; `None` when `$` does not open a dollar string.

@@ -1,0 +1,74 @@
+# Greenplum 7 (MPP database based on PostgreSQL 12): Greenplum additions on top of the
+# PostgreSQL dialect (distribution, external tables, append-optimized storage, resource management).
+id = "greenplum"
+name = "Greenplum"
+inherits = "postgresql"
+parser = "postgresql"
+
+soft_keywords = [
+  "active", "coordinator", "csv", "delimiter", "distributed", "encoding", "endpoint", "errors",
+  "every", "exchange", "exclusive", "execute", "external", "fill", "format", "header",
+  "inclusive", "initplan", "log", "newline", "ordered", "percent", "protocol", "queue",
+  "randomly", "readable", "reject", "replicated", "resource", "retrieve", "scatter", "segment",
+  "segments", "split", "subpartition", "template", "web", "writable",
+]
+
+[[functions]]
+name = "median"
+signatures = ["median(value double precision) -> double precision", "median(value interval) -> interval"]
+doc = "Median (50th percentile) of the input values (Greenplum aggregate)."
+
+[[functions]]
+name = "percentile_cont"
+signatures = ["percentile_cont(fraction double precision) -> double precision"]
+doc = "Continuous percentile, interpolated (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "percentile_disc"
+signatures = ["percentile_disc(fraction double precision) -> anyelement"]
+doc = "Discrete percentile: first input value at or above the fraction (`WITHIN GROUP`)."
+
+[[functions]]
+name = "mode"
+signatures = ["mode() -> anyelement"]
+doc = "Most frequent input value (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "gp_execution_segment"
+signatures = ["gp_execution_segment() -> int"]
+doc = "Content id of the segment executing the function (-1 on the coordinator)."
+
+[[functions]]
+name = "gp_dist_random"
+signatures = ["gp_dist_random(relation text) -> setof record"]
+doc = "In `FROM`: reads a catalog table from every segment instead of the coordinator."
+
+[[functions]]
+name = "pg_get_table_distributedby"
+signatures = ["pg_get_table_distributedby(relation oid) -> text"]
+doc = "The `DISTRIBUTED BY` clause of a table."
+
+[[functions]]
+name = "get_ao_compression_ratio"
+signatures = ["get_ao_compression_ratio(relation regclass) -> double precision"]
+doc = "Compression ratio of an append-optimized table."
+
+[[functions]]
+name = "get_ao_distribution"
+signatures = ["get_ao_distribution(relation regclass) -> setof record"]
+doc = "Row count per segment of an append-optimized table."
+
+[[functions]]
+name = "gp_request_fts_probe_scan"
+signatures = ["gp_request_fts_probe_scan() -> boolean"]
+doc = "Asks the fault-tolerance service to probe the segments now."
+
+[[functions]]
+name = "gp_create_restore_point"
+signatures = ["gp_create_restore_point(name text) -> setof record"]
+doc = "Creates a named restore point on the coordinator and all segments."
+
+[[functions]]
+name = "gp_switch_wal"
+signatures = ["gp_switch_wal() -> setof record"]
+doc = "Switches to a new WAL file on the coordinator and all segments."

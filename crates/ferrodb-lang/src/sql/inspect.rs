@@ -13,7 +13,11 @@
 //!
 //! Every diagnostic may carry quick fixes ("Alt+Enter").
 
-use std::ops::Range;
+use std::{
+    collections::HashMap,
+    ops::Range,
+    sync::{Mutex, OnceLock},
+};
 
 use ferrodb_api::{CodeAction, Severity, TextEdit};
 use sqlparser::{
@@ -87,8 +91,15 @@ fn lexical(doc: &Document<'_>, out: &mut Vec<Diag>) {
                     let tag_end = stripped.find('$').map_or(0, |i| i + 2);
                     text.len() >= tag_end * 2 && text.ends_with(&text[..tag_end])
                 } else {
-                    let q = text.rfind('\'').unwrap_or(0);
-                    text.len() >= 2 && text.ends_with('\'') && q > text.find('\'').unwrap_or(0)
+                    // `'…'`, `E'…'`, `q'[…]'`, and `"…"` where it is a string.
+                    let open = text.find(['\'', '"']).unwrap_or(0);
+                    let qc = if text[open..].starts_with('"') {
+                        '"'
+                    } else {
+                        '\''
+                    };
+                    let q = text.rfind(qc).unwrap_or(0);
+                    text.len() >= 2 && text.ends_with(qc) && q > open
                 };
                 (!closed).then_some("Unterminated string literal")
             }
@@ -156,12 +167,19 @@ fn sp_dialect(name: &str) -> Option<Box<dyn SpDialect>> {
         "duckdb" => Box::new(sqlparser::dialect::DuckDbDialect {}),
         "mssql" => Box::new(MsSqlDialect {}),
         "generic" => Box::new(GenericDialect {}),
+        "ansi" => Box::new(sqlparser::dialect::AnsiDialect {}),
+        "bigquery" => Box::new(sqlparser::dialect::BigQueryDialect {}),
+        "clickhouse" => Box::new(sqlparser::dialect::ClickHouseDialect {}),
+        "hive" => Box::new(sqlparser::dialect::HiveDialect {}),
+        "oracle" => Box::new(sqlparser::dialect::OracleDialect {}),
+        "redshift" => Box::new(sqlparser::dialect::RedshiftSqlDialect {}),
+        "snowflake" => Box::new(sqlparser::dialect::SnowflakeDialect {}),
         _ => return None,
     })
 }
 
 /// Statements whose syntax `sqlparser` checks reliably.
-fn checkable(s: &StmtAnalysis, src: &str) -> bool {
+fn checkable(s: &StmtAnalysis, src: &str, ddl: bool) -> bool {
     let words: Vec<String> = s
         .toks
         .iter()
@@ -170,17 +188,26 @@ fn checkable(s: &StmtAnalysis, src: &str) -> bool {
         .map(|t| t.text(src).to_ascii_lowercase())
         .collect();
     let has = |w: &str| words.iter().any(|x| x == w);
+    // T-SQL query hints `OPTION (…)`: not known to sqlparser.
+    if s.toks
+        .windows(2)
+        .any(|w| w[0].is_word(src, "option") && w[1].text(src) == "(")
+    {
+        return false;
+    }
     match words.first().map(String::as_str) {
+        // `VALUES current date` (Db2, Derby) is not a row constructor.
+        Some("values") if s.toks.get(1).is_none_or(|t| t.text(src) != "(") => false,
         Some("select" | "with" | "insert" | "update" | "delete" | "values") => {
             !s.toks.iter().any(|t| t.kind == TokenKind::Param)
         }
-        Some("create") => {
+        Some("create") if ddl => {
             (has("table") || has("view") || has("index"))
                 && !has("function")
                 && !has("procedure")
                 && !has("trigger")
         }
-        Some("drop" | "alter") => has("table") || has("view") || has("index"),
+        Some("drop" | "alter") if ddl => has("table") || has("view") || has("index"),
         _ => false,
     }
 }
@@ -290,7 +317,25 @@ fn syntax(doc: &Document<'_>, s: &StmtAnalysis, out: &mut Vec<Diag>) {
     let Some(parser) = doc.dialect().parser.as_deref() else {
         return;
     };
-    if !checkable(s, doc.text) {
+    // A derived dialect parsed as its base (Greenplum as PostgreSQL, H2 as
+    // generic SQL…): only DML, its DDL has clauses the base does not know.
+    let own = matches!(
+        (doc.dialect().id.as_str(), parser),
+        (
+            "postgresql"
+                | "duckdb"
+                | "sqlite"
+                | "mysql"
+                | "mariadb"
+                | "redshift"
+                | "snowflake"
+                | "clickhouse",
+            _
+        ) | ("tsql", "mssql")
+            | ("googlesql", "bigquery")
+            | ("hiveql", "hive")
+    );
+    if !checkable(s, doc.text, own) {
         return;
     }
     let Some(dialect) = sp_dialect(parser) else {
@@ -298,21 +343,10 @@ fn syntax(doc: &Document<'_>, s: &StmtAnalysis, out: &mut Vec<Diag>) {
     };
     let body = s.span.body.clone();
     let text = &doc.text[body.clone()];
-    let Err(e) = Parser::parse_sql(&*dialect, text) else {
+    let Some((message, rel)) = parse_error(parser, &*dialect, text) else {
         return;
     };
-    let msg = e.to_string();
-    let msg = msg
-        .strip_prefix("sql parser error: ")
-        .unwrap_or(&msg)
-        .to_owned();
-    let (message, loc) = match msg.rfind(" at Line: ") {
-        Some(i) => (msg[..i].to_owned(), parse_location(&msg[i..])),
-        None => (msg.clone(), None),
-    };
-    let at = loc
-        .and_then(|(line, col)| offset_of(text, line, col))
-        .map_or(body.end, |o| body.start + o);
+    let at = rel.map_or(body.end, |o| body.start + o);
     // Highlight the token at the position (or the last one).
     let tok = s
         .toks
@@ -326,6 +360,44 @@ fn syntax(doc: &Document<'_>, s: &StmtAnalysis, out: &mut Vec<Diag>) {
         message: tidy(&message),
         fixes: Vec::new(),
     });
+}
+
+/// `sqlparser` result of one statement: (message, offset in the text).
+type ParseResult = Option<(String, Option<usize>)>;
+
+/// Parses with `sqlparser`, remembering the results: on every keystroke
+/// only the edited statement is parsed again (the parse is most of the
+/// diagnostics time of a long script).
+fn parse_error(parser: &str, dialect: &dyn SpDialect, text: &str) -> ParseResult {
+    static CACHE: OnceLock<Mutex<HashMap<(String, String), ParseResult>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Mutex::default);
+    let key = (parser.to_owned(), text.to_owned());
+    if let Some(hit) = cache.lock().ok().and_then(|c| c.get(&key).cloned()) {
+        return hit;
+    }
+    let result = Parser::parse_sql(dialect, text).err().map(|e| {
+        let msg = e.to_string();
+        let msg = msg
+            .strip_prefix("sql parser error: ")
+            .unwrap_or(&msg)
+            .to_owned();
+        let (message, loc) = match msg.rfind(" at Line: ") {
+            Some(i) => (msg[..i].to_owned(), parse_location(&msg[i..])),
+            None => (msg.clone(), None),
+        };
+        (
+            message,
+            loc.and_then(|(line, col)| offset_of(text, line, col)),
+        )
+    });
+    if let Ok(mut c) = cache.lock() {
+        // Bounded: a console has at most a few thousand statements.
+        if c.len() > 20_000 {
+            c.clear();
+        }
+        c.insert(key, result.clone());
+    }
+    result
 }
 
 fn tidy(m: &str) -> String {

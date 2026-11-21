@@ -1,0 +1,990 @@
+# Apache Hive 3.x / 4.x HiveQL (reserved words of Hive 3+, built-in UDF/UDAF/UDTF catalog).
+id = "hiveql"
+name = "HiveQL"
+inherits = "sql"
+identifier_quote = '`'
+# Hive stores database, table and column names in lower case.
+case_folding = "lower"
+default_schema = "default"
+parser = "hive"
+
+keywords = [
+  "array", "authorization", "bigint", "binary", "boolean", "cache", "char", "commit",
+  "conf", "cube", "current", "cursor", "database", "date", "dayofweek", "decimal",
+  "describe", "double", "exchange", "extended", "external", "extract", "float", "floor",
+  "following", "function", "grouping", "if", "import", "int", "integer", "interval",
+  "lateral", "less", "local", "macro", "map", "more", "none", "numeric", "of", "only",
+  "out", "over", "partition", "percent", "preceding", "precision", "preserve", "procedure",
+  "range", "reads", "reduce", "regexp", "revoke", "rlike", "rollback", "rollup", "row",
+  "rows", "smallint", "start", "sync", "tablesample", "time", "timestamp", "transform",
+  "trigger", "truncate", "unbounded", "uniquejoin", "user", "varchar", "views", "window",
+]
+
+soft_keywords = [
+  "abort", "admin", "analyze", "archive", "avro", "buckets", "change", "cluster",
+  "clustered", "collection", "columns", "compact", "compactions", "compute", "concatenate",
+  "cost", "databases", "dbproperties", "defined", "directory", "disable", "distribute",
+  "enable", "escaped", "explode", "export", "fields", "fileformat", "format", "formatted",
+  "functions", "inputformat", "items", "jsonfile", "keys", "lines", "load", "location",
+  "locks", "matched", "merge", "minus", "msck", "orc", "outputformat", "overwrite",
+  "parquet", "partitioned", "partitions", "purge", "rcfile", "rebuild", "recover", "rely",
+  "repair", "replication", "role", "roles", "schemas", "semi", "sequencefile", "serde",
+  "serdeproperties", "show", "skewed", "sort", "sorted", "statistics", "stored", "tables",
+  "tblproperties", "terminated", "textfile", "transactional", "transactions", "unarchive",
+  "unset", "use",
+]
+
+types = [
+  "array", "binary", "double", "interval", "map", "string", "struct",
+  "timestamp with local time zone", "tinyint", "uniontype",
+]
+
+removed_keywords = [
+  "any", "asc", "check", "current_time", "current_user", "default", "desc", "except",
+  "leading", "natural", "some", "trailing", "unique",
+]
+
+[[functions]]
+name = "from_unixtime"
+signatures = ["from_unixtime(unixtime bigint) -> string", "from_unixtime(unixtime bigint, format string) -> string"]
+doc = "Formats a Unix epoch (seconds) as a timestamp string, by default `yyyy-MM-dd HH:mm:ss`."
+
+[[functions]]
+name = "unix_timestamp"
+signatures = ["unix_timestamp() -> bigint", "unix_timestamp(date string) -> bigint", "unix_timestamp(date string, pattern string) -> bigint"]
+doc = "Unix epoch seconds of now or of the given date string."
+
+[[functions]]
+name = "to_date"
+signatures = ["to_date(timestamp string) -> date"]
+doc = "Date part of a timestamp string."
+
+[[functions]]
+name = "year"
+signatures = ["year(date string) -> int"]
+doc = "Year of a date or timestamp."
+
+[[functions]]
+name = "quarter"
+signatures = ["quarter(date string) -> int"]
+doc = "Quarter of the year (1-4) of a date or timestamp."
+
+[[functions]]
+name = "month"
+signatures = ["month(date string) -> int"]
+doc = "Month (1-12) of a date or timestamp."
+
+[[functions]]
+name = "day"
+signatures = ["day(date string) -> int"]
+doc = "Day of the month of a date or timestamp."
+
+[[functions]]
+name = "dayofmonth"
+signatures = ["dayofmonth(date string) -> int"]
+doc = "Day of the month of a date or timestamp."
+
+[[functions]]
+name = "hour"
+signatures = ["hour(date string) -> int"]
+doc = "Hour of a timestamp."
+
+[[functions]]
+name = "minute"
+signatures = ["minute(date string) -> int"]
+doc = "Minute of a timestamp."
+
+[[functions]]
+name = "second"
+signatures = ["second(date string) -> int"]
+doc = "Second of a timestamp."
+
+[[functions]]
+name = "weekofyear"
+signatures = ["weekofyear(date string) -> int"]
+doc = "ISO week number of a date or timestamp."
+
+[[functions]]
+name = "datediff"
+signatures = ["datediff(enddate string, startdate string) -> int"]
+doc = "Number of days from `startdate` to `enddate`."
+
+[[functions]]
+name = "date_add"
+signatures = ["date_add(startdate date, days int) -> date"]
+doc = "Date plus a number of days."
+
+[[functions]]
+name = "date_sub"
+signatures = ["date_sub(startdate date, days int) -> date"]
+doc = "Date minus a number of days."
+
+[[functions]]
+name = "add_months"
+signatures = ["add_months(start_date string, num_months int) -> string", "add_months(start_date string, num_months int, output_format string) -> string"]
+doc = "Date plus a number of months."
+
+[[functions]]
+name = "last_day"
+signatures = ["last_day(date string) -> string"]
+doc = "Last day of the month the date belongs to."
+
+[[functions]]
+name = "next_day"
+signatures = ["next_day(start_date string, day_of_week string) -> string"]
+doc = "First date later than `start_date` that falls on the given weekday."
+
+[[functions]]
+name = "months_between"
+signatures = ["months_between(date1 timestamp, date2 timestamp) -> double", "months_between(date1 timestamp, date2 timestamp, round_off boolean) -> double"]
+doc = "Number of months between two dates."
+
+[[functions]]
+name = "trunc"
+signatures = ["trunc(date string, format string) -> string"]
+doc = "Date truncated to the unit (`'YEAR'`, `'Q'`, `'MONTH'`...); also truncates numbers."
+
+[[functions]]
+name = "date_format"
+signatures = ["date_format(date timestamp, format string) -> string"]
+doc = "Date or timestamp formatted with a Java `SimpleDateFormat` pattern."
+
+[[functions]]
+name = "from_utc_timestamp"
+signatures = ["from_utc_timestamp(ts timestamp, tz string) -> timestamp"]
+doc = "UTC timestamp converted to the given time zone."
+
+[[functions]]
+name = "to_utc_timestamp"
+signatures = ["to_utc_timestamp(ts timestamp, tz string) -> timestamp"]
+doc = "Timestamp in the given time zone converted to UTC."
+
+[[functions]]
+name = "current_date"
+signatures = ["current_date() -> date"]
+doc = "Current date at the start of the query."
+
+[[functions]]
+name = "current_timestamp"
+signatures = ["current_timestamp() -> timestamp"]
+doc = "Current timestamp at the start of the query."
+
+[[functions]]
+name = "pow"
+signatures = ["pow(x double, p double) -> double"]
+doc = "`x` raised to the power `p`."
+
+[[functions]]
+name = "power"
+signatures = ["power(x double, p double) -> double"]
+doc = "`x` raised to the power `p`."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(x double) -> double"]
+doc = "Square root."
+
+[[functions]]
+name = "cbrt"
+signatures = ["cbrt(x double) -> double"]
+doc = "Cube root."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(x double) -> double"]
+doc = "e raised to the power `x`."
+
+[[functions]]
+name = "ln"
+signatures = ["ln(x double) -> double"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log10"
+signatures = ["log10(x double) -> double"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "log2"
+signatures = ["log2(x double) -> double"]
+doc = "Base-2 logarithm."
+
+[[functions]]
+name = "log"
+signatures = ["log(base double, x double) -> double"]
+doc = "Logarithm of `x` in the given base."
+
+[[functions]]
+name = "ceil"
+signatures = ["ceil(x double) -> bigint"]
+doc = "Smallest integer not less than `x`."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(x double) -> bigint"]
+doc = "Largest integer not greater than `x`."
+
+[[functions]]
+name = "ceiling"
+signatures = ["ceiling(x double) -> bigint"]
+doc = "Smallest integer not less than `x`."
+
+[[functions]]
+name = "bround"
+signatures = ["bround(x double) -> double", "bround(x double, d int) -> double"]
+doc = "Rounds using HALF_EVEN (banker's) rounding."
+
+[[functions]]
+name = "rand"
+signatures = ["rand() -> double", "rand(seed int) -> double"]
+doc = "Random number in [0, 1)."
+
+[[functions]]
+name = "pmod"
+signatures = ["pmod(a int, b int) -> int"]
+doc = "Positive remainder of `a / b`."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(x double) -> double"]
+doc = "Sign of `x` (-1, 0 or 1)."
+
+[[functions]]
+name = "negative"
+signatures = ["negative(x double) -> double"]
+doc = "`x` negated."
+
+[[functions]]
+name = "positive"
+signatures = ["positive(x double) -> double"]
+doc = "`x` unchanged."
+
+[[functions]]
+name = "degrees"
+signatures = ["degrees(x double) -> double"]
+doc = "Radians converted to degrees."
+
+[[functions]]
+name = "radians"
+signatures = ["radians(x double) -> double"]
+doc = "Degrees converted to radians."
+
+[[functions]]
+name = "sin"
+signatures = ["sin(x double) -> double"]
+doc = "Sine."
+
+[[functions]]
+name = "cos"
+signatures = ["cos(x double) -> double"]
+doc = "Cosine."
+
+[[functions]]
+name = "tan"
+signatures = ["tan(x double) -> double"]
+doc = "Tangent."
+
+[[functions]]
+name = "asin"
+signatures = ["asin(x double) -> double"]
+doc = "Arc sine."
+
+[[functions]]
+name = "acos"
+signatures = ["acos(x double) -> double"]
+doc = "Arc cosine."
+
+[[functions]]
+name = "atan"
+signatures = ["atan(x double) -> double"]
+doc = "Arc tangent."
+
+[[functions]]
+name = "pi"
+signatures = ["pi() -> double"]
+doc = "The constant pi."
+
+[[functions]]
+name = "e"
+signatures = ["e() -> double"]
+doc = "The constant e."
+
+[[functions]]
+name = "factorial"
+signatures = ["factorial(n int) -> bigint"]
+doc = "Factorial of `n` (0..20)."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(value any, ...) -> any"]
+doc = "Largest of the arguments."
+
+[[functions]]
+name = "least"
+signatures = ["least(value any, ...) -> any"]
+doc = "Smallest of the arguments."
+
+[[functions]]
+name = "width_bucket"
+signatures = ["width_bucket(expr double, min_value double, max_value double, num_buckets int) -> int"]
+doc = "Bucket number of `expr` in an equi-width histogram."
+
+[[functions]]
+name = "bin"
+signatures = ["bin(a bigint) -> string"]
+doc = "Binary representation of a number."
+
+[[functions]]
+name = "hex"
+signatures = ["hex(value any) -> string"]
+doc = "Hexadecimal representation of a number, string or binary."
+
+[[functions]]
+name = "unhex"
+signatures = ["unhex(str string) -> binary"]
+doc = "Inverse of `hex`."
+
+[[functions]]
+name = "conv"
+signatures = ["conv(num string, from_base int, to_base int) -> string"]
+doc = "Number converted between bases."
+
+[[functions]]
+name = "shiftleft"
+signatures = ["shiftleft(a bigint, b int) -> bigint"]
+doc = "Bitwise left shift."
+
+[[functions]]
+name = "shiftright"
+signatures = ["shiftright(a bigint, b int) -> bigint"]
+doc = "Bitwise signed right shift."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(str string, ...) -> string"]
+doc = "Concatenation of the arguments."
+
+[[functions]]
+name = "concat_ws"
+signatures = ["concat_ws(sep string, str string, ...) -> string"]
+doc = "Concatenation with a separator (strings or arrays of strings)."
+
+[[functions]]
+name = "substr"
+signatures = ["substr(str string, start int) -> string", "substr(str string, start int, len int) -> string"]
+doc = "Substring starting at `start` (1-based)."
+
+[[functions]]
+name = "substring"
+signatures = ["substring(str string, start int) -> string", "substring(str string, start int, len int) -> string"]
+doc = "Substring starting at `start` (1-based)."
+
+[[functions]]
+name = "substring_index"
+signatures = ["substring_index(str string, delim string, count int) -> string"]
+doc = "Substring before `count` occurrences of the delimiter."
+
+[[functions]]
+name = "instr"
+signatures = ["instr(str string, substr string) -> int"]
+doc = "1-based position of the first occurrence of `substr`, 0 if absent."
+
+[[functions]]
+name = "locate"
+signatures = ["locate(substr string, str string) -> int", "locate(substr string, str string, pos int) -> int"]
+doc = "1-based position of `substr` in `str` after `pos`."
+
+[[functions]]
+name = "length"
+signatures = ["length(str string) -> int"]
+doc = "Number of characters."
+
+[[functions]]
+name = "character_length"
+signatures = ["character_length(str string) -> int"]
+doc = "Number of characters."
+
+[[functions]]
+name = "octet_length"
+signatures = ["octet_length(str string) -> int"]
+doc = "Number of bytes."
+
+[[functions]]
+name = "lcase"
+signatures = ["lcase(str string) -> string"]
+doc = "String converted to lower case."
+
+[[functions]]
+name = "ucase"
+signatures = ["ucase(str string) -> string"]
+doc = "String converted to upper case."
+
+[[functions]]
+name = "lpad"
+signatures = ["lpad(str string, len int, pad string) -> string"]
+doc = "String left-padded to `len` characters."
+
+[[functions]]
+name = "rpad"
+signatures = ["rpad(str string, len int, pad string) -> string"]
+doc = "String right-padded to `len` characters."
+
+[[functions]]
+name = "ltrim"
+signatures = ["ltrim(str string) -> string"]
+doc = "Removes leading spaces."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(str string) -> string"]
+doc = "Removes trailing spaces."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(str string, pattern string, replacement string) -> string"]
+doc = "Replaces every match of a Java regex."
+
+[[functions]]
+name = "regexp_extract"
+signatures = ["regexp_extract(str string, pattern string, index int) -> string"]
+doc = "Capture group `index` of the first regex match."
+
+[[functions]]
+name = "split"
+signatures = ["split(str string, pattern string) -> array"]
+doc = "Splits a string around regex matches."
+
+[[functions]]
+name = "str_to_map"
+signatures = ["str_to_map(text string) -> map", "str_to_map(text string, delimiter1 string, delimiter2 string) -> map"]
+doc = "Map parsed from `k:v,k:v` text."
+
+[[functions]]
+name = "translate"
+signatures = ["translate(input string, from string, to string) -> string"]
+doc = "Replaces characters of `from` with the matching ones of `to`."
+
+[[functions]]
+name = "repeat"
+signatures = ["repeat(str string, n int) -> string"]
+doc = "String repeated `n` times."
+
+[[functions]]
+name = "reverse"
+signatures = ["reverse(str string) -> string"]
+doc = "Reversed string."
+
+[[functions]]
+name = "space"
+signatures = ["space(n int) -> string"]
+doc = "String of `n` spaces."
+
+[[functions]]
+name = "initcap"
+signatures = ["initcap(str string) -> string"]
+doc = "First letter of each word upper-cased, the rest lower-cased."
+
+[[functions]]
+name = "levenshtein"
+signatures = ["levenshtein(a string, b string) -> int"]
+doc = "Levenshtein distance between two strings."
+
+[[functions]]
+name = "soundex"
+signatures = ["soundex(str string) -> string"]
+doc = "Soundex code of a string."
+
+[[functions]]
+name = "format_number"
+signatures = ["format_number(x double, d int) -> string"]
+doc = "Number formatted like `#,###,###.##` with `d` decimals."
+
+[[functions]]
+name = "get_json_object"
+signatures = ["get_json_object(json_string string, path string) -> string"]
+doc = "Value at a JSONPath (`$.a.b`) as a string."
+
+[[functions]]
+name = "parse_url"
+signatures = ["parse_url(url string, part string) -> string", "parse_url(url string, part string, key string) -> string"]
+doc = "Part of a URL (`HOST`, `PATH`, `QUERY`...)."
+
+[[functions]]
+name = "printf"
+signatures = ["printf(format string, obj any, ...) -> string"]
+doc = "String formatted with a printf-style format."
+
+[[functions]]
+name = "sentences"
+signatures = ["sentences(str string, lang string, locale string) -> array"]
+doc = "Text tokenized into arrays of words per sentence."
+
+[[functions]]
+name = "ngrams"
+signatures = ["ngrams(sentences array, n int, k int, pf int) -> array"]
+doc = "Top-k n-grams of tokenized sentences (aggregate)."
+
+[[functions]]
+name = "context_ngrams"
+signatures = ["context_ngrams(sentences array, context array, k int, pf int) -> array"]
+doc = "Top-k contextual n-grams (aggregate)."
+
+[[functions]]
+name = "base64"
+signatures = ["base64(bin binary) -> string"]
+doc = "Binary encoded as base64."
+
+[[functions]]
+name = "unbase64"
+signatures = ["unbase64(str string) -> binary"]
+doc = "Base64 string decoded to binary."
+
+[[functions]]
+name = "encode"
+signatures = ["encode(src string, charset string) -> binary"]
+doc = "String encoded with a character set."
+
+[[functions]]
+name = "decode"
+signatures = ["decode(bin binary, charset string) -> string"]
+doc = "Binary decoded with a character set."
+
+[[functions]]
+name = "ascii"
+signatures = ["ascii(str string) -> int"]
+doc = "Code of the first character."
+
+[[functions]]
+name = "chr"
+signatures = ["chr(code bigint) -> string"]
+doc = "Character with the given ASCII code."
+
+[[functions]]
+name = "elt"
+signatures = ["elt(n int, str string, ...) -> string"]
+doc = "The `n`-th string argument."
+
+[[functions]]
+name = "field"
+signatures = ["field(val any, val1 any, ...) -> int"]
+doc = "1-based index of `val` among the following arguments, 0 if absent."
+
+[[functions]]
+name = "find_in_set"
+signatures = ["find_in_set(str string, str_list string) -> int"]
+doc = "1-based index of `str` in a comma-separated list."
+
+[[functions]]
+name = "in_file"
+signatures = ["in_file(str string, filename string) -> boolean"]
+doc = "True if the string is a whole line of the file."
+
+[[functions]]
+name = "quote"
+signatures = ["quote(str string) -> string"]
+doc = "String quoted for use as a SQL literal."
+
+[[functions]]
+name = "replace"
+signatures = ["replace(str string, search string, replacement string) -> string"]
+doc = "Replaces every occurrence of `search` (Hive 1.3+)."
+
+[[functions]]
+name = "md5"
+signatures = ["md5(value string) -> string"]
+doc = "MD5 checksum as a hex string."
+
+[[functions]]
+name = "sha1"
+signatures = ["sha1(value string) -> string"]
+doc = "SHA-1 checksum as a hex string."
+
+[[functions]]
+name = "sha"
+signatures = ["sha(value string) -> string"]
+doc = "SHA-1 checksum as a hex string."
+
+[[functions]]
+name = "sha2"
+signatures = ["sha2(value string, bit_length int) -> string"]
+doc = "SHA-2 checksum (224, 256, 384 or 512 bits) as a hex string."
+
+[[functions]]
+name = "crc32"
+signatures = ["crc32(value string) -> bigint"]
+doc = "CRC-32 checksum."
+
+[[functions]]
+name = "aes_encrypt"
+signatures = ["aes_encrypt(input string, key string) -> binary"]
+doc = "AES encryption."
+
+[[functions]]
+name = "aes_decrypt"
+signatures = ["aes_decrypt(input binary, key string) -> binary"]
+doc = "AES decryption."
+
+[[functions]]
+name = "hash"
+signatures = ["hash(value any, ...) -> int"]
+doc = "Hash code of the arguments."
+
+[[functions]]
+name = "murmur_hash"
+signatures = ["murmur_hash(value any, ...) -> int"]
+doc = "Murmur3 hash code of the arguments."
+
+[[functions]]
+name = "size"
+signatures = ["size(collection any) -> int"]
+doc = "Number of elements of an array or map."
+
+[[functions]]
+name = "map_keys"
+signatures = ["map_keys(m map) -> array"]
+doc = "Keys of a map."
+
+[[functions]]
+name = "map_values"
+signatures = ["map_values(m map) -> array"]
+doc = "Values of a map."
+
+[[functions]]
+name = "array_contains"
+signatures = ["array_contains(a array, value any) -> boolean"]
+doc = "True if the array contains the value."
+
+[[functions]]
+name = "sort_array"
+signatures = ["sort_array(a array) -> array"]
+doc = "Array sorted in ascending order."
+
+[[functions]]
+name = "array"
+signatures = ["array(value any, ...) -> array"]
+doc = "Array built from the arguments."
+
+[[functions]]
+name = "map"
+signatures = ["map(key any, value any, ...) -> map"]
+doc = "Map built from key/value pairs."
+
+[[functions]]
+name = "struct"
+signatures = ["struct(value any, ...) -> struct"]
+doc = "Struct built from the arguments (fields col1, col2...)."
+
+[[functions]]
+name = "named_struct"
+signatures = ["named_struct(name string, value any, ...) -> struct"]
+doc = "Struct built from name/value pairs."
+
+[[functions]]
+name = "create_union"
+signatures = ["create_union(tag int, value any, ...) -> uniontype"]
+doc = "Union value holding the argument selected by `tag`."
+
+[[functions]]
+name = "if"
+signatures = ["if(condition boolean, value_true any, value_false any) -> any"]
+doc = "`value_true` if the condition holds, otherwise `value_false`."
+
+[[functions]]
+name = "nvl"
+signatures = ["nvl(value any, default_value any) -> any"]
+doc = "`default_value` when `value` is null."
+
+[[functions]]
+name = "isnull"
+signatures = ["isnull(value any) -> boolean"]
+doc = "True if the value is null."
+
+[[functions]]
+name = "isnotnull"
+signatures = ["isnotnull(value any) -> boolean"]
+doc = "True if the value is not null."
+
+[[functions]]
+name = "assert_true"
+signatures = ["assert_true(condition boolean) -> void"]
+doc = "Throws an exception if the condition is false."
+
+[[functions]]
+name = "nullif"
+signatures = ["nullif(a any, b any) -> any"]
+doc = "Null when the arguments are equal, otherwise the first one (Hive 2.3+)."
+
+[[functions]]
+name = "binary"
+signatures = ["binary(value string) -> binary"]
+doc = "Value converted to binary."
+
+[[functions]]
+name = "collect_set"
+signatures = ["collect_set(col any) -> array"]
+doc = "Array of the distinct values of a group."
+
+[[functions]]
+name = "collect_list"
+signatures = ["collect_list(col any) -> array"]
+doc = "Array of the values of a group, duplicates kept."
+
+[[functions]]
+name = "percentile"
+signatures = ["percentile(col bigint, p double) -> double", "percentile(col bigint, p array) -> array"]
+doc = "Exact percentile(s) of an integer column."
+
+[[functions]]
+name = "percentile_approx"
+signatures = ["percentile_approx(col double, p double) -> double", "percentile_approx(col double, p double, b int) -> double"]
+doc = "Approximate percentile of a numeric column."
+
+[[functions]]
+name = "histogram_numeric"
+signatures = ["histogram_numeric(col double, b int) -> array"]
+doc = "Histogram of a numeric column with `b` bins."
+
+[[functions]]
+name = "variance"
+signatures = ["variance(col double) -> double"]
+doc = "Population variance."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(col double) -> double"]
+doc = "Population variance."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(col double) -> double"]
+doc = "Sample variance."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(col double) -> double"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(col double) -> double"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "std"
+signatures = ["std(col double) -> double"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "stddev"
+signatures = ["stddev(col double) -> double"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "covar_pop"
+signatures = ["covar_pop(col1 double, col2 double) -> double"]
+doc = "Population covariance."
+
+[[functions]]
+name = "covar_samp"
+signatures = ["covar_samp(col1 double, col2 double) -> double"]
+doc = "Sample covariance."
+
+[[functions]]
+name = "corr"
+signatures = ["corr(col1 double, col2 double) -> double"]
+doc = "Pearson correlation coefficient."
+
+[[functions]]
+name = "regr_avgx"
+signatures = ["regr_avgx(y double, x double) -> double"]
+doc = "Average of the independent variable."
+
+[[functions]]
+name = "regr_avgy"
+signatures = ["regr_avgy(y double, x double) -> double"]
+doc = "Average of the dependent variable."
+
+[[functions]]
+name = "regr_count"
+signatures = ["regr_count(y double, x double) -> bigint"]
+doc = "Number of non-null pairs."
+
+[[functions]]
+name = "regr_intercept"
+signatures = ["regr_intercept(y double, x double) -> double"]
+doc = "Y-intercept of the regression line."
+
+[[functions]]
+name = "regr_r2"
+signatures = ["regr_r2(y double, x double) -> double"]
+doc = "Coefficient of determination."
+
+[[functions]]
+name = "regr_slope"
+signatures = ["regr_slope(y double, x double) -> double"]
+doc = "Slope of the regression line."
+
+[[functions]]
+name = "regr_sxx"
+signatures = ["regr_sxx(y double, x double) -> double"]
+doc = "Sum of squares of the independent variable."
+
+[[functions]]
+name = "regr_sxy"
+signatures = ["regr_sxy(y double, x double) -> double"]
+doc = "Sum of products of the variables."
+
+[[functions]]
+name = "regr_syy"
+signatures = ["regr_syy(y double, x double) -> double"]
+doc = "Sum of squares of the dependent variable."
+
+[[functions]]
+name = "explode"
+signatures = ["explode(a array) -> table", "explode(m map) -> table"]
+doc = "One row per array element (or key/value pair of a map)."
+
+[[functions]]
+name = "posexplode"
+signatures = ["posexplode(a array) -> table"]
+doc = "One row per array element with its position."
+
+[[functions]]
+name = "inline"
+signatures = ["inline(a array) -> table"]
+doc = "Array of structs exploded into rows and columns."
+
+[[functions]]
+name = "stack"
+signatures = ["stack(n int, value any, ...) -> table"]
+doc = "Values split into `n` rows."
+
+[[functions]]
+name = "json_tuple"
+signatures = ["json_tuple(json_string string, key string, ...) -> table"]
+doc = "Several keys of a JSON object extracted at once."
+
+[[functions]]
+name = "parse_url_tuple"
+signatures = ["parse_url_tuple(url string, part string, ...) -> table"]
+doc = "Several parts of a URL extracted at once."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> int"]
+doc = "Sequential number of the row within its partition."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> int"]
+doc = "Rank with gaps."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> int"]
+doc = "Rank without gaps."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(n int) -> int"]
+doc = "Bucket number (1..n) of the row."
+
+[[functions]]
+name = "cume_dist"
+signatures = ["cume_dist() -> double"]
+doc = "Cumulative distribution of the row."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> double"]
+doc = "Relative rank of the row (0..1)."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(expr any) -> any", "lag(expr any, offset int) -> any", "lag(expr any, offset int, default_value any) -> any"]
+doc = "Value from a preceding row."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(expr any) -> any", "lead(expr any, offset int) -> any", "lead(expr any, offset int, default_value any) -> any"]
+doc = "Value from a following row."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(expr any) -> any", "first_value(expr any, skip_nulls boolean) -> any"]
+doc = "First value of the window frame."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(expr any) -> any", "last_value(expr any, skip_nulls boolean) -> any"]
+doc = "Last value of the window frame."
+
+[[functions]]
+name = "current_user"
+signatures = ["current_user() -> string"]
+doc = "Name of the current user."
+
+[[functions]]
+name = "logged_in_user"
+signatures = ["logged_in_user() -> string"]
+doc = "User name of the current session."
+
+[[functions]]
+name = "current_database"
+signatures = ["current_database() -> string"]
+doc = "Current database name."
+
+[[functions]]
+name = "current_groups"
+signatures = ["current_groups() -> array"]
+doc = "Groups the current user belongs to."
+
+[[functions]]
+name = "version"
+signatures = ["version() -> string"]
+doc = "Hive version."
+
+[[functions]]
+name = "reflect"
+signatures = ["reflect(class string, method string, arg any, ...) -> any"]
+doc = "Calls a static Java method via reflection."
+
+[[functions]]
+name = "java_method"
+signatures = ["java_method(class string, method string, arg any, ...) -> any"]
+doc = "Calls a static Java method via reflection."
+
+[[functions]]
+name = "surrogate_key"
+signatures = ["surrogate_key() -> bigint", "surrogate_key(write_id_bits int, task_id_bits int) -> bigint"]
+doc = "Unique surrogate key for rows of an ACID table insert."
+
+[[functions]]
+name = "mask"
+signatures = ["mask(str string) -> string", "mask(str string, upper string, lower string, number string) -> string"]
+doc = "Masked value: upper-case to X, lower-case to x, digits to n."
+
+[[functions]]
+name = "mask_first_n"
+signatures = ["mask_first_n(str string, n int) -> string"]
+doc = "Value with the first `n` characters masked."
+
+[[functions]]
+name = "mask_last_n"
+signatures = ["mask_last_n(str string, n int) -> string"]
+doc = "Value with the last `n` characters masked."
+
+[[functions]]
+name = "mask_show_first_n"
+signatures = ["mask_show_first_n(str string, n int) -> string"]
+doc = "Value masked except the first `n` characters."
+
+[[functions]]
+name = "mask_show_last_n"
+signatures = ["mask_show_last_n(str string, n int) -> string"]
+doc = "Value masked except the last `n` characters."
+
+[[functions]]
+name = "mask_hash"
+signatures = ["mask_hash(str string) -> string"]
+doc = "Hash of the value (SHA-256 based)."

@@ -1,4 +1,5 @@
-# Skeleton (phase 5); completed with the Oracle driver in phase 8.
+# Oracle Database 19c / 21c / 23ai SQL and PL/SQL (functions marked 21c+/23ai need that
+# release).
 id = "oracle"
 name = "Oracle SQL"
 inherits = "sql"
@@ -7,17 +8,586 @@ case_folding = "upper"
 parser = ""
 
 keywords = [
-  "access", "audit", "cluster", "comment", "compress", "connect", "exclusive", "file",
-  "identified", "immediate", "increment", "initial", "level", "lock", "long", "maxextents",
-  "minus", "mode", "modify", "noaudit", "nocompress", "nowait", "number", "offline",
-  "online", "pctfree", "prior", "raw", "rename", "resource", "row", "rowid", "rownum",
-  "rows", "session", "share", "size", "start", "successful", "synonym", "sysdate",
-  "uid", "user", "validate", "varchar2", "view", "whenever",
+  "access", "add", "audit", "char", "cluster", "comment", "compress", "connect", "current",
+  "date", "decimal", "exclusive", "file", "float", "identified", "immediate", "increment",
+  "index", "initial", "integer", "level", "lock", "long", "maxextents", "minus", "mlslabel",
+  "mode", "modify", "noaudit", "nocompress", "nowait", "number", "of", "offline", "online",
+  "option", "pctfree", "prior", "public", "raw", "rename", "resource", "revoke", "row", "rowid",
+  "rownum", "rows", "session", "share", "size", "smallint", "start", "successful", "synonym",
+  "sysdate", "trigger", "uid", "user", "validate", "varchar", "varchar2", "view", "whenever",
 ]
 
-soft_keywords = ["begin", "declare", "exception", "loop", "package", "body", "pragma"]
+soft_keywords = [
+  "accessible", "always", "analyze", "apply", "authid", "autonomous_transaction", "bitmap",
+  "body", "bulk", "byte", "cache", "close", "collect", "columns", "complete", "compound",
+  "connect_by_iscycle", "connect_by_isleaf", "connect_by_root", "constant", "constructor",
+  "continue", "cube", "currval", "cursor", "cycle", "day", "declare", "default_collation",
+  "definer", "deterministic", "directory", "disable", "editionable", "editioning", "elsif",
+  "enable", "errors", "exception", "exception_init", "exceptions", "execute", "exit", "external",
+  "fast", "final", "flashback", "force", "forall", "generated", "global", "goto", "hash", "heap",
+  "hour", "identity", "ignore", "indices", "instantiable", "instead", "interval", "invisible",
+  "isolation", "json", "keep", "language", "lateral", "library", "list", "local", "locked", "log",
+  "logging", "loop", "matched", "maxvalue", "member", "merge", "minute", "minvalue", "model",
+  "month", "nested", "new", "next", "nextval", "nocache", "nocopy", "nocycle", "noforce",
+  "noneditionable", "nologging", "nomaxvalue", "nominvalue", "noorder", "noparallel",
+  "novalidate", "object", "old", "open", "organization", "others", "out", "overflow",
+  "overriding", "package", "parallel", "parallel_enable", "parent", "percent", "pipe",
+  "pipelined", "pivot", "pragma", "precedes", "preserve", "purge", "raise", "read", "record",
+  "ref", "referencing", "refresh", "rely", "respect", "result", "result_cache", "return",
+  "returns", "reverse", "role", "rollup", "rowtype", "sample", "second", "seed", "self",
+  "serially_reusable", "serializable", "sets", "sharing", "siblings", "skip", "static", "storage",
+  "store", "subpartition", "subtype", "tablespace", "ties", "timezone_abbr", "timezone_hour",
+  "timezone_minute", "timezone_region", "type", "under", "unlimited", "unpivot", "unusable",
+  "using_nls_comp", "varray", "virtual", "visible", "wait", "while", "within", "write", "year",
+  "zone",
+]
 
-types = ["binary_double", "binary_float", "blob", "clob", "nclob", "nvarchar2", "number", "raw", "varchar2"]
+types = [
+  "bfile", "binary_double", "binary_float", "binary_integer", "blob", "clob", "dec",
+  "interval day to second", "interval year to month", "json", "long", "long raw", "natural",
+  "naturaln", "nchar", "nclob", "number", "nvarchar2", "pls_integer", "positive", "positiven",
+  "raw", "rowid", "sdo_geometry", "signtype", "simple_integer", "sys_refcursor",
+  "timestamp with local time zone", "timestamp with time zone", "urowid", "varchar2", "vector",
+  "xmltype",
+]
+
+removed_keywords = [
+  "current_time",
+]
+
+removed_types = [
+  "bigint", "time",
+]
+
+[[functions]]
+name = "acos"
+signatures = ["acos(n number) -> number"]
+doc = "Arccosine of `n`, in radians."
+
+[[functions]]
+name = "asin"
+signatures = ["asin(n number) -> number"]
+doc = "Arcsine of `n`, in radians."
+
+[[functions]]
+name = "atan"
+signatures = ["atan(n number) -> number"]
+doc = "Arctangent of `n`, in radians."
+
+[[functions]]
+name = "atan2"
+signatures = ["atan2(n1 number, n2 number) -> number"]
+doc = "Arctangent of `n1/n2`, in radians."
+
+[[functions]]
+name = "bitand"
+signatures = ["bitand(expr1 number, expr2 number) -> number"]
+doc = "Bitwise AND of two integers."
+
+[[functions]]
+name = "ceil"
+signatures = ["ceil(n number) -> number"]
+doc = "Smallest integer greater than or equal to `n`."
+
+[[functions]]
+name = "cos"
+signatures = ["cos(n number) -> number"]
+doc = "Cosine of an angle in radians."
+
+[[functions]]
+name = "cosh"
+signatures = ["cosh(n number) -> number"]
+doc = "Hyperbolic cosine."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(n number) -> number"]
+doc = "e raised to the power `n`."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(n number) -> number"]
+doc = "Largest integer less than or equal to `n`."
+
+[[functions]]
+name = "ln"
+signatures = ["ln(n number) -> number"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log"
+signatures = ["log(n2 number, n1 number) -> number"]
+doc = "Logarithm of `n1` in base `n2`."
+
+[[functions]]
+name = "mod"
+signatures = ["mod(n2 number, n1 number) -> number"]
+doc = "Remainder of `n2` divided by `n1` (sign of `n2`, uses FLOOR)."
+
+[[functions]]
+name = "nanvl"
+signatures = ["nanvl(n2 number, n1 number) -> number"]
+doc = "`n1` when `n2` is NaN (binary float/double), otherwise `n2`."
+
+[[functions]]
+name = "power"
+signatures = ["power(n2 number, n1 number) -> number"]
+doc = "`n2` raised to the power `n1`."
+
+[[functions]]
+name = "remainder"
+signatures = ["remainder(n2 number, n1 number) -> number"]
+doc = "Remainder of `n2` divided by `n1` (uses ROUND)."
+
+[[functions]]
+name = "round"
+signatures = ["round(n number) -> number", "round(n number, integer number) -> number", "round(date date) -> date", "round(date date, fmt varchar2) -> date"]
+doc = "Number rounded to `integer` places, or date rounded to the unit of `fmt`."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(n number) -> number"]
+doc = "-1, 0 or 1 according to the sign of `n`."
+
+[[functions]]
+name = "sin"
+signatures = ["sin(n number) -> number"]
+doc = "Sine of an angle in radians."
+
+[[functions]]
+name = "sinh"
+signatures = ["sinh(n number) -> number"]
+doc = "Hyperbolic sine."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(n number) -> number"]
+doc = "Square root."
+
+[[functions]]
+name = "tan"
+signatures = ["tan(n number) -> number"]
+doc = "Tangent of an angle in radians."
+
+[[functions]]
+name = "tanh"
+signatures = ["tanh(n number) -> number"]
+doc = "Hyperbolic tangent."
+
+[[functions]]
+name = "trunc"
+signatures = ["trunc(n number) -> number", "trunc(n number, integer number) -> number", "trunc(date date) -> date", "trunc(date date, fmt varchar2) -> date"]
+doc = "Number truncated to `integer` places, or date truncated to the unit of `fmt` (day by default)."
+
+[[functions]]
+name = "width_bucket"
+signatures = ["width_bucket(expr number, min_value number, max_value number, num_buckets number) -> number"]
+doc = "Bucket number of `expr` in an equi-width histogram."
+
+[[functions]]
+name = "ascii"
+signatures = ["ascii(char varchar2) -> number"]
+doc = "Code of the first character in the database character set."
+
+[[functions]]
+name = "chr"
+signatures = ["chr(n number) -> varchar2"]
+doc = "Character with the given code."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(char1 varchar2, char2 varchar2) -> varchar2"]
+doc = "`char1` concatenated with `char2` (same as `||`)."
+
+[[functions]]
+name = "initcap"
+signatures = ["initcap(char varchar2) -> varchar2"]
+doc = "First letter of each word in upper case, the rest lower case."
+
+[[functions]]
+name = "instr"
+signatures = ["instr(string varchar2, substring varchar2) -> number", "instr(string varchar2, substring varchar2, position number) -> number", "instr(string varchar2, substring varchar2, position number, occurrence number) -> number"]
+doc = "Position of the n-th occurrence of a substring (0 when absent; negative `position` searches backwards)."
+
+[[functions]]
+name = "instrb"
+signatures = ["instrb(string varchar2, substring varchar2) -> number", "instrb(string varchar2, substring varchar2, position number, occurrence number) -> number"]
+doc = "Like `instr`, counting bytes."
+
+[[functions]]
+name = "length"
+signatures = ["length(char varchar2) -> number"]
+doc = "Number of characters (NULL for an empty string)."
+
+[[functions]]
+name = "lengthb"
+signatures = ["lengthb(char varchar2) -> number"]
+doc = "Length in bytes."
+
+[[functions]]
+name = "lengthc"
+signatures = ["lengthc(char varchar2) -> number"]
+doc = "Length in Unicode complete characters."
+
+[[functions]]
+name = "lpad"
+signatures = ["lpad(expr1 varchar2, n number) -> varchar2", "lpad(expr1 varchar2, n number, expr2 varchar2) -> varchar2"]
+doc = "`expr1` left-padded to length `n` with `expr2` (spaces by default)."
+
+[[functions]]
+name = "ltrim"
+signatures = ["ltrim(char varchar2) -> varchar2", "ltrim(char varchar2, set varchar2) -> varchar2"]
+doc = "Removes leading characters found in `set` (spaces by default)."
+
+[[functions]]
+name = "nchr"
+signatures = ["nchr(n number) -> nvarchar2"]
+doc = "National character with the given code."
+
+[[functions]]
+name = "nls_initcap"
+signatures = ["nls_initcap(char varchar2) -> varchar2", "nls_initcap(char varchar2, nlsparam varchar2) -> varchar2"]
+doc = "`initcap` with a linguistic sort (`'NLS_SORT = XDutch'`)."
+
+[[functions]]
+name = "nls_lower"
+signatures = ["nls_lower(char varchar2) -> varchar2", "nls_lower(char varchar2, nlsparam varchar2) -> varchar2"]
+doc = "`lower` with a linguistic sort."
+
+[[functions]]
+name = "nls_upper"
+signatures = ["nls_upper(char varchar2) -> varchar2", "nls_upper(char varchar2, nlsparam varchar2) -> varchar2"]
+doc = "`upper` with a linguistic sort."
+
+[[functions]]
+name = "nlssort"
+signatures = ["nlssort(char varchar2) -> raw", "nlssort(char varchar2, nlsparam varchar2) -> raw"]
+doc = "Collation key used to sort or compare linguistically."
+
+[[functions]]
+name = "regexp_count"
+signatures = ["regexp_count(source_char varchar2, pattern varchar2) -> number", "regexp_count(source_char varchar2, pattern varchar2, position number) -> number", "regexp_count(source_char varchar2, pattern varchar2, position number, match_param varchar2) -> number"]
+doc = "Number of regular-expression matches."
+
+[[functions]]
+name = "regexp_instr"
+signatures = ["regexp_instr(source_char varchar2, pattern varchar2) -> number", "regexp_instr(source_char varchar2, pattern varchar2, position number) -> number", "regexp_instr(source_char varchar2, pattern varchar2, position number, occurrence number) -> number", "regexp_instr(source_char varchar2, pattern varchar2, position number, occurrence number, return_opt number, match_param varchar2, subexpr number) -> number"]
+doc = "Position of a regular-expression match."
+
+[[functions]]
+name = "regexp_like"
+signatures = ["regexp_like(source_char varchar2, pattern varchar2) -> boolean", "regexp_like(source_char varchar2, pattern varchar2, match_param varchar2) -> boolean"]
+doc = "Condition: true when the string matches the regular expression."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(source_char varchar2, pattern varchar2) -> varchar2", "regexp_replace(source_char varchar2, pattern varchar2, replace_string varchar2) -> varchar2", "regexp_replace(source_char varchar2, pattern varchar2, replace_string varchar2, position number) -> varchar2", "regexp_replace(source_char varchar2, pattern varchar2, replace_string varchar2, position number, occurrence number, match_param varchar2) -> varchar2"]
+doc = "Replaces regular-expression matches (`\\1` back-references allowed)."
+
+[[functions]]
+name = "regexp_substr"
+signatures = ["regexp_substr(source_char varchar2, pattern varchar2) -> varchar2", "regexp_substr(source_char varchar2, pattern varchar2, position number) -> varchar2", "regexp_substr(source_char varchar2, pattern varchar2, position number, occurrence number) -> varchar2", "regexp_substr(source_char varchar2, pattern varchar2, position number, occurrence number, match_param varchar2, subexpr number) -> varchar2"]
+doc = "Substring matching a regular expression."
+
+[[functions]]
+name = "replace"
+signatures = ["replace(char varchar2, search_string varchar2) -> varchar2", "replace(char varchar2, search_string varchar2, replacement_string varchar2) -> varchar2"]
+doc = "Replaces every occurrence of `search_string` (removes it when no replacement is given)."
+
+[[functions]]
+name = "rpad"
+signatures = ["rpad(expr1 varchar2, n number) -> varchar2", "rpad(expr1 varchar2, n number, expr2 varchar2) -> varchar2"]
+doc = "`expr1` right-padded to length `n` with `expr2` (spaces by default)."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(char varchar2) -> varchar2", "rtrim(char varchar2, set varchar2) -> varchar2"]
+doc = "Removes trailing characters found in `set` (spaces by default)."
+
+[[functions]]
+name = "soundex"
+signatures = ["soundex(char varchar2) -> varchar2"]
+doc = "Phonetic representation of a string."
+
+[[functions]]
+name = "substr"
+signatures = ["substr(char varchar2, position number) -> varchar2", "substr(char varchar2, position number, substring_length number) -> varchar2"]
+doc = "Substring from `position` (negative counts from the end)."
+
+[[functions]]
+name = "substrb"
+signatures = ["substrb(char varchar2, position number) -> varchar2", "substrb(char varchar2, position number, substring_length number) -> varchar2"]
+doc = "Like `substr`, counting bytes."
+
+[[functions]]
+name = "translate"
+signatures = ["translate(expr varchar2, from_string varchar2, to_string varchar2) -> varchar2"]
+doc = "Replaces each character of `from_string` with the matching one of `to_string`."
+
+[[functions]]
+name = "trim"
+signatures = ["trim(trim_source varchar2) -> varchar2"]
+doc = "Removes spaces; `TRIM([LEADING|TRAILING|BOTH] c FROM s)` removes the character `c`."
+
+[[functions]]
+name = "add_months"
+signatures = ["add_months(date date, integer number) -> date"]
+doc = "Date plus a number of months (end of month preserved)."
+
+[[functions]]
+name = "dbtimezone"
+signatures = ["dbtimezone() -> varchar2"]
+doc = "Time zone of the database (written without parentheses)."
+
+[[functions]]
+name = "extract"
+signatures = ["extract(field keyword, source timestamp) -> number"]
+doc = "`EXTRACT(YEAR FROM d)`: field of a datetime or interval."
+
+[[functions]]
+name = "from_tz"
+signatures = ["from_tz(timestamp_value timestamp, time_zone_value varchar2) -> timestamp with time zone"]
+doc = "Timestamp combined with a time zone."
+
+[[functions]]
+name = "last_day"
+signatures = ["last_day(date date) -> date"]
+doc = "Last day of the month of the date."
+
+[[functions]]
+name = "localtimestamp"
+signatures = ["localtimestamp() -> timestamp", "localtimestamp(timestamp_precision number) -> timestamp"]
+doc = "Current session date and time as `TIMESTAMP` (no time zone)."
+
+[[functions]]
+name = "months_between"
+signatures = ["months_between(date1 date, date2 date) -> number"]
+doc = "Number of months between two dates (fractional)."
+
+[[functions]]
+name = "new_time"
+signatures = ["new_time(date date, timezone1 varchar2, timezone2 varchar2) -> date"]
+doc = "Date converted from one (North American) time zone to another."
+
+[[functions]]
+name = "next_day"
+signatures = ["next_day(date date, char varchar2) -> date"]
+doc = "First named weekday after the date (`next_day(d, 'MONDAY')`)."
+
+[[functions]]
+name = "numtodsinterval"
+signatures = ["numtodsinterval(n number, interval_unit varchar2) -> interval day to second"]
+doc = "Number converted to an `INTERVAL DAY TO SECOND` (`'DAY'`, `'HOUR'`...)."
+
+[[functions]]
+name = "numtoyminterval"
+signatures = ["numtoyminterval(n number, interval_unit varchar2) -> interval year to month"]
+doc = "Number converted to an `INTERVAL YEAR TO MONTH` (`'YEAR'`, `'MONTH'`)."
+
+[[functions]]
+name = "sessiontimezone"
+signatures = ["sessiontimezone() -> varchar2"]
+doc = "Time zone of the session (written without parentheses)."
+
+[[functions]]
+name = "sys_extract_utc"
+signatures = ["sys_extract_utc(datetime_with_timezone timestamp with time zone) -> timestamp"]
+doc = "UTC time of a timestamp with time zone."
+
+[[functions]]
+name = "sysdate"
+signatures = ["sysdate() -> date"]
+doc = "Current date and time of the database server (written without parentheses)."
+
+[[functions]]
+name = "systimestamp"
+signatures = ["systimestamp() -> timestamp with time zone"]
+doc = "Current server timestamp with time zone (written without parentheses)."
+
+[[functions]]
+name = "to_char"
+signatures = ["to_char(value any) -> varchar2", "to_char(value any, format varchar2) -> varchar2", "to_char(value any, format varchar2, nlsparam varchar2) -> varchar2"]
+doc = "Date, number or LOB converted to text with an optional format (`'YYYY-MM-DD'`, `'999G990D00'`)."
+
+[[functions]]
+name = "to_date"
+signatures = ["to_date(char varchar2) -> date", "to_date(char varchar2, format varchar2) -> date", "to_date(char varchar2, format varchar2, nlsparam varchar2) -> date"]
+doc = "Text parsed into a `DATE` (`DEFAULT ... ON CONVERSION ERROR` allowed)."
+
+[[functions]]
+name = "to_dsinterval"
+signatures = ["to_dsinterval(sql_format varchar2) -> interval day to second"]
+doc = "Text converted to an `INTERVAL DAY TO SECOND`."
+
+[[functions]]
+name = "to_timestamp"
+signatures = ["to_timestamp(char varchar2) -> timestamp", "to_timestamp(char varchar2, fmt varchar2) -> timestamp", "to_timestamp(char varchar2, fmt varchar2, nlsparam varchar2) -> timestamp"]
+doc = "Text parsed into a `TIMESTAMP`."
+
+[[functions]]
+name = "to_timestamp_tz"
+signatures = ["to_timestamp_tz(char varchar2) -> timestamp with time zone", "to_timestamp_tz(char varchar2, fmt varchar2) -> timestamp with time zone", "to_timestamp_tz(char varchar2, fmt varchar2, nlsparam varchar2) -> timestamp with time zone"]
+doc = "Text parsed into a `TIMESTAMP WITH TIME ZONE`."
+
+[[functions]]
+name = "to_yminterval"
+signatures = ["to_yminterval(sql_format varchar2) -> interval year to month"]
+doc = "Text converted to an `INTERVAL YEAR TO MONTH`."
+
+[[functions]]
+name = "tz_offset"
+signatures = ["tz_offset(time_zone varchar2) -> varchar2"]
+doc = "Offset (`'+02:00'`) of a time zone."
+
+[[functions]]
+name = "ora_dst_affected"
+signatures = ["ora_dst_affected(datetime_expr timestamp with time zone) -> number"]
+doc = "1 when a timestamp is affected by a time-zone file upgrade."
+
+[[functions]]
+name = "scn_to_timestamp"
+signatures = ["scn_to_timestamp(number number) -> timestamp"]
+doc = "Approximate timestamp of a system change number."
+
+[[functions]]
+name = "timestamp_to_scn"
+signatures = ["timestamp_to_scn(timestamp timestamp) -> number"]
+doc = "Approximate system change number of a timestamp."
+
+[[functions]]
+name = "asciistr"
+signatures = ["asciistr(char varchar2) -> varchar2"]
+doc = "ASCII string with non-ASCII characters as `\\xxxx` escapes."
+
+[[functions]]
+name = "bin_to_num"
+signatures = ["bin_to_num(expr number, ...) -> number"]
+doc = "Number from a vector of bits (`bin_to_num(1,0,1)` = 5)."
+
+[[functions]]
+name = "chartorowid"
+signatures = ["chartorowid(char varchar2) -> rowid"]
+doc = "Text converted to a `ROWID`."
+
+[[functions]]
+name = "compose"
+signatures = ["compose(char varchar2) -> nvarchar2"]
+doc = "Unicode string in NFC normal form."
+
+[[functions]]
+name = "convert"
+signatures = ["convert(char varchar2, dest_char_set varchar2) -> varchar2", "convert(char varchar2, dest_char_set varchar2, source_char_set varchar2) -> varchar2"]
+doc = "String converted between character sets."
+
+[[functions]]
+name = "decompose"
+signatures = ["decompose(string varchar2) -> nvarchar2", "decompose(string varchar2, form varchar2) -> nvarchar2"]
+doc = "Unicode string decomposed (`'CANONICAL'` or `'COMPATIBILITY'`)."
+
+[[functions]]
+name = "hextoraw"
+signatures = ["hextoraw(char varchar2) -> raw"]
+doc = "Hexadecimal text converted to `RAW`."
+
+[[functions]]
+name = "rawtohex"
+signatures = ["rawtohex(raw raw) -> varchar2"]
+doc = "`RAW` value as hexadecimal text."
+
+[[functions]]
+name = "rawtonhex"
+signatures = ["rawtonhex(raw raw) -> nvarchar2"]
+doc = "`RAW` value as hexadecimal national text."
+
+[[functions]]
+name = "rowidtochar"
+signatures = ["rowidtochar(rowid rowid) -> varchar2"]
+doc = "`ROWID` as text."
+
+[[functions]]
+name = "rowidtonchar"
+signatures = ["rowidtonchar(rowid rowid) -> nvarchar2"]
+doc = "`ROWID` as national text."
+
+[[functions]]
+name = "to_binary_double"
+signatures = ["to_binary_double(expr any) -> binary_double", "to_binary_double(expr any, fmt varchar2) -> binary_double", "to_binary_double(expr any, fmt varchar2, nlsparam varchar2) -> binary_double"]
+doc = "Value converted to `BINARY_DOUBLE`."
+
+[[functions]]
+name = "to_binary_float"
+signatures = ["to_binary_float(expr any) -> binary_float", "to_binary_float(expr any, fmt varchar2) -> binary_float", "to_binary_float(expr any, fmt varchar2, nlsparam varchar2) -> binary_float"]
+doc = "Value converted to `BINARY_FLOAT`."
+
+[[functions]]
+name = "to_blob"
+signatures = ["to_blob(raw_value raw) -> blob"]
+doc = "`RAW`/`LONG RAW`/BFILE value converted to `BLOB`."
+
+[[functions]]
+name = "to_boolean"
+signatures = ["to_boolean(expr any) -> boolean"]
+doc = "Value converted to `BOOLEAN` (23ai)."
+
+[[functions]]
+name = "to_clob"
+signatures = ["to_clob(lob_column any) -> clob"]
+doc = "Character or NCLOB value converted to `CLOB`."
+
+[[functions]]
+name = "to_lob"
+signatures = ["to_lob(long_column long) -> clob"]
+doc = "`LONG`/`LONG RAW` column converted to a LOB (in `INSERT ... SELECT`)."
+
+[[functions]]
+name = "to_multi_byte"
+signatures = ["to_multi_byte(char varchar2) -> varchar2"]
+doc = "Single-byte characters converted to multibyte."
+
+[[functions]]
+name = "to_nchar"
+signatures = ["to_nchar(value any) -> nvarchar2", "to_nchar(value any, fmt varchar2) -> nvarchar2", "to_nchar(value any, fmt varchar2, nlsparam varchar2) -> nvarchar2"]
+doc = "Value converted to the national character set."
+
+[[functions]]
+name = "to_nclob"
+signatures = ["to_nclob(lob_column any) -> nclob"]
+doc = "Character value converted to `NCLOB`."
+
+[[functions]]
+name = "to_number"
+signatures = ["to_number(expr any) -> number", "to_number(expr any, fmt varchar2) -> number", "to_number(expr any, fmt varchar2, nlsparam varchar2) -> number"]
+doc = "Text converted to `NUMBER` (`DEFAULT ... ON CONVERSION ERROR` allowed)."
+
+[[functions]]
+name = "to_single_byte"
+signatures = ["to_single_byte(char varchar2) -> varchar2"]
+doc = "Multibyte characters converted to single-byte."
+
+[[functions]]
+name = "unistr"
+signatures = ["unistr(string varchar2) -> nvarchar2"]
+doc = "National string with `\\xxxx` Unicode escapes resolved."
+
+[[functions]]
+name = "validate_conversion"
+signatures = ["validate_conversion(expr any, type_name type) -> number"]
+doc = "`VALIDATE_CONVERSION(expr AS type [, fmt])`: 1 when the conversion would succeed."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(expr any, ...) -> any"]
+doc = "Largest value of the list."
+
+[[functions]]
+name = "least"
+signatures = ["least(expr any, ...) -> any"]
+doc = "Smallest value of the list."
+
+[[functions]]
+name = "lnnvl"
+signatures = ["lnnvl(condition boolean) -> boolean"]
+doc = "True when the condition is false or unknown."
 
 [[functions]]
 name = "nvl"
@@ -25,21 +595,546 @@ signatures = ["nvl(expr1 any, expr2 any) -> any"]
 doc = "`expr2` when `expr1` is null."
 
 [[functions]]
-name = "to_char"
-signatures = ["to_char(value any) -> varchar2", "to_char(value any, format varchar2) -> varchar2"]
-doc = "Converts to text."
-
-[[functions]]
-name = "to_date"
-signatures = ["to_date(char varchar2, format varchar2) -> date"]
-doc = "Parses a date."
+name = "nvl2"
+signatures = ["nvl2(expr1 any, expr2 any, expr3 any) -> any"]
+doc = "`expr2` when `expr1` is not null, otherwise `expr3`."
 
 [[functions]]
 name = "decode"
 signatures = ["decode(expr any, search any, result any, ...) -> any"]
-doc = "Compares `expr` to each search value."
+doc = "Result of the first matching search value (optional trailing default)."
 
 [[functions]]
-name = "sysdate"
-signatures = ["sysdate() -> date"]
-doc = "Current date and time of the database server."
+name = "sys_context"
+signatures = ["sys_context(namespace varchar2, parameter varchar2) -> varchar2", "sys_context(namespace varchar2, parameter varchar2, length number) -> varchar2"]
+doc = "Context attribute (`sys_context('USERENV', 'SESSION_USER')`)."
+
+[[functions]]
+name = "sys_guid"
+signatures = ["sys_guid() -> raw"]
+doc = "Globally unique identifier (16-byte `RAW`)."
+
+[[functions]]
+name = "uid"
+signatures = ["uid() -> number"]
+doc = "ID of the session user (written without parentheses)."
+
+[[functions]]
+name = "userenv"
+signatures = ["userenv(parameter varchar2) -> varchar2"]
+doc = "Information about the session (legacy, use `sys_context`)."
+
+[[functions]]
+name = "ora_hash"
+signatures = ["ora_hash(expr any) -> number", "ora_hash(expr any, max_bucket number) -> number", "ora_hash(expr any, max_bucket number, seed_value number) -> number"]
+doc = "Hash value of an expression."
+
+[[functions]]
+name = "standard_hash"
+signatures = ["standard_hash(expr any) -> raw", "standard_hash(expr any, method varchar2) -> raw"]
+doc = "Hash (`'SHA1'`, `'SHA256'`, `'MD5'`...) of an expression."
+
+[[functions]]
+name = "dump"
+signatures = ["dump(expr any) -> varchar2", "dump(expr any, return_fmt number) -> varchar2", "dump(expr any, return_fmt number, start_position number, length number) -> varchar2"]
+doc = "Internal representation (type, length, bytes) of a value."
+
+[[functions]]
+name = "vsize"
+signatures = ["vsize(expr any) -> number"]
+doc = "Number of bytes of the internal representation."
+
+[[functions]]
+name = "empty_blob"
+signatures = ["empty_blob() -> blob"]
+doc = "Empty `BLOB` locator."
+
+[[functions]]
+name = "empty_clob"
+signatures = ["empty_clob() -> clob"]
+doc = "Empty `CLOB` locator."
+
+[[functions]]
+name = "bfilename"
+signatures = ["bfilename(directory varchar2, filename varchar2) -> bfile"]
+doc = "`BFILE` locator for a file in a directory object."
+
+[[functions]]
+name = "cardinality"
+signatures = ["cardinality(nested_table any) -> number"]
+doc = "Number of elements of a nested table."
+
+[[functions]]
+name = "set"
+signatures = ["set(nested_table any) -> any"]
+doc = "Nested table with duplicates removed."
+
+[[functions]]
+name = "sys_connect_by_path"
+signatures = ["sys_connect_by_path(column varchar2, char varchar2) -> varchar2"]
+doc = "Path from the root to the row in a `CONNECT BY` query."
+
+[[functions]]
+name = "any_value"
+signatures = ["any_value(expr any) -> any"]
+doc = "Any one value of the group (21c+)."
+
+[[functions]]
+name = "approx_count_distinct"
+signatures = ["approx_count_distinct(expr any) -> number"]
+doc = "Approximate number of distinct values."
+
+[[functions]]
+name = "approx_median"
+signatures = ["approx_median(expr number) -> number"]
+doc = "Approximate median."
+
+[[functions]]
+name = "approx_percentile"
+signatures = ["approx_percentile(expr number) -> number"]
+doc = "Approximate percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "bit_and_agg"
+signatures = ["bit_and_agg(expr number) -> number"]
+doc = "Bitwise AND of the values (21c+)."
+
+[[functions]]
+name = "bit_or_agg"
+signatures = ["bit_or_agg(expr number) -> number"]
+doc = "Bitwise OR of the values (21c+)."
+
+[[functions]]
+name = "bit_xor_agg"
+signatures = ["bit_xor_agg(expr number) -> number"]
+doc = "Bitwise XOR of the values (21c+)."
+
+[[functions]]
+name = "checksum"
+signatures = ["checksum(expr any) -> number"]
+doc = "Order-independent checksum of the values (21c+)."
+
+[[functions]]
+name = "collect"
+signatures = ["collect(column any) -> any"]
+doc = "Nested table of the values (use with `CAST`)."
+
+[[functions]]
+name = "corr"
+signatures = ["corr(expr1 number, expr2 number) -> number"]
+doc = "Correlation coefficient."
+
+[[functions]]
+name = "covar_pop"
+signatures = ["covar_pop(expr1 number, expr2 number) -> number"]
+doc = "Population covariance."
+
+[[functions]]
+name = "covar_samp"
+signatures = ["covar_samp(expr1 number, expr2 number) -> number"]
+doc = "Sample covariance."
+
+[[functions]]
+name = "group_id"
+signatures = ["group_id() -> number"]
+doc = "Distinguishes duplicate groups of a `GROUP BY`."
+
+[[functions]]
+name = "grouping"
+signatures = ["grouping(expr any) -> number"]
+doc = "1 when the expression is a superaggregate (ROLLUP/CUBE) NULL."
+
+[[functions]]
+name = "grouping_id"
+signatures = ["grouping_id(expr any, ...) -> number"]
+doc = "Bit vector of the `GROUPING` values."
+
+[[functions]]
+name = "kurtosis_pop"
+signatures = ["kurtosis_pop(expr number) -> number"]
+doc = "Population kurtosis (21c+)."
+
+[[functions]]
+name = "kurtosis_samp"
+signatures = ["kurtosis_samp(expr number) -> number"]
+doc = "Sample kurtosis (21c+)."
+
+[[functions]]
+name = "listagg"
+signatures = ["listagg(measure_expr any) -> varchar2", "listagg(measure_expr any, delimiter varchar2) -> varchar2"]
+doc = "Values concatenated in `WITHIN GROUP (ORDER BY ...)` order."
+
+[[functions]]
+name = "median"
+signatures = ["median(expr number) -> number"]
+doc = "Median value."
+
+[[functions]]
+name = "percentile_cont"
+signatures = ["percentile_cont(expr number) -> number"]
+doc = "Interpolated percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "percentile_disc"
+signatures = ["percentile_disc(expr number) -> any"]
+doc = "Percentile taken from the existing values (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "regr_avgx"
+signatures = ["regr_avgx(expr1 number, expr2 number) -> number"]
+doc = "Average of the independent variable of a regression."
+
+[[functions]]
+name = "regr_avgy"
+signatures = ["regr_avgy(expr1 number, expr2 number) -> number"]
+doc = "Average of the dependent variable of a regression."
+
+[[functions]]
+name = "regr_count"
+signatures = ["regr_count(expr1 number, expr2 number) -> number"]
+doc = "Number of non-null pairs used in a regression."
+
+[[functions]]
+name = "regr_intercept"
+signatures = ["regr_intercept(expr1 number, expr2 number) -> number"]
+doc = "Y-intercept of the regression line."
+
+[[functions]]
+name = "regr_r2"
+signatures = ["regr_r2(expr1 number, expr2 number) -> number"]
+doc = "Coefficient of determination of a regression."
+
+[[functions]]
+name = "regr_slope"
+signatures = ["regr_slope(expr1 number, expr2 number) -> number"]
+doc = "Slope of the regression line."
+
+[[functions]]
+name = "regr_sxx"
+signatures = ["regr_sxx(expr1 number, expr2 number) -> number"]
+doc = "`REGR_COUNT * VAR_POP(expr2)`."
+
+[[functions]]
+name = "regr_sxy"
+signatures = ["regr_sxy(expr1 number, expr2 number) -> number"]
+doc = "`REGR_COUNT * COVAR_POP(expr1, expr2)`."
+
+[[functions]]
+name = "regr_syy"
+signatures = ["regr_syy(expr1 number, expr2 number) -> number"]
+doc = "`REGR_COUNT * VAR_POP(expr1)`."
+
+[[functions]]
+name = "skewness_pop"
+signatures = ["skewness_pop(expr number) -> number"]
+doc = "Population skewness (21c+)."
+
+[[functions]]
+name = "skewness_samp"
+signatures = ["skewness_samp(expr number) -> number"]
+doc = "Sample skewness (21c+)."
+
+[[functions]]
+name = "stats_mode"
+signatures = ["stats_mode(expr any) -> any"]
+doc = "Most frequent value."
+
+[[functions]]
+name = "stddev"
+signatures = ["stddev(expr number) -> number"]
+doc = "Sample standard deviation (0 for a single row)."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(expr number) -> number"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(expr number) -> number"]
+doc = "Sample standard deviation (NULL for a single row)."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(expr number) -> number"]
+doc = "Population variance."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(expr number) -> number"]
+doc = "Sample variance (NULL for a single row)."
+
+[[functions]]
+name = "variance"
+signatures = ["variance(expr number) -> number"]
+doc = "Sample variance (0 for a single row)."
+
+[[functions]]
+name = "cume_dist"
+signatures = ["cume_dist() -> number", "cume_dist(expr any, ...) -> number"]
+doc = "Cumulative distribution (analytic, or hypothetical-set with `WITHIN GROUP`)."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> number", "dense_rank(expr any, ...) -> number"]
+doc = "Rank without gaps (analytic, or hypothetical-set with `WITHIN GROUP`)."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(expr any) -> any"]
+doc = "First value of the window (`IGNORE NULLS` allowed)."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(value_expr any) -> any", "lag(value_expr any, offset number) -> any", "lag(value_expr any, offset number, default any) -> any"]
+doc = "Value from a previous row of the partition."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(expr any) -> any"]
+doc = "Last value of the window (`IGNORE NULLS` allowed)."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(value_expr any) -> any", "lead(value_expr any, offset number) -> any", "lead(value_expr any, offset number, default any) -> any"]
+doc = "Value from a row of the partition."
+
+[[functions]]
+name = "nth_value"
+signatures = ["nth_value(measure_expr any, n number) -> any"]
+doc = "Value of the n-th row of the window."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(expr number) -> number"]
+doc = "Number of the bucket (1..n) the row falls into."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> number", "percent_rank(expr any, ...) -> number"]
+doc = "Relative rank 0..1 (analytic, or hypothetical-set with `WITHIN GROUP`)."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> number", "rank(expr any, ...) -> number"]
+doc = "Rank with gaps (analytic, or hypothetical-set with `WITHIN GROUP`)."
+
+[[functions]]
+name = "ratio_to_report"
+signatures = ["ratio_to_report(expr number) -> number"]
+doc = "Ratio of the value to the sum over the window."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> number"]
+doc = "Sequential number of the row within its partition."
+
+[[functions]]
+name = "json"
+signatures = ["json(expr varchar2) -> json"]
+doc = "Text parsed into the `JSON` type (21c+)."
+
+[[functions]]
+name = "json_array"
+signatures = ["json_array(value any, ...) -> varchar2"]
+doc = "JSON array from the values."
+
+[[functions]]
+name = "json_arrayagg"
+signatures = ["json_arrayagg(expr any) -> varchar2"]
+doc = "Aggregate: JSON array of the values (`ORDER BY` allowed)."
+
+[[functions]]
+name = "json_dataguide"
+signatures = ["json_dataguide(expr any) -> clob"]
+doc = "Aggregate: data guide (schema) of the JSON documents."
+
+[[functions]]
+name = "json_exists"
+signatures = ["json_exists(expr any, path varchar2) -> boolean"]
+doc = "Condition: true when the JSON path selects something."
+
+[[functions]]
+name = "json_mergepatch"
+signatures = ["json_mergepatch(target_expr any, patch_expr any) -> any"]
+doc = "JSON document with an RFC 7396 merge patch applied."
+
+[[functions]]
+name = "json_object"
+signatures = ["json_object(key_value any, ...) -> varchar2"]
+doc = "JSON object from `KEY k VALUE v` (or `k : v`) pairs."
+
+[[functions]]
+name = "json_objectagg"
+signatures = ["json_objectagg(key_value any) -> varchar2"]
+doc = "Aggregate: JSON object from `KEY k VALUE v` pairs of the rows."
+
+[[functions]]
+name = "json_query"
+signatures = ["json_query(expr any, path varchar2) -> varchar2"]
+doc = "Object or array selected from JSON (`WITH WRAPPER` optional)."
+
+[[functions]]
+name = "json_scalar"
+signatures = ["json_scalar(expr any) -> json"]
+doc = "SQL scalar value converted to a JSON scalar (21c+)."
+
+[[functions]]
+name = "json_serialize"
+signatures = ["json_serialize(expr any) -> varchar2"]
+doc = "JSON value serialized to text (`PRETTY` optional)."
+
+[[functions]]
+name = "json_table"
+signatures = ["json_table(expr any, path varchar2) -> table"]
+doc = "Table function: rows and `COLUMNS (... PATH ...)` from JSON."
+
+[[functions]]
+name = "json_transform"
+signatures = ["json_transform(expr any, operation any, ...) -> json"]
+doc = "JSON modified by `SET`/`INSERT`/`REMOVE`/... operations (21c+)."
+
+[[functions]]
+name = "json_value"
+signatures = ["json_value(expr any, path varchar2) -> varchar2"]
+doc = "Scalar value selected from JSON (`RETURNING type` optional)."
+
+[[functions]]
+name = "existsnode"
+signatures = ["existsnode(xmltype_instance xmltype, xpath_string varchar2) -> number"]
+doc = "1 when the XPath selects a node (deprecated, use `xmlexists`)."
+
+[[functions]]
+name = "extractvalue"
+signatures = ["extractvalue(xmltype_instance xmltype, xpath_string varchar2) -> varchar2"]
+doc = "Scalar value of a node (deprecated, use `xmlquery`/`xmltable`)."
+
+[[functions]]
+name = "xmlagg"
+signatures = ["xmlagg(xmltype_instance xmltype) -> xmltype"]
+doc = "Aggregate: XML fragments concatenated (`ORDER BY` allowed)."
+
+[[functions]]
+name = "xmlattributes"
+signatures = ["xmlattributes(value_expr any, ...) -> any"]
+doc = "Attributes of an `xmlelement` (`value AS \"name\"`)."
+
+[[functions]]
+name = "xmlcast"
+signatures = ["xmlcast(value_expr xmltype, datatype type) -> any"]
+doc = "`XMLCAST(x AS type)`: XML value cast to a SQL type."
+
+[[functions]]
+name = "xmlcdata"
+signatures = ["xmlcdata(value_expr varchar2) -> xmltype"]
+doc = "CDATA section."
+
+[[functions]]
+name = "xmlcomment"
+signatures = ["xmlcomment(value_expr varchar2) -> xmltype"]
+doc = "XML comment."
+
+[[functions]]
+name = "xmlconcat"
+signatures = ["xmlconcat(xmltype_instance xmltype, ...) -> xmltype"]
+doc = "XML values concatenated."
+
+[[functions]]
+name = "xmlelement"
+signatures = ["xmlelement(name identifier, value_expr any, ...) -> xmltype"]
+doc = "XML element (`xmlelement(\"emp\", xmlattributes(...), ...)`)."
+
+[[functions]]
+name = "xmlexists"
+signatures = ["xmlexists(xquery_string varchar2) -> boolean"]
+doc = "Condition: true when the XQuery returns a non-empty sequence (`PASSING ...`)."
+
+[[functions]]
+name = "xmlforest"
+signatures = ["xmlforest(value_expr any, ...) -> xmltype"]
+doc = "Forest of XML elements, one per argument."
+
+[[functions]]
+name = "xmlparse"
+signatures = ["xmlparse(value_expr varchar2) -> xmltype"]
+doc = "`XMLPARSE(DOCUMENT|CONTENT s)`: text parsed into XML."
+
+[[functions]]
+name = "xmlquery"
+signatures = ["xmlquery(xquery_string varchar2) -> xmltype"]
+doc = "Result of an XQuery (`PASSING ... RETURNING CONTENT`)."
+
+[[functions]]
+name = "xmlserialize"
+signatures = ["xmlserialize(value_expr xmltype) -> clob"]
+doc = "`XMLSERIALIZE(DOCUMENT|CONTENT x AS type)`: XML serialized to text."
+
+[[functions]]
+name = "xmltable"
+signatures = ["xmltable(xquery_string varchar2) -> table"]
+doc = "Table function: rows and `COLUMNS (... PATH ...)` from XML."
+
+[[functions]]
+name = "xmltype"
+signatures = ["xmltype(xml_data varchar2) -> xmltype"]
+doc = "`XMLTYPE` constructor from text or a CLOB."
+
+[[functions]]
+name = "vector_distance"
+signatures = ["vector_distance(expr1 vector, expr2 vector) -> binary_double", "vector_distance(expr1 vector, expr2 vector, metric keyword) -> binary_double"]
+doc = "Distance (COSINE, EUCLIDEAN, DOT...) between two vectors."
+
+[[functions]]
+name = "cosine_distance"
+signatures = ["cosine_distance(expr1 vector, expr2 vector) -> binary_double"]
+doc = "Cosine distance between two vectors."
+
+[[functions]]
+name = "l2_distance"
+signatures = ["l2_distance(expr1 vector, expr2 vector) -> binary_double"]
+doc = "Euclidean distance between two vectors."
+
+[[functions]]
+name = "inner_product"
+signatures = ["inner_product(expr1 vector, expr2 vector) -> binary_double"]
+doc = "Dot product of two vectors."
+
+[[functions]]
+name = "to_vector"
+signatures = ["to_vector(expr varchar2) -> vector"]
+doc = "Text or BLOB converted to a `VECTOR`."
+
+[[functions]]
+name = "from_vector"
+signatures = ["from_vector(expr vector) -> varchar2"]
+doc = "`VECTOR` serialized to text."
+
+[[functions]]
+name = "vector_norm"
+signatures = ["vector_norm(expr vector) -> binary_double"]
+doc = "Euclidean norm of a vector."
+
+[[functions]]
+name = "vector_dimension_count"
+signatures = ["vector_dimension_count(expr vector) -> number"]
+doc = "Number of dimensions of a vector."
+
+[[functions]]
+name = "vector_dimension_format"
+signatures = ["vector_dimension_format(expr vector) -> varchar2"]
+doc = "Storage format (`INT8`, `FLOAT32`...) of a vector."
+
+[[functions]]
+name = "raise_application_error"
+signatures = ["raise_application_error(error_number pls_integer, message varchar2)", "raise_application_error(error_number pls_integer, message varchar2, keep_errors boolean)"]
+doc = "Procedure: raises a user error (-20000..-20999) with a message."
+
+[[functions]]
+name = "sqlcode"
+signatures = ["sqlcode() -> pls_integer"]
+doc = "Error number of the last exception (PL/SQL, written without parentheses)."
+
+[[functions]]
+name = "sqlerrm"
+signatures = ["sqlerrm() -> varchar2", "sqlerrm(error_number pls_integer) -> varchar2"]
+doc = "Error message of the last exception or of an error number (PL/SQL)."

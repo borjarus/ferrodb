@@ -1,0 +1,1060 @@
+# IBM Db2 for Linux, UNIX and Windows (Db2 LUW) 11.5 / 12.1.
+# Db2 lets most SQL words be identifiers; only the words that really break statements are reserved.
+id = "db2"
+name = "IBM Db2"
+inherits = "sql"
+identifier_quote = '"'
+case_folding = "upper"
+parser = ""
+
+keywords = [
+  "call", "current", "current_path", "current_schema", "current_server", "current_timezone",
+  "cursor", "declare", "execute", "lateral", "merge", "session_user", "system_user", "user",
+]
+
+soft_keywords = [
+  "activate", "alias", "always", "append", "atomic", "bufferpool", "business_time", "cache",
+  "called", "cardinality", "close", "compress", "concurrent", "condition", "connect", "cs",
+  "cube", "cycle", "dbinfo", "deferred", "describe", "deterministic", "distribution", "external",
+  "fenced", "generated", "handler", "hash", "history", "ignore", "immediate", "implicitly",
+  "include", "increment", "inout", "isolation", "iterate", "language", "leave", "lock",
+  "locksize", "logged", "loop", "maintained", "maxvalue", "minus", "minvalue", "mode", "modifies",
+  "next", "nextval", "nickname", "nocache", "nocycle", "noorder", "open", "optimization",
+  "organize", "package", "parameter", "partitioning", "period", "prepare", "prevval", "query",
+  "reads", "refresh", "release", "repeat", "resignal", "restart", "result", "return", "returns",
+  "revoke", "role", "rollup", "rr", "rs", "sets", "share", "signal", "specific", "sql",
+  "sqlstate", "start", "statement", "stogroup", "storage", "style", "system_time", "tablespace",
+  "until", "ur", "value", "versioning", "volatile", "while",
+]
+
+types = [
+  "binary", "binary large object", "binary varying", "blob", "char for bit data",
+  "character large object", "character varying", "clob", "dbclob", "dec", "decfloat", "double",
+  "graphic", "long varchar", "long vargraphic", "nchar", "nclob", "num", "nvarchar", "varbinary",
+  "varchar for bit data", "vargraphic", "xml",
+]
+
+[[functions]]
+name = "char"
+signatures = ["char(value any) -> char", "char(value any, length integer) -> char", "char(value date, format_name varchar) -> char"]
+doc = "Fixed-length character representation of a value (format `ISO`, `USA`, `EUR`, `JIS`, `LOCAL` for dates)."
+
+[[functions]]
+name = "varchar"
+signatures = ["varchar(value any) -> varchar", "varchar(value any, length integer) -> varchar"]
+doc = "Varying-length character representation of a value."
+
+[[functions]]
+name = "clob"
+signatures = ["clob(value any) -> clob", "clob(value any, length integer) -> clob"]
+doc = "CLOB representation of a character string."
+
+[[functions]]
+name = "blob"
+signatures = ["blob(value any) -> blob", "blob(value any, length integer) -> blob"]
+doc = "BLOB representation of a string."
+
+[[functions]]
+name = "smallint"
+signatures = ["smallint(value any) -> smallint"]
+doc = "Value converted to SMALLINT."
+
+[[functions]]
+name = "integer"
+signatures = ["integer(value any) -> integer"]
+doc = "Value converted to INTEGER."
+
+[[functions]]
+name = "bigint"
+signatures = ["bigint(value any) -> bigint"]
+doc = "Value converted to BIGINT."
+
+[[functions]]
+name = "decimal"
+signatures = ["decimal(value any) -> decimal", "decimal(value any, precision integer) -> decimal", "decimal(value any, precision integer, scale integer) -> decimal"]
+doc = "Value converted to DECIMAL with the given precision and scale."
+
+[[functions]]
+name = "decfloat"
+signatures = ["decfloat(value any) -> decfloat", "decfloat(value any, digits integer) -> decfloat"]
+doc = "Value converted to DECFLOAT(16) or DECFLOAT(34)."
+
+[[functions]]
+name = "double"
+signatures = ["double(value any) -> double"]
+doc = "Value converted to DOUBLE."
+
+[[functions]]
+name = "real"
+signatures = ["real(value any) -> real"]
+doc = "Value converted to REAL."
+
+[[functions]]
+name = "date"
+signatures = ["date(value any) -> date"]
+doc = "Date from a timestamp, a string or a day number."
+
+[[functions]]
+name = "time"
+signatures = ["time(value any) -> time"]
+doc = "Time from a timestamp or a string."
+
+[[functions]]
+name = "timestamp"
+signatures = ["timestamp(value any) -> timestamp", "timestamp(date date, time time) -> timestamp", "timestamp(value any, precision integer) -> timestamp"]
+doc = "Timestamp from a value, or from a date and a time."
+
+[[functions]]
+name = "timestamp_iso"
+signatures = ["timestamp_iso(value any) -> timestamp"]
+doc = "Timestamp from a date, time or timestamp (time-only values get the current date)."
+
+[[functions]]
+name = "varchar_format"
+signatures = ["varchar_format(value timestamp, format varchar) -> varchar", "varchar_format(value decfloat, format varchar) -> varchar"]
+doc = "Timestamp or number formatted with a format string (`'YYYY-MM-DD HH24:MI:SS'`)."
+
+[[functions]]
+name = "to_char"
+signatures = ["to_char(value timestamp, format varchar) -> varchar", "to_char(value decfloat, format varchar) -> varchar"]
+doc = "Formats a timestamp or number (synonym of `VARCHAR_FORMAT`)."
+
+[[functions]]
+name = "timestamp_format"
+signatures = ["timestamp_format(string varchar, format varchar) -> timestamp", "timestamp_format(string varchar, format varchar, precision integer) -> timestamp"]
+doc = "Parses a string into a timestamp using a format string."
+
+[[functions]]
+name = "to_date"
+signatures = ["to_date(string varchar, format varchar) -> timestamp"]
+doc = "Parses a string into a timestamp (synonym of `TIMESTAMP_FORMAT`)."
+
+[[functions]]
+name = "to_timestamp"
+signatures = ["to_timestamp(string varchar, format varchar) -> timestamp"]
+doc = "Parses a string into a timestamp (synonym of `TIMESTAMP_FORMAT`)."
+
+[[functions]]
+name = "to_number"
+signatures = ["to_number(string varchar) -> decfloat", "to_number(string varchar, format varchar) -> decfloat"]
+doc = "Parses a string into a DECFLOAT(34) number."
+
+[[functions]]
+name = "days"
+signatures = ["days(value date) -> bigint"]
+doc = "Day number of a date (days since 0001-01-01, plus one)."
+
+[[functions]]
+name = "days_between"
+signatures = ["days_between(value1 timestamp, value2 timestamp) -> integer"]
+doc = "Number of full days between two dates or timestamps."
+
+[[functions]]
+name = "hours_between"
+signatures = ["hours_between(value1 timestamp, value2 timestamp) -> integer"]
+doc = "Number of full hours between two timestamps."
+
+[[functions]]
+name = "minutes_between"
+signatures = ["minutes_between(value1 timestamp, value2 timestamp) -> bigint"]
+doc = "Number of full minutes between two timestamps."
+
+[[functions]]
+name = "seconds_between"
+signatures = ["seconds_between(value1 timestamp, value2 timestamp) -> bigint"]
+doc = "Number of full seconds between two timestamps."
+
+[[functions]]
+name = "weeks_between"
+signatures = ["weeks_between(value1 timestamp, value2 timestamp) -> integer"]
+doc = "Number of full weeks between two dates or timestamps."
+
+[[functions]]
+name = "months_between"
+signatures = ["months_between(value1 timestamp, value2 timestamp) -> decimal"]
+doc = "Estimated number of months between two dates (with a fractional part)."
+
+[[functions]]
+name = "years_between"
+signatures = ["years_between(value1 timestamp, value2 timestamp) -> integer"]
+doc = "Number of full years between two dates or timestamps."
+
+[[functions]]
+name = "timestampdiff"
+signatures = ["timestampdiff(interval_code integer, duration char) -> integer"]
+doc = "Estimated number of intervals (2=seconds ... 256=years) in a timestamp-difference string."
+
+[[functions]]
+name = "add_days"
+signatures = ["add_days(value timestamp, days integer) -> timestamp"]
+doc = "Date or timestamp plus a number of days."
+
+[[functions]]
+name = "add_hours"
+signatures = ["add_hours(value timestamp, hours integer) -> timestamp"]
+doc = "Timestamp plus a number of hours."
+
+[[functions]]
+name = "add_minutes"
+signatures = ["add_minutes(value timestamp, minutes integer) -> timestamp"]
+doc = "Timestamp plus a number of minutes."
+
+[[functions]]
+name = "add_seconds"
+signatures = ["add_seconds(value timestamp, seconds decimal) -> timestamp"]
+doc = "Timestamp plus a number of seconds."
+
+[[functions]]
+name = "add_months"
+signatures = ["add_months(value date, months integer) -> date"]
+doc = "Date plus a number of months (end of month is kept)."
+
+[[functions]]
+name = "add_years"
+signatures = ["add_years(value timestamp, years integer) -> timestamp"]
+doc = "Date or timestamp plus a number of years."
+
+[[functions]]
+name = "last_day"
+signatures = ["last_day(value date) -> date"]
+doc = "Last day of the month of the date."
+
+[[functions]]
+name = "next_day"
+signatures = ["next_day(value date, day_name varchar) -> date"]
+doc = "First date after the given one that falls on the named weekday."
+
+[[functions]]
+name = "this_month"
+signatures = ["this_month(value date) -> date"]
+doc = "First day of the month of the date."
+
+[[functions]]
+name = "this_quarter"
+signatures = ["this_quarter(value date) -> date"]
+doc = "First day of the quarter of the date."
+
+[[functions]]
+name = "this_week"
+signatures = ["this_week(value date) -> date"]
+doc = "First day of the week of the date."
+
+[[functions]]
+name = "this_year"
+signatures = ["this_year(value date) -> date"]
+doc = "First day of the year of the date."
+
+[[functions]]
+name = "year"
+signatures = ["year(value any) -> integer"]
+doc = "Year part of a date or timestamp."
+
+[[functions]]
+name = "quarter"
+signatures = ["quarter(value any) -> integer"]
+doc = "Quarter (1-4) of a date."
+
+[[functions]]
+name = "month"
+signatures = ["month(value any) -> integer"]
+doc = "Month part of a date or timestamp."
+
+[[functions]]
+name = "week"
+signatures = ["week(value any) -> integer"]
+doc = "Week of the year (1-54, weeks start on Sunday)."
+
+[[functions]]
+name = "week_iso"
+signatures = ["week_iso(value any) -> integer"]
+doc = "ISO 8601 week of the year (1-53)."
+
+[[functions]]
+name = "day"
+signatures = ["day(value any) -> integer"]
+doc = "Day-of-month part of a date or timestamp."
+
+[[functions]]
+name = "dayname"
+signatures = ["dayname(value any) -> varchar"]
+doc = "Name of the weekday of a date."
+
+[[functions]]
+name = "monthname"
+signatures = ["monthname(value any) -> varchar"]
+doc = "Name of the month of a date."
+
+[[functions]]
+name = "dayofweek"
+signatures = ["dayofweek(value any) -> integer"]
+doc = "Day of the week (1 = Sunday ... 7 = Saturday)."
+
+[[functions]]
+name = "dayofweek_iso"
+signatures = ["dayofweek_iso(value any) -> integer"]
+doc = "ISO day of the week (1 = Monday ... 7 = Sunday)."
+
+[[functions]]
+name = "dayofyear"
+signatures = ["dayofyear(value any) -> integer"]
+doc = "Day of the year (1-366)."
+
+[[functions]]
+name = "hour"
+signatures = ["hour(value any) -> integer"]
+doc = "Hour part of a time or timestamp."
+
+[[functions]]
+name = "minute"
+signatures = ["minute(value any) -> integer"]
+doc = "Minute part of a time or timestamp."
+
+[[functions]]
+name = "second"
+signatures = ["second(value any) -> integer", "second(value any, scale integer) -> decimal"]
+doc = "Seconds part of a time or timestamp (optionally with fractional digits)."
+
+[[functions]]
+name = "microsecond"
+signatures = ["microsecond(value any) -> integer"]
+doc = "Microsecond part of a timestamp."
+
+[[functions]]
+name = "julian_day"
+signatures = ["julian_day(value any) -> integer"]
+doc = "Days since January 1, 4713 B.C. (Julian day number)."
+
+[[functions]]
+name = "midnight_seconds"
+signatures = ["midnight_seconds(value any) -> integer"]
+doc = "Seconds between midnight and the given time."
+
+[[functions]]
+name = "trunc_timestamp"
+signatures = ["trunc_timestamp(value timestamp) -> timestamp", "trunc_timestamp(value timestamp, format varchar) -> timestamp"]
+doc = "Timestamp truncated to the unit of the format (`'DD'`, `'MM'`, `'YYYY'`...)."
+
+[[functions]]
+name = "round_timestamp"
+signatures = ["round_timestamp(value timestamp) -> timestamp", "round_timestamp(value timestamp, format varchar) -> timestamp"]
+doc = "Timestamp rounded to the unit of the format."
+
+[[functions]]
+name = "from_utc_timestamp"
+signatures = ["from_utc_timestamp(value timestamp, time_zone varchar) -> timestamp"]
+doc = "UTC timestamp converted to the given time zone."
+
+[[functions]]
+name = "to_utc_timestamp"
+signatures = ["to_utc_timestamp(value timestamp, time_zone varchar) -> timestamp"]
+doc = "Timestamp in the given time zone converted to UTC."
+
+[[functions]]
+name = "value"
+signatures = ["value(expression any, expression2 any, ...) -> any"]
+doc = "The first non-null argument (synonym of `COALESCE`)."
+
+[[functions]]
+name = "nvl"
+signatures = ["nvl(expression any, replacement any) -> any"]
+doc = "The first argument, or the second when the first is null."
+
+[[functions]]
+name = "nvl2"
+signatures = ["nvl2(expression any, not_null_value any, null_value any) -> any"]
+doc = "Second argument when the first is not null, otherwise the third."
+
+[[functions]]
+name = "decode"
+signatures = ["decode(expression any, search any, result any, ...) -> any"]
+doc = "Compares an expression with search values and returns the matching result (last odd argument is the default)."
+
+[[functions]]
+name = "greatest"
+signatures = ["greatest(value any, value2 any, ...) -> any"]
+doc = "Largest value of the list."
+
+[[functions]]
+name = "least"
+signatures = ["least(value any, value2 any, ...) -> any"]
+doc = "Smallest value of the list."
+
+[[functions]]
+name = "length"
+signatures = ["length(value any) -> integer", "length(value any, unit keyword) -> integer"]
+doc = "Length of a string in bytes or code units, or of a value in bytes."
+
+[[functions]]
+name = "character_length"
+signatures = ["character_length(string varchar) -> integer"]
+doc = "Length of a string in characters."
+
+[[functions]]
+name = "octet_length"
+signatures = ["octet_length(string varchar) -> integer"]
+doc = "Length of a string in bytes."
+
+[[functions]]
+name = "concat"
+signatures = ["concat(string1 varchar, string2 varchar) -> varchar"]
+doc = "Concatenation of two strings (same as the concatenation operator)."
+
+[[functions]]
+name = "substr"
+signatures = ["substr(string varchar, start integer) -> varchar", "substr(string varchar, start integer, length integer) -> varchar"]
+doc = "Substring starting at a byte position, optionally of a given length."
+
+[[functions]]
+name = "substring"
+signatures = ["substring(string varchar, start integer) -> varchar", "substring(string varchar, start integer, length integer) -> varchar"]
+doc = "Substring in characters (also `SUBSTRING(s FROM n FOR m USING CODEUNITS32)`)."
+
+[[functions]]
+name = "left"
+signatures = ["left(string varchar, length integer) -> varchar"]
+doc = "The leftmost characters of a string."
+
+[[functions]]
+name = "right"
+signatures = ["right(string varchar, length integer) -> varchar"]
+doc = "The rightmost characters of a string."
+
+[[functions]]
+name = "lpad"
+signatures = ["lpad(string varchar, length integer) -> varchar", "lpad(string varchar, length integer, pad varchar) -> varchar"]
+doc = "String padded on the left to the given length."
+
+[[functions]]
+name = "rpad"
+signatures = ["rpad(string varchar, length integer) -> varchar", "rpad(string varchar, length integer, pad varchar) -> varchar"]
+doc = "String padded on the right to the given length."
+
+[[functions]]
+name = "repeat"
+signatures = ["repeat(string varchar, count integer) -> varchar"]
+doc = "String repeated `count` times."
+
+[[functions]]
+name = "space"
+signatures = ["space(count integer) -> varchar"]
+doc = "String of `count` blanks."
+
+[[functions]]
+name = "insert"
+signatures = ["insert(source varchar, start integer, length integer, insert_string varchar) -> varchar"]
+doc = "Deletes `length` characters at `start` and inserts a string there."
+
+[[functions]]
+name = "overlay"
+signatures = ["overlay(source varchar, insert_string varchar, start integer) -> varchar", "overlay(source varchar, insert_string varchar, start integer, length integer) -> varchar"]
+doc = "Replaces part of a string (also `OVERLAY(s PLACING x FROM n FOR m)`)."
+
+[[functions]]
+name = "translate"
+signatures = ["translate(string varchar) -> varchar", "translate(string varchar, to_chars varchar, from_chars varchar) -> varchar", "translate(string varchar, to_chars varchar, from_chars varchar, pad varchar) -> varchar"]
+doc = "Replaces characters of `from_chars` by the matching ones of `to_chars` (one argument: upper-cases)."
+
+[[functions]]
+name = "strip"
+signatures = ["strip(string varchar) -> varchar"]
+doc = "Removes leading and trailing blanks (also `STRIP(s, LEADING, 'x')`)."
+
+[[functions]]
+name = "ltrim"
+signatures = ["ltrim(string varchar) -> varchar", "ltrim(string varchar, trim_chars varchar) -> varchar"]
+doc = "Removes leading blanks or the given characters."
+
+[[functions]]
+name = "rtrim"
+signatures = ["rtrim(string varchar) -> varchar", "rtrim(string varchar, trim_chars varchar) -> varchar"]
+doc = "Removes trailing blanks or the given characters."
+
+[[functions]]
+name = "lcase"
+signatures = ["lcase(string varchar) -> varchar"]
+doc = "String converted to lower case (synonym of `LOWER`)."
+
+[[functions]]
+name = "ucase"
+signatures = ["ucase(string varchar) -> varchar"]
+doc = "String converted to upper case (synonym of `UPPER`)."
+
+[[functions]]
+name = "initcap"
+signatures = ["initcap(string varchar) -> varchar"]
+doc = "String with the first letter of each word upper-cased."
+
+[[functions]]
+name = "posstr"
+signatures = ["posstr(source varchar, search varchar) -> integer"]
+doc = "Position of the first occurrence of `search` in `source` (0 if absent)."
+
+[[functions]]
+name = "position"
+signatures = ["position(search varchar, source varchar) -> integer"]
+doc = "Position of `search` in `source` (also `POSITION(x IN s USING CODEUNITS32)`)."
+
+[[functions]]
+name = "locate"
+signatures = ["locate(search varchar, source varchar) -> integer", "locate(search varchar, source varchar, start integer) -> integer"]
+doc = "Position of `search` in `source`, optionally from a start position."
+
+[[functions]]
+name = "locate_in_string"
+signatures = ["locate_in_string(source varchar, search varchar) -> integer", "locate_in_string(source varchar, search varchar, start integer) -> integer", "locate_in_string(source varchar, search varchar, start integer, instance integer) -> integer"]
+doc = "Position of the n-th occurrence of `search`; a negative start searches backwards."
+
+[[functions]]
+name = "instr"
+signatures = ["instr(source varchar, search varchar) -> integer", "instr(source varchar, search varchar, start integer) -> integer", "instr(source varchar, search varchar, start integer, instance integer) -> integer"]
+doc = "Position of a substring (synonym of `LOCATE_IN_STRING`)."
+
+[[functions]]
+name = "ascii"
+signatures = ["ascii(string varchar) -> integer"]
+doc = "Code of the leftmost character."
+
+[[functions]]
+name = "chr"
+signatures = ["chr(code integer) -> char"]
+doc = "Character with the given code."
+
+[[functions]]
+name = "digits"
+signatures = ["digits(value decimal) -> char"]
+doc = "Absolute value of a number as a string of digits, zero padded, no sign or point."
+
+[[functions]]
+name = "hex"
+signatures = ["hex(value any) -> varchar"]
+doc = "Hexadecimal representation of a value."
+
+[[functions]]
+name = "hextoraw"
+signatures = ["hextoraw(string varchar) -> varbinary"]
+doc = "Binary string from a hexadecimal string."
+
+[[functions]]
+name = "rawtohex"
+signatures = ["rawtohex(value varbinary) -> varchar"]
+doc = "Hexadecimal string from a binary value."
+
+[[functions]]
+name = "soundex"
+signatures = ["soundex(string varchar) -> char"]
+doc = "Four-character Soundex code of a string."
+
+[[functions]]
+name = "difference"
+signatures = ["difference(string1 varchar, string2 varchar) -> integer"]
+doc = "Similarity (0-4) of the Soundex codes of two strings."
+
+[[functions]]
+name = "generate_unique"
+signatures = ["generate_unique() -> char"]
+doc = "Unique 13-byte bit-data value based on the current time."
+
+[[functions]]
+name = "regexp_like"
+signatures = ["regexp_like(source varchar, pattern varchar) -> boolean", "regexp_like(source varchar, pattern varchar, flags varchar) -> boolean", "regexp_like(source varchar, pattern varchar, start integer, flags varchar) -> boolean"]
+doc = "Whether the regular expression matches the string (predicate)."
+
+[[functions]]
+name = "regexp_substr"
+signatures = ["regexp_substr(source varchar, pattern varchar) -> varchar", "regexp_substr(source varchar, pattern varchar, start integer) -> varchar", "regexp_substr(source varchar, pattern varchar, start integer, occurrence integer) -> varchar", "regexp_substr(source varchar, pattern varchar, start integer, occurrence integer, flags varchar) -> varchar"]
+doc = "Substring matching a regular expression (alias `REGEXP_EXTRACT`)."
+
+[[functions]]
+name = "regexp_replace"
+signatures = ["regexp_replace(source varchar, pattern varchar) -> varchar", "regexp_replace(source varchar, pattern varchar, replacement varchar) -> varchar", "regexp_replace(source varchar, pattern varchar, replacement varchar, start integer) -> varchar", "regexp_replace(source varchar, pattern varchar, replacement varchar, start integer, occurrence integer, flags varchar) -> varchar"]
+doc = "String with matches of a regular expression replaced (occurrence 0 = all)."
+
+[[functions]]
+name = "regexp_count"
+signatures = ["regexp_count(source varchar, pattern varchar) -> integer", "regexp_count(source varchar, pattern varchar, start integer) -> integer", "regexp_count(source varchar, pattern varchar, start integer, flags varchar) -> integer"]
+doc = "Number of matches of a regular expression (alias `REGEXP_MATCH_COUNT`)."
+
+[[functions]]
+name = "regexp_instr"
+signatures = ["regexp_instr(source varchar, pattern varchar) -> integer", "regexp_instr(source varchar, pattern varchar, start integer) -> integer", "regexp_instr(source varchar, pattern varchar, start integer, occurrence integer) -> integer", "regexp_instr(source varchar, pattern varchar, start integer, occurrence integer, return_option integer, flags varchar) -> integer"]
+doc = "Position of a match of a regular expression."
+
+[[functions]]
+name = "absval"
+signatures = ["absval(x numeric) -> numeric"]
+doc = "Absolute value (synonym of `ABS`)."
+
+[[functions]]
+name = "acos"
+signatures = ["acos(x double) -> double"]
+doc = "Arc cosine in radians."
+
+[[functions]]
+name = "asin"
+signatures = ["asin(x double) -> double"]
+doc = "Arc sine in radians."
+
+[[functions]]
+name = "atan"
+signatures = ["atan(x double) -> double"]
+doc = "Arc tangent in radians."
+
+[[functions]]
+name = "atan2"
+signatures = ["atan2(x double, y double) -> double"]
+doc = "Arc tangent of `y/x` in radians."
+
+[[functions]]
+name = "ceil"
+signatures = ["ceil(x numeric) -> numeric"]
+doc = "Smallest integer not less than the argument."
+
+[[functions]]
+name = "ceiling"
+signatures = ["ceiling(x numeric) -> numeric"]
+doc = "Smallest integer not less than the argument."
+
+[[functions]]
+name = "cos"
+signatures = ["cos(x double) -> double"]
+doc = "Cosine of an angle in radians."
+
+[[functions]]
+name = "cosh"
+signatures = ["cosh(x double) -> double"]
+doc = "Hyperbolic cosine."
+
+[[functions]]
+name = "cot"
+signatures = ["cot(x double) -> double"]
+doc = "Cotangent of an angle in radians."
+
+[[functions]]
+name = "degrees"
+signatures = ["degrees(x double) -> double"]
+doc = "Radians converted to degrees."
+
+[[functions]]
+name = "exp"
+signatures = ["exp(x double) -> double"]
+doc = "e raised to the power of the argument."
+
+[[functions]]
+name = "floor"
+signatures = ["floor(x numeric) -> numeric"]
+doc = "Largest integer not greater than the argument."
+
+[[functions]]
+name = "ln"
+signatures = ["ln(x double) -> double"]
+doc = "Natural logarithm."
+
+[[functions]]
+name = "log10"
+signatures = ["log10(x double) -> double"]
+doc = "Base-10 logarithm."
+
+[[functions]]
+name = "mod"
+signatures = ["mod(dividend numeric, divisor numeric) -> numeric"]
+doc = "Remainder of the division."
+
+[[functions]]
+name = "power"
+signatures = ["power(base numeric, exponent numeric) -> numeric"]
+doc = "`base` raised to the power of `exponent`."
+
+[[functions]]
+name = "radians"
+signatures = ["radians(x double) -> double"]
+doc = "Degrees converted to radians."
+
+[[functions]]
+name = "rand"
+signatures = ["rand() -> double", "rand(seed integer) -> double"]
+doc = "Random number between 0 and 1."
+
+[[functions]]
+name = "sign"
+signatures = ["sign(x numeric) -> numeric"]
+doc = "Sign of the argument (-1, 0 or 1)."
+
+[[functions]]
+name = "sin"
+signatures = ["sin(x double) -> double"]
+doc = "Sine of an angle in radians."
+
+[[functions]]
+name = "sinh"
+signatures = ["sinh(x double) -> double"]
+doc = "Hyperbolic sine."
+
+[[functions]]
+name = "sqrt"
+signatures = ["sqrt(x double) -> double"]
+doc = "Square root."
+
+[[functions]]
+name = "tan"
+signatures = ["tan(x double) -> double"]
+doc = "Tangent of an angle in radians."
+
+[[functions]]
+name = "tanh"
+signatures = ["tanh(x double) -> double"]
+doc = "Hyperbolic tangent."
+
+[[functions]]
+name = "trunc"
+signatures = ["trunc(x numeric) -> numeric", "trunc(x numeric, digits integer) -> numeric", "trunc(value timestamp, format varchar) -> timestamp"]
+doc = "Number truncated to `digits` decimal places, or a datetime truncated to a unit."
+
+[[functions]]
+name = "truncate"
+signatures = ["truncate(x numeric, digits integer) -> numeric"]
+doc = "Number truncated to `digits` decimal places."
+
+[[functions]]
+name = "bitand"
+signatures = ["bitand(x bigint, y bigint) -> bigint"]
+doc = "Bitwise AND."
+
+[[functions]]
+name = "bitor"
+signatures = ["bitor(x bigint, y bigint) -> bigint"]
+doc = "Bitwise OR."
+
+[[functions]]
+name = "bitxor"
+signatures = ["bitxor(x bigint, y bigint) -> bigint"]
+doc = "Bitwise exclusive OR."
+
+[[functions]]
+name = "bitandnot"
+signatures = ["bitandnot(x bigint, y bigint) -> bigint"]
+doc = "Bitwise AND of `x` with the complement of `y`."
+
+[[functions]]
+name = "bitnot"
+signatures = ["bitnot(x bigint) -> bigint"]
+doc = "Bitwise complement."
+
+[[functions]]
+name = "quantize"
+signatures = ["quantize(x decfloat, exp_source decfloat) -> decfloat"]
+doc = "DECFLOAT rounded to the exponent of the second argument."
+
+[[functions]]
+name = "hash_md5"
+signatures = ["hash_md5(value any) -> binary"]
+doc = "MD5 hash of a value (16 bytes)."
+
+[[functions]]
+name = "hash_sha1"
+signatures = ["hash_sha1(value any) -> binary"]
+doc = "SHA-1 hash of a value (20 bytes)."
+
+[[functions]]
+name = "hash_sha256"
+signatures = ["hash_sha256(value any) -> binary"]
+doc = "SHA-256 hash of a value (32 bytes)."
+
+[[functions]]
+name = "count_big"
+signatures = ["count_big(expression any) -> decimal", "count_big(*) -> decimal"]
+doc = "Number of rows as DECIMAL(31,0)."
+
+[[functions]]
+name = "listagg"
+signatures = ["listagg(expression varchar) -> varchar", "listagg(expression varchar, separator varchar) -> varchar"]
+doc = "Concatenates values with a separator (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "array_agg"
+signatures = ["array_agg(expression any) -> array"]
+doc = "Values aggregated into an array."
+
+[[functions]]
+name = "median"
+signatures = ["median(expression numeric) -> double"]
+doc = "Median of the values."
+
+[[functions]]
+name = "percentile_cont"
+signatures = ["percentile_cont(fraction double) -> double"]
+doc = "Interpolated percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "percentile_disc"
+signatures = ["percentile_disc(fraction double) -> any"]
+doc = "Discrete percentile (`WITHIN GROUP (ORDER BY ...)`)."
+
+[[functions]]
+name = "stddev"
+signatures = ["stddev(expression double) -> double"]
+doc = "Population standard deviation (synonym of `STDDEV_POP`)."
+
+[[functions]]
+name = "stddev_pop"
+signatures = ["stddev_pop(expression double) -> double"]
+doc = "Population standard deviation."
+
+[[functions]]
+name = "stddev_samp"
+signatures = ["stddev_samp(expression double) -> double"]
+doc = "Sample standard deviation."
+
+[[functions]]
+name = "variance"
+signatures = ["variance(expression double) -> double"]
+doc = "Population variance."
+
+[[functions]]
+name = "var_pop"
+signatures = ["var_pop(expression double) -> double"]
+doc = "Population variance."
+
+[[functions]]
+name = "variance_samp"
+signatures = ["variance_samp(expression double) -> double"]
+doc = "Sample variance."
+
+[[functions]]
+name = "var_samp"
+signatures = ["var_samp(expression double) -> double"]
+doc = "Sample variance."
+
+[[functions]]
+name = "covariance"
+signatures = ["covariance(x double, y double) -> double"]
+doc = "Population covariance of number pairs."
+
+[[functions]]
+name = "covariance_samp"
+signatures = ["covariance_samp(x double, y double) -> double"]
+doc = "Sample covariance of number pairs."
+
+[[functions]]
+name = "correlation"
+signatures = ["correlation(x double, y double) -> double"]
+doc = "Coefficient of correlation of number pairs."
+
+[[functions]]
+name = "regr_slope"
+signatures = ["regr_slope(y double, x double) -> double"]
+doc = "Slope of the least-squares regression line."
+
+[[functions]]
+name = "regr_intercept"
+signatures = ["regr_intercept(y double, x double) -> double"]
+doc = "Y-intercept of the least-squares regression line."
+
+[[functions]]
+name = "regr_r2"
+signatures = ["regr_r2(y double, x double) -> double"]
+doc = "Coefficient of determination of the regression."
+
+[[functions]]
+name = "regr_count"
+signatures = ["regr_count(y double, x double) -> integer"]
+doc = "Number of non-null number pairs used in the regression."
+
+[[functions]]
+name = "regr_avgx"
+signatures = ["regr_avgx(y double, x double) -> double"]
+doc = "Average of the independent variable."
+
+[[functions]]
+name = "regr_avgy"
+signatures = ["regr_avgy(y double, x double) -> double"]
+doc = "Average of the dependent variable."
+
+[[functions]]
+name = "regr_sxx"
+signatures = ["regr_sxx(y double, x double) -> double"]
+doc = "Sum of squares of the independent variable."
+
+[[functions]]
+name = "regr_syy"
+signatures = ["regr_syy(y double, x double) -> double"]
+doc = "Sum of squares of the dependent variable."
+
+[[functions]]
+name = "regr_sxy"
+signatures = ["regr_sxy(y double, x double) -> double"]
+doc = "Sum of products of the two variables."
+
+[[functions]]
+name = "grouping"
+signatures = ["grouping(expression any) -> smallint"]
+doc = "1 when the row is a super-aggregate for the expression (GROUPING SETS / ROLLUP / CUBE)."
+
+[[functions]]
+name = "xmlagg"
+signatures = ["xmlagg(element xml) -> xml"]
+doc = "Concatenation of XML values (optionally `ORDER BY`)."
+
+[[functions]]
+name = "row_number"
+signatures = ["row_number() -> bigint"]
+doc = "Number of the current row within its partition (window function)."
+
+[[functions]]
+name = "rank"
+signatures = ["rank() -> bigint"]
+doc = "Rank of the current row with gaps (window function)."
+
+[[functions]]
+name = "dense_rank"
+signatures = ["dense_rank() -> bigint"]
+doc = "Rank of the current row without gaps (window function)."
+
+[[functions]]
+name = "percent_rank"
+signatures = ["percent_rank() -> double"]
+doc = "Relative rank of the current row (window function)."
+
+[[functions]]
+name = "cume_dist"
+signatures = ["cume_dist() -> double"]
+doc = "Cumulative distribution of the current row (window function)."
+
+[[functions]]
+name = "ntile"
+signatures = ["ntile(buckets integer) -> integer"]
+doc = "Bucket number of the row when the partition is split into `buckets` groups."
+
+[[functions]]
+name = "lag"
+signatures = ["lag(value any) -> any", "lag(value any, offset integer) -> any", "lag(value any, offset integer, default any) -> any"]
+doc = "Value of a preceding row (window function)."
+
+[[functions]]
+name = "lead"
+signatures = ["lead(value any) -> any", "lead(value any, offset integer) -> any", "lead(value any, offset integer, default any) -> any"]
+doc = "Value of a following row (window function)."
+
+[[functions]]
+name = "first_value"
+signatures = ["first_value(value any) -> any"]
+doc = "Value of the first row of the window frame."
+
+[[functions]]
+name = "last_value"
+signatures = ["last_value(value any) -> any"]
+doc = "Value of the last row of the window frame."
+
+[[functions]]
+name = "nth_value"
+signatures = ["nth_value(value any, n integer) -> any"]
+doc = "Value of the n-th row of the window frame."
+
+[[functions]]
+name = "ratio_to_report"
+signatures = ["ratio_to_report(value numeric) -> decfloat"]
+doc = "Ratio of the value to the sum of values of the partition."
+
+[[functions]]
+name = "json_value"
+signatures = ["json_value(json_expression clob, path varchar) -> varchar"]
+doc = "Scalar SQL value extracted from JSON with an SQL/JSON path (`RETURNING` type optional)."
+
+[[functions]]
+name = "json_query"
+signatures = ["json_query(json_expression clob, path varchar) -> clob"]
+doc = "JSON object or array extracted with an SQL/JSON path."
+
+[[functions]]
+name = "json_exists"
+signatures = ["json_exists(json_expression clob, path varchar) -> boolean"]
+doc = "Whether the SQL/JSON path selects anything (predicate)."
+
+[[functions]]
+name = "json_object"
+signatures = ["json_object(key_value any, ...) -> clob"]
+doc = "JSON object from `KEY k VALUE v` pairs."
+
+[[functions]]
+name = "json_array"
+signatures = ["json_array(value any, ...) -> clob"]
+doc = "JSON array from values or a subquery."
+
+[[functions]]
+name = "json_arrayagg"
+signatures = ["json_arrayagg(value any) -> clob"]
+doc = "Values aggregated into a JSON array."
+
+[[functions]]
+name = "json_objectagg"
+signatures = ["json_objectagg(key_value any) -> clob"]
+doc = "`KEY k VALUE v` pairs aggregated into a JSON object."
+
+[[functions]]
+name = "json_to_bson"
+signatures = ["json_to_bson(json clob) -> blob"]
+doc = "JSON text converted to BSON."
+
+[[functions]]
+name = "bson_to_json"
+signatures = ["bson_to_json(bson blob) -> clob"]
+doc = "BSON converted to JSON text."
+
+[[functions]]
+name = "xmlparse"
+signatures = ["xmlparse(document varchar) -> xml"]
+doc = "Parses a string into an XML value (`XMLPARSE(DOCUMENT s)`)."
+
+[[functions]]
+name = "xmlserialize"
+signatures = ["xmlserialize(value xml) -> clob"]
+doc = "XML value serialized to a string (`XMLSERIALIZE(x AS CLOB)`)."
+
+[[functions]]
+name = "xmlelement"
+signatures = ["xmlelement(name any, ...) -> xml"]
+doc = "XML element (`XMLELEMENT(NAME \"e\", ...)`)."
+
+[[functions]]
+name = "xmlforest"
+signatures = ["xmlforest(value any, ...) -> xml"]
+doc = "Sequence of XML elements, one per argument."
+
+[[functions]]
+name = "xmlconcat"
+signatures = ["xmlconcat(value xml, value2 xml, ...) -> xml"]
+doc = "Concatenation of XML values."
+
+[[functions]]
+name = "xmlquery"
+signatures = ["xmlquery(expression varchar) -> xml"]
+doc = "Result of an XQuery expression (`PASSING ...`)."
+
+[[functions]]
+name = "cardinality"
+signatures = ["cardinality(array array) -> bigint"]
+doc = "Number of elements of an array."
+
+[[functions]]
+name = "max_cardinality"
+signatures = ["max_cardinality(array array) -> bigint"]
+doc = "Maximum number of elements an array can hold."
+
+[[functions]]
+name = "trim_array"
+signatures = ["trim_array(array array, count integer) -> array"]
+doc = "Array with the last `count` elements removed."
+
+[[functions]]
+name = "unnest"
+signatures = ["unnest(array array, ...) -> table"]
+doc = "Expands arrays into rows (table function)."
+
+[[functions]]
+name = "raise_error"
+signatures = ["raise_error(sqlstate varchar, message varchar) -> any"]
+doc = "Raises an error with the given SQLSTATE and message."
+
+[[functions]]
+name = "identity_val_local"
+signatures = ["identity_val_local() -> decimal"]
+doc = "Most recently assigned identity value of the session."
