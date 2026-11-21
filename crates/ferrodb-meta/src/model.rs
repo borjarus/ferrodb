@@ -527,6 +527,11 @@ pub struct Collection {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub definition: Option<String>,
+    /// Couchbase: the scope of the collection (the container is the
+    /// bucket); `None` for MongoDB.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

@@ -13,6 +13,7 @@
 //! v2 (phase 4b) adds the document model: [`run_documents`].
 
 mod documents;
+mod documents_sql;
 
 use std::time::{Duration, Instant};
 

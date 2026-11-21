@@ -57,7 +57,36 @@ const CONTAINERS: &[Container] = &[
         ],
         &[],
     ),
+    // DynamoDB Local (phase 8): in memory, shared by every region / key.
+    (
+        "ferrodb-tck-dynamodb",
+        "amazon/dynamodb-local:latest",
+        "56520:8000",
+        &[],
+        &["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"],
+    ),
+    // Couchbase Server community (phase 8): cluster manager on 56501, query
+    // service on 56503 (see `EXTRA_PORTS`); initialised by `init_couchbase`.
+    (
+        "ferrodb-tck-couchbase",
+        "couchbase/server:community",
+        "56501:8091",
+        &[],
+        &[],
+    ),
 ];
+
+/// Memory limits (`docker run -m`) of the heavier containers.
+const MEMORY: &[(&str, &str)] = &[
+    ("ferrodb-tck-dynamodb", "1g"),
+    ("ferrodb-tck-couchbase", "3g"),
+];
+
+/// Ports published besides the main one.
+const EXTRA_PORTS: &[(&str, &[&str])] = &[(
+    "ferrodb-tck-couchbase",
+    &["56502:8092", "56503:8093", "56511:18091", "56513:18093"],
+)];
 
 const NETWORK: &str = "ferrodb-tck";
 
@@ -120,11 +149,20 @@ pub fn up() -> Result<(), String> {
         for e in *env {
             c.args(["-e", e]);
         }
+        if let Some((_, m)) = MEMORY.iter().find(|(n, _)| n == name) {
+            c.args(["-m", m]);
+        }
+        for (_, ports) in EXTRA_PORTS.iter().filter(|(n, _)| n == name) {
+            for p in *ports {
+                c.args(["-p", p]);
+            }
+        }
         c.arg(image);
         c.args(*args);
         crate::run(&mut c)?;
     }
     init_mongo_replica_set();
+    init_couchbase();
     env_hint();
     Ok(())
 }
@@ -155,6 +193,91 @@ fn init_mongo_replica_set() {
     eprintln!("ferrodb-tck-mongo: replica set not initiated (is the container running?)");
 }
 
+/// Couchbase: cluster initialisation (data, index, query services), bucket
+/// `tck` (no replicas: transactions with durability on one node), scope
+/// `app`. Each step is skipped when already done (up to ~90 s for the
+/// server to start).
+#[allow(clippy::disallowed_methods)] // a command-line tool, not the UI thread
+fn init_couchbase() {
+    let cli = |args: &[&str]| {
+        let mut c = docker();
+        c.args([
+            "exec",
+            "ferrodb-tck-couchbase",
+            "/opt/couchbase/bin/couchbase-cli",
+        ]);
+        c.args(args);
+        c.output()
+            .map(|o| {
+                let out = String::from_utf8_lossy(&o.stdout).into_owned()
+                    + &String::from_utf8_lossy(&o.stderr);
+                (o.status.success(), out)
+            })
+            .unwrap_or((false, String::new()))
+    };
+    let auth = ["-c", "localhost", "-u", "Administrator", "-p", "ferrodb"];
+    let mut ready = false;
+    for _ in 0..45 {
+        let (ok, out) = cli(&[
+            "cluster-init",
+            "-c",
+            "localhost",
+            "--cluster-username",
+            "Administrator",
+            "--cluster-password",
+            "ferrodb",
+            "--services",
+            "data,index,query",
+            "--cluster-ramsize",
+            "768",
+            "--cluster-index-ramsize",
+            "256",
+            "--index-storage-setting",
+            "default",
+        ]);
+        if ok || out.contains("already initialized") || out.contains("already been initialized") {
+            ready = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+    if !ready {
+        eprintln!("ferrodb-tck-couchbase: cluster not initialised (is the container running?)");
+        return;
+    }
+    let mut steps: Vec<Vec<&str>> = vec![
+        vec![
+            "bucket-create",
+            "--bucket",
+            "tck",
+            "--bucket-type",
+            "couchbase",
+            "--storage-backend",
+            "couchstore",
+            "--bucket-ramsize",
+            "256",
+            "--bucket-replica",
+            "0",
+            "--wait",
+        ],
+        vec![
+            "collection-manage",
+            "--bucket",
+            "tck",
+            "--create-scope",
+            "app",
+        ],
+    ];
+    for s in &mut steps {
+        s.extend_from_slice(&auth);
+        let (ok, out) = cli(s);
+        if !ok && !out.contains("already exists") {
+            eprintln!("ferrodb-tck-couchbase: {}: {}", s[0], out.trim());
+        }
+    }
+    eprintln!("ferrodb-tck-couchbase: cluster, bucket tck and scope app ready");
+}
+
 pub fn down() -> Result<(), String> {
     for (name, ..) in CONTAINERS {
         let _ = crate::run(docker().args(["rm", "-f", name]));
@@ -181,6 +304,11 @@ pub fn env_vars() -> Vec<(String, String)> {
         (
             "FERRODB_TCK_MONGODB".into(),
             format!("mongodb://{h}:57017/tck?directConnection=true"),
+        ),
+        ("FERRODB_TCK_DYNAMODB".into(), format!("http://{h}:56520")),
+        (
+            "FERRODB_TCK_COUCHBASE".into(),
+            format!("couchbase://Administrator:ferrodb@{h}:56503/tck?mgmt_port=56501&scope=app"),
         ),
         (
             "FERRODB_TEST_SSH".into(),

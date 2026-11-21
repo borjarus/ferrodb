@@ -11,6 +11,8 @@
 //! - [`import`] — readers for CSV/TSV, XLSX, Parquet and JSON, and the
 //!   source → target column [`import::Mapping`];
 //! - [`docs`] — rows ↔ documents (copying between data models);
+//! - [`doc_edit`] — document edits as SQL++ (Couchbase) and PartiQL
+//!   (DynamoDB) statements;
 //! - [`compare`] — comparing two results;
 //! - [`chart`] — chart series and selection aggregates;
 //! - [`plan`] — execution plans of each database → the shared plan model.
@@ -20,6 +22,7 @@
 
 pub mod chart;
 pub mod compare;
+pub mod doc_edit;
 pub mod docs;
 pub mod edit;
 pub mod export;

@@ -23,6 +23,8 @@ pub(crate) enum Format {
     SqliteRows,
     DuckJson,
     Mongo,
+    /// Couchbase `EXPLAIN` row / profiled run (documents).
+    Couchbase,
 }
 
 /// What the session runs for a plan.
@@ -64,6 +66,9 @@ pub(crate) fn request(dialect: &str, mql: bool, stmt: &str, analyze: bool) -> Re
         ));
     }
     let stmt = stmt.trim().trim_end_matches(';').trim().to_owned();
+    if dialect == "sqlpp" {
+        return couchbase_request(stmt, analyze);
+    }
     let (text, format) = match dialect {
         "postgresql" | "greenplum" => (
             if analyze {
@@ -110,6 +115,27 @@ pub(crate) fn request(dialect: &str, mql: bool, stmt: &str, analyze: bool) -> Re
         statement: text,
         format,
         measure,
+    })
+}
+
+/// Couchbase: `EXPLAIN` (the plan the query service would run); with
+/// `analyze` the statement runs with `profile=timings` and its rows are
+/// discarded (profiling needs Couchbase Enterprise Edition).
+fn couchbase_request(stmt: String, analyze: bool) -> Result<Explain> {
+    if analyze {
+        return Ok(Explain {
+            request: Request::native("profile", &[("statement", &stmt)]),
+            statement: stmt,
+            format: Format::Couchbase,
+            measure: None,
+        });
+    }
+    let text = format!("EXPLAIN {stmt}");
+    Ok(Explain {
+        request: Request::Text { text: text.clone() },
+        statement: text,
+        format: Format::Couchbase,
+        measure: None,
     })
 }
 
@@ -273,6 +299,22 @@ pub(crate) fn parse(format: Format, out: &CollectedOutput) -> Result<ExecutionPl
                 .map_err(|e| Error::Other(format!("explain output: {e}")))?;
             plan::mongo(&Bson::Document(d).into_relaxed_extjson()).map_err(bad)
         }
+        Format::Couchbase => {
+            let raw = out
+                .documents
+                .first()
+                .ok_or_else(|| Error::Other("EXPLAIN returned no plan".into()))?;
+            let d =
+                Document::try_from(raw.as_ref()).map_err(|e| Error::Other(format!("plan: {e}")))?;
+            if d.contains_key("rows") && !d.contains_key("profile") {
+                return Err(Error::Unsupported(
+                    "actual timings: the server returned no profile (profiling needs \
+                     Couchbase Enterprise Edition); use the estimated plan"
+                        .into(),
+                ));
+            }
+            plan::couchbase_json(&Bson::Document(d).into_relaxed_extjson()).map_err(bad)
+        }
     }
 }
 
@@ -309,6 +351,12 @@ mod tests {
         assert!(request("postgresql", false, "delete from t", true).is_err());
         assert!(request("postgresql", false, "delete from t", false).is_ok());
         assert!(request("tsql", false, "select 1", false).is_err());
+        let e = request("sqlpp", false, "SELECT * FROM b;", false).unwrap();
+        assert_eq!(e.statement, "EXPLAIN SELECT * FROM b");
+        assert_eq!(e.format, Format::Couchbase);
+        let e = request("sqlpp", false, "SELECT 1", true).unwrap();
+        assert!(matches!(e.request, Request::Native { .. }));
+        assert!(request("partiql", false, "SELECT * FROM t", false).is_err());
         assert_eq!(
             first_statement("select 1; select 2", "postgresql", false).as_deref(),
             Some("select 1")

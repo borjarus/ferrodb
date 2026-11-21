@@ -9,6 +9,7 @@
 //! | SQLite | `EXPLAIN QUERY PLAN` rows | the same, plus the measured run |
 //! | MongoDB | `explain` (`queryPlanner`) | `explain` (`executionStats`) |
 //! | DuckDB | `EXPLAIN (FORMAT JSON)` | `EXPLAIN (ANALYZE, FORMAT JSON)` |
+//! | Couchbase | `EXPLAIN` | a run with `profile=timings` (Enterprise Edition) |
 //!
 //! Warnings are added here, the same way for every database: full scans of
 //! large inputs, sorts and temporary tables, estimates far off the actual
@@ -16,6 +17,9 @@
 
 use ferrodb_api::{ExecutionPlan, PlanNode};
 use serde_json::{Map, Value};
+
+mod couchbase;
+pub use couchbase::couchbase_json;
 
 /// Rows below which a full scan is not worth a warning.
 pub const SCAN_WARNING_ROWS: u64 = 1000;

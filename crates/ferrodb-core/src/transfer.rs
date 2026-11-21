@@ -264,7 +264,10 @@ impl Inner {
                     [(_, n)] => (None, n.clone()),
                     _ => return Err(Error::Other("choose a table or collection".into())),
                 };
-                let request = if is_mql(&lang) {
+                let request = if let Some(text) = crate::documents::select_all(&lang, &node) {
+                    // Couchbase collection / DynamoDB table (phase 8).
+                    Request::Text { text }
+                } else if is_mql(&lang) {
                     let db = container.clone().unwrap_or_default();
                     Request::Mql(Command::on(
                         db,

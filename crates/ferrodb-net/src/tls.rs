@@ -146,6 +146,51 @@ impl ServerCertVerifier for NoVerifier {
     }
 }
 
+/// [`client_config`] that also presents a client certificate (X.509
+/// authentication). `cert_file` is PEM with the certificate chain and the
+/// private key (one file, as MongoDB and Couchbase tools expect).
+pub fn client_config_with_cert(
+    mode: TlsMode,
+    ca_file: Option<&Path>,
+    cert_file: &Path,
+) -> Result<Arc<ClientConfig>, NetError> {
+    use rustls::pki_types::PrivateKeyDer;
+    let bad = |e: &dyn std::fmt::Display| NetError::Tls(format!("{}: {e}", cert_file.display()));
+    let certs = CertificateDer::pem_file_iter(cert_file)
+        .map_err(|e| bad(&e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| bad(&e))?;
+    let key = PrivateKeyDer::from_pem_file(cert_file).map_err(|e| bad(&e))?;
+    let provider = provider();
+    let builder = ClientConfig::builder_with_provider(provider.clone())
+        .with_safe_default_protocol_versions()
+        .map_err(|e| NetError::Tls(e.to_string()))?;
+    let builder = match (mode, ca_file) {
+        (_, Some(ca)) => {
+            let bad = |e: &dyn std::fmt::Display| NetError::Tls(format!("{}: {e}", ca.display()));
+            let mut roots = RootCertStore::empty();
+            for cert in CertificateDer::pem_file_iter(ca).map_err(|e| bad(&e))? {
+                roots.add(cert.map_err(|e| bad(&e))?).map_err(|e| bad(&e))?;
+            }
+            builder.with_root_certificates(roots)
+        }
+        (TlsMode::VerifyFull, None) => {
+            let verifier = rustls_platform_verifier::Verifier::new(provider)
+                .map_err(|e| NetError::Tls(e.to_string()))?;
+            builder
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(verifier))
+        }
+        _ => builder
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoVerifier(provider))),
+    };
+    let config = builder
+        .with_client_auth_cert(certs, key)
+        .map_err(|e| bad(&e))?;
+    Ok(Arc::new(config))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

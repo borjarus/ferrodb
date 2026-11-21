@@ -23,9 +23,9 @@ use ferrodb_api::{
 use ferrodb_drivers::{CancellationToken, Connection, sink::collect};
 use ferrodb_lang::mql::{Command, Op};
 use ferrodb_meta::{
-    Catalog, Container, Content, Dialect,
+    Catalog, Container, Content, Dialect, couchbase,
     ddl::{self, Object, Target},
-    infer, introspector, merge, mongo, now,
+    dynamodb, infer, introspector, merge, mongo, now,
     tree::{self, Filter, Found},
 };
 use tokio::sync::Mutex as AsyncMutex;
@@ -39,6 +39,8 @@ pub(crate) fn dialect(lang: &QueryLanguage) -> Option<Dialect> {
     match lang {
         QueryLanguage::Sql(d) => Dialect::from_id(d.as_str()),
         QueryLanguage::Mql => Some(Dialect::Mongo),
+        QueryLanguage::SqlPlusPlus => Some(Dialect::Couchbase),
+        QueryLanguage::PartiQl => Some(Dialect::DynamoDb),
         _ => None,
     }
 }
@@ -100,7 +102,7 @@ impl Inner {
     }
 
     /// Runs `f` on the explorer connection; reconnects once when it died.
-    async fn with_meta<T, F>(&self, ds: &DataSourceId, f: F) -> Result<T>
+    pub(crate) async fn with_meta<T, F>(&self, ds: &DataSourceId, f: F) -> Result<T>
     where
         F: for<'c> Fn(&'c mut dyn Connection) -> BoxFuture<'c, Result<T>>,
     {
@@ -209,6 +211,27 @@ impl Inner {
         self.load_container(ds, d, container, None).await
     }
 
+    /// The catalog with one table of `container` loaded (DynamoDB key
+    /// schemas for editing results of a table created after the last
+    /// introspection).
+    pub(crate) async fn ensure_table(
+        &self,
+        ds: &DataSourceId,
+        d: Dialect,
+        container: &str,
+        table: &str,
+    ) -> Result<Arc<Catalog>> {
+        let cat = self.ensure_content(ds, d, container).await?;
+        let known = cat
+            .container(container)
+            .and_then(|c| c.content.as_ref())
+            .is_some_and(|c| c.table(table).is_some());
+        if known {
+            return Ok(cat);
+        }
+        self.load_container(ds, d, container, Some(table)).await
+    }
+
     async fn children_of(&self, node: &NodeRef) -> Result<Vec<DbObject>> {
         let (cfg, d) = self.source_dialect(&node.data_source)?;
         let Some(d) = d else {
@@ -235,6 +258,9 @@ impl Inner {
         };
         if rest.is_empty() {
             return Ok(tree::container_children(&cnode, content));
+        }
+        if let [(ObjectKind::Scope, scope)] = rest {
+            return Ok(tree::scope_children(node, content, scope));
         }
         Ok(match tree::find(c, content, rest) {
             Some(Found::Object(Object::Table(t))) => tree::table_children(node, t),
@@ -374,6 +400,10 @@ impl Inner {
                     .iter()
                     .filter_map(|n| content.table(&n.path[1].1))
                     .collect();
+                if d == Dialect::DynamoDb {
+                    parts.extend(tables.iter().map(|t| dynamodb::table_script(t)));
+                    continue;
+                }
                 let t = Target {
                     opts: opts.clone(),
                     ..Target::new(d, &container)
@@ -395,6 +425,10 @@ impl Inner {
                     .unwrap_or_default();
                 parts.push(if d == Dialect::Mongo {
                     format!("use {container}\n\n{}", mongo::database_script(&content))
+                } else if d == Dialect::Couchbase {
+                    couchbase::bucket_script(&container, &content)
+                } else if d == Dialect::DynamoDb {
+                    dynamodb::container_script(&content)
                 } else {
                     let t = Target {
                         opts: opts.clone(),
@@ -402,6 +436,19 @@ impl Inner {
                     };
                     ddl::container_ddl(&t, &content)
                 });
+                continue;
+            }
+            // Couchbase scope: no node of its own in the catalog.
+            if let [(ObjectKind::Bucket, bucket), (ObjectKind::Scope, scope)] = node.path.as_slice()
+            {
+                let cat = self
+                    .ensure_content(&node.data_source, Dialect::Couchbase, bucket)
+                    .await?;
+                let content: Content = cat
+                    .container(bucket)
+                    .and_then(|c| c.content.clone())
+                    .unwrap_or_default();
+                parts.push(couchbase::scope_script(bucket, scope, &content));
                 continue;
             }
             let opts = opts.clone();
@@ -412,6 +459,25 @@ impl Inner {
                         ..Target::new(d, container)
                     };
                     Ok(match found {
+                        Found::Object(Object::Table(x)) if d == Dialect::DynamoDb => {
+                            dynamodb::table_script(x)
+                        }
+                        Found::Object(Object::Index(x, i)) if d == Dialect::DynamoDb => {
+                            dynamodb::index_script(x, i)
+                        }
+                        Found::Object(o) if d == Dialect::DynamoDb => format!(
+                            "-- {}\n",
+                            tree::documentation(d, container, Found::Object(o)).title
+                        ),
+                        Found::Collection(c) if d == Dialect::Couchbase => {
+                            couchbase::collection_script(container, c)
+                        }
+                        Found::MongoIndex(c, i) if d == Dialect::Couchbase => {
+                            couchbase::index_script(container, c, i)
+                        }
+                        Found::Container(_, content) if d == Dialect::Couchbase => {
+                            couchbase::bucket_script(container, content)
+                        }
                         Found::Object(o) => ddl::object_ddl(&t, o),
                         Found::Collection(c) => mongo::collection_script(c),
                         Found::MongoIndex(c, i) => mongo::index_script(c, i),
@@ -562,6 +628,14 @@ impl MetadataService for Inner {
         let me = self.arc();
         self.spawn(async move {
             let ds = container.data_source.clone();
+            // Couchbase (INFER) and DynamoDB (Scan sample): phase 8.
+            if let Ok((_, Some(d @ (Dialect::Couchbase | Dialect::DynamoDb)))) =
+                me.source_dialect(&ds)
+            {
+                return me
+                    .infer_document_source(d, &container, sample.sample_size.max(1))
+                    .await;
+            }
             let (db, coll) = match container.path.as_slice() {
                 [(ObjectKind::Database, db), (_, coll), ..] => (db.clone(), coll.clone()),
                 // A collection without its database: the connection's one.
@@ -590,19 +664,19 @@ impl MetadataService for Inner {
         let me = self.arc();
         self.spawn(async move {
             let ds = object.data_source.clone();
-            let db = object
-                .path
-                .first()
-                .map(|(_, n)| n.clone())
-                .unwrap_or_default();
-            let fields = object
-                .path
-                .get(1)
-                .map(|(_, c)| me.known_fields(&ds, &db, c))
-                .unwrap_or_default();
+            let fields = match crate::nosql::field_key(&object.path) {
+                Some((db, c)) => me.known_fields(&ds, &db, &c),
+                None => Vec::new(),
+            };
             me.with_found(&object, move |d, container, found| {
                 let t = Target::new(d, container);
                 match found {
+                    Found::Object(Object::Table(x)) if d == Dialect::DynamoDb => {
+                        dynamodb::script(x, kind, &fields)
+                    }
+                    Found::Collection(c) if d == Dialect::Couchbase => {
+                        couchbase::script(container, c, kind, &fields)
+                    }
                     Found::Object(o) => ddl::script(&t, o, kind),
                     Found::Collection(c) => mongo::script(c, kind, &fields),
                     _ => None,

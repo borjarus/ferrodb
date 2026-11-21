@@ -17,6 +17,7 @@ mod explain;
 mod language;
 mod local_history;
 mod metadata;
+mod nosql;
 mod schema_tools;
 mod services;
 mod session;
@@ -333,6 +334,8 @@ impl Inner {
 mod tests;
 #[cfg(test)]
 mod tests_mongo;
+#[cfg(test)]
+mod tests_nosql_docs;
 #[cfg(test)]
 mod tests_phase6;
 #[cfg(test)]

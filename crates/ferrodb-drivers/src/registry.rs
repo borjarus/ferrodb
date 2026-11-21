@@ -34,6 +34,10 @@ impl Registry {
         r.drivers.extend(crate::mongodb::drivers());
         #[cfg(feature = "duckdb")]
         r.drivers.extend(crate::duckdb::drivers());
+        #[cfg(feature = "dynamodb")]
+        r.drivers.extend(crate::dynamodb::drivers());
+        #[cfg(feature = "couchbase")]
+        r.drivers.extend(crate::couchbase::drivers());
         r
     }
 

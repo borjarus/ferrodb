@@ -19,8 +19,12 @@ pub mod config;
 pub mod registry;
 pub mod sink;
 
+#[cfg(feature = "couchbase")]
+pub mod couchbase;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
+#[cfg(feature = "dynamodb")]
+pub mod dynamodb;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 #[cfg(feature = "mysql")]
@@ -114,10 +118,9 @@ impl Request {
     /// Argument `key` of a native call.
     pub fn arg(&self, key: &str) -> Option<&str> {
         match self {
-            Self::Native { args, .. } => args
-                .iter()
-                .find(|(k, _)| k == key)
-                .map(|(_, v)| v.as_str()),
+            Self::Native { args, .. } => {
+                args.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+            }
             _ => None,
         }
     }

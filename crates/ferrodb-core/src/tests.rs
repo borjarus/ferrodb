@@ -647,8 +647,8 @@ fn schema_switch_and_unknown_drivers() {
     );
     let couch = DataSourceConfig {
         id: "m".into(),
-        name: "Couchbase".into(),
-        driver: "couchbase".into(),
+        name: "Not built in".into(),
+        driver: "no-such-driver".into(),
         folder: vec![],
         environment: Environment::None,
         read_only: false,

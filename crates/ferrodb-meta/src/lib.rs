@@ -23,9 +23,11 @@
 //! cycle (ADR-008 amendment in `docs/phase-4.md`).
 
 pub mod cache;
+pub mod couchbase;
 pub mod ddl;
 pub mod diff;
 mod duckdb;
+pub mod dynamodb;
 pub mod infer;
 pub mod model;
 pub mod mongo;
@@ -87,8 +89,8 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::BigQuery => &Unavailable(Dialect::BigQuery),
         Dialect::ClickHouse => &Unavailable(Dialect::ClickHouse),
         Dialect::Cassandra => &Unavailable(Dialect::Cassandra),
-        Dialect::Couchbase => &Unavailable(Dialect::Couchbase),
-        Dialect::DynamoDb => &Unavailable(Dialect::DynamoDb),
+        Dialect::Couchbase => &couchbase::CouchbaseIntrospector,
+        Dialect::DynamoDb => &dynamodb::DynamoIntrospector,
         Dialect::Redis => &Unavailable(Dialect::Redis),
     }
 }
