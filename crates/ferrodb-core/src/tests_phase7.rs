@@ -28,6 +28,7 @@ fn sqlite(id: &str, file: PathBuf) -> DataSourceConfig {
     }
 }
 
+#[cfg(feature = "duckdb")]
 fn duck(id: &str, files: &[&Path]) -> DataSourceConfig {
     DataSourceConfig {
         driver: "duckdb".into(),

@@ -11,6 +11,7 @@ use ferrodb_drivers::{BoxFuture, Connection, quote_literal};
 use crate::{
     Introspector,
     model::*,
+    pg_flavors::{self, Product},
     rows::{Row, query},
 };
 
@@ -399,6 +400,10 @@ impl Introspector for PgIntrospector {
         only: Option<&'a str>,
     ) -> BoxFuture<'a, Result<Content>> {
         Box::pin(async move {
+            let product = Product::of(&conn.server_version());
+            if product == Product::Redshift {
+                return pg_flavors::redshift(conn, container, only).await;
+            }
             let s = quote_literal(container);
             let rel = |alias: &str| {
                 only.map(|t| format!(" and {alias}.relname = {}", quote_literal(t)))
@@ -410,6 +415,13 @@ impl Introspector for PgIntrospector {
             let idx = query(conn, indexes(&s, &rel("t"))).await?;
             let trg = query(conn, triggers(&s, &rel("c"))).await?;
             let mut tables = assemble(rels, cols, cons, idx, trg);
+            match product {
+                Product::Greenplum => {
+                    pg_flavors::greenplum(conn, &s, &rel("c"), &mut tables).await?
+                }
+                Product::CockroachDb => pg_flavors::cockroach(conn, container, &mut tables).await?,
+                _ => {}
+            }
             for t in &mut tables {
                 for fk in &mut t.foreign_keys {
                     if fk.ref_container.as_deref() == Some(container) {

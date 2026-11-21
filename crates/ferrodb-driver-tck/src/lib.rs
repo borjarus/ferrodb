@@ -827,6 +827,60 @@ pub mod profiles {
         }
     }
 
+    /// CockroachDB: PostgreSQL's profile, but `integer` is 64-bit and errors
+    /// carry no position.
+    pub fn cockroachdb() -> Profile {
+        let mut p = postgresql();
+        p.types[0] = DataType::Int64;
+        p.error_positions = false;
+        p
+    }
+
+    /// Greenplum and Redshift: PostgreSQL's profile without positions.
+    pub fn postgresql_derivative() -> Profile {
+        Profile {
+            error_positions: false,
+            ..postgresql()
+        }
+    }
+
+    /// SQL Server and Azure SQL (T-SQL).
+    pub fn sqlserver() -> Profile {
+        Profile {
+            series: |n| {
+                format!(
+                    "select top ({n}) cast(row_number() over (order by (select null)) as bigint) as i \
+                     from sys.all_columns a cross join sys.all_columns b cross join sys.all_columns c"
+                )
+            },
+            sleep: |s| {
+                format!(
+                    "waitfor delay '{:02}:{:02}:{:02}'",
+                    s / 3600,
+                    (s / 60) % 60,
+                    s % 60
+                )
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i int, d decimal(10,2), s nvarchar(20), b bit, dt date, ts datetime2)"
+                )
+            },
+            types_row: "(42, 12.5, N'zażółć', 1, '2026-11-09', '2026-11-09 10:11:12')",
+            types: [
+                DataType::Int32,
+                DataType::Decimal128(10, 2),
+                DataType::Utf8,
+                DataType::Boolean,
+                DataType::Date32,
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+            ],
+            // Errors point at the line, not the token.
+            error_positions: false,
+            container: ObjectKind::Schema,
+        }
+    }
+
     pub fn mysql() -> Profile {
         Profile {
             series: |n| {

@@ -169,9 +169,205 @@ const PG_RESERVED: &[&str] = &[
     "with",
 ];
 
+/// T-SQL reserved keywords (SQL Server documentation, "Reserved Keywords").
+const TSQL_RESERVED: &[&str] = &[
+    "add",
+    "all",
+    "alter",
+    "and",
+    "any",
+    "as",
+    "asc",
+    "authorization",
+    "backup",
+    "begin",
+    "between",
+    "break",
+    "browse",
+    "bulk",
+    "by",
+    "cascade",
+    "case",
+    "check",
+    "checkpoint",
+    "close",
+    "clustered",
+    "coalesce",
+    "collate",
+    "column",
+    "commit",
+    "compute",
+    "constraint",
+    "contains",
+    "containstable",
+    "continue",
+    "convert",
+    "create",
+    "cross",
+    "current",
+    "current_date",
+    "current_time",
+    "current_timestamp",
+    "current_user",
+    "cursor",
+    "database",
+    "dbcc",
+    "deallocate",
+    "declare",
+    "default",
+    "delete",
+    "deny",
+    "desc",
+    "disk",
+    "distinct",
+    "distributed",
+    "double",
+    "drop",
+    "dump",
+    "else",
+    "end",
+    "errlvl",
+    "escape",
+    "except",
+    "exec",
+    "execute",
+    "exists",
+    "exit",
+    "external",
+    "fetch",
+    "file",
+    "fillfactor",
+    "for",
+    "foreign",
+    "freetext",
+    "freetexttable",
+    "from",
+    "full",
+    "function",
+    "goto",
+    "grant",
+    "group",
+    "having",
+    "holdlock",
+    "identity",
+    "identity_insert",
+    "identitycol",
+    "if",
+    "in",
+    "index",
+    "inner",
+    "insert",
+    "intersect",
+    "into",
+    "is",
+    "join",
+    "key",
+    "kill",
+    "left",
+    "like",
+    "lineno",
+    "load",
+    "merge",
+    "national",
+    "nocheck",
+    "nonclustered",
+    "not",
+    "null",
+    "nullif",
+    "of",
+    "off",
+    "offsets",
+    "on",
+    "open",
+    "opendatasource",
+    "openquery",
+    "openrowset",
+    "openxml",
+    "option",
+    "or",
+    "order",
+    "outer",
+    "over",
+    "percent",
+    "pivot",
+    "plan",
+    "precision",
+    "primary",
+    "print",
+    "proc",
+    "procedure",
+    "public",
+    "raiserror",
+    "read",
+    "readtext",
+    "reconfigure",
+    "references",
+    "replication",
+    "restore",
+    "restrict",
+    "return",
+    "revert",
+    "revoke",
+    "right",
+    "rollback",
+    "rowcount",
+    "rowguidcol",
+    "rule",
+    "save",
+    "schema",
+    "securityaudit",
+    "select",
+    "semantickeyphrasetable",
+    "semanticsimilaritydetailstable",
+    "semanticsimilaritytable",
+    "session_user",
+    "set",
+    "setuser",
+    "shutdown",
+    "some",
+    "statistics",
+    "system_user",
+    "table",
+    "tablesample",
+    "textsize",
+    "then",
+    "to",
+    "top",
+    "tran",
+    "transaction",
+    "trigger",
+    "truncate",
+    "try_convert",
+    "tsequal",
+    "union",
+    "unique",
+    "unpivot",
+    "update",
+    "updatetext",
+    "use",
+    "user",
+    "values",
+    "varying",
+    "view",
+    "waitfor",
+    "when",
+    "where",
+    "while",
+    "with",
+    "within",
+    "writetext",
+];
+
 /// Quotes an identifier when the dialect needs it (MySQL: always).
 pub fn quote(dialect: Dialect, ident: &str) -> String {
-    let reserved = || PG_RESERVED.contains(&ident.to_ascii_lowercase().as_str());
+    let reserved = || {
+        let l = ident.to_ascii_lowercase();
+        if dialect.quoting() == Quoting::Brackets {
+            TSQL_RESERVED.contains(&l.as_str())
+        } else {
+            PG_RESERVED.contains(&l.as_str())
+        }
+    };
     let plain = |first: fn(char) -> bool, rest: fn(char) -> bool| {
         ident.chars().next().is_some_and(first) && ident.chars().all(rest) && !reserved()
     };
@@ -246,7 +442,12 @@ pub(crate) fn column_def(t: &Target<'_>, c: &Column) -> String {
                 s.push_str(&format!(" COLLATE {}", quote(Dialect::Postgres, coll)));
             }
             if let Some(id) = &c.identity {
-                s.push_str(&format!(" GENERATED {id} AS IDENTITY"));
+                if id.starts_with("IDENTITY(") {
+                    // Redshift.
+                    s.push_str(&format!(" {id}"));
+                } else {
+                    s.push_str(&format!(" GENERATED {id} AS IDENTITY"));
+                }
             }
             if let Some(g) = &c.generated {
                 s.push_str(&format!(
@@ -294,6 +495,32 @@ pub(crate) fn column_def(t: &Target<'_>, c: &Column) -> String {
                 s.push_str(&format!(" COMMENT {}", literal(t.dialect, cm)));
             }
         }
+        Dialect::SqlServer => {
+            if let Some(g) = &c.generated {
+                let g = g.trim();
+                let g = if g.starts_with('(') {
+                    g.to_owned()
+                } else {
+                    format!("({g})")
+                };
+                s.push_str(&format!(
+                    "AS {g}{}",
+                    if c.generated_stored { " PERSISTED" } else { "" }
+                ));
+                return s;
+            }
+            s.push_str(&c.data_type);
+            if let Some(coll) = &c.collation {
+                s.push_str(&format!(" COLLATE {coll}"));
+            }
+            if let Some(id) = &c.identity {
+                s.push_str(&format!(" {id}"));
+            }
+            if let Some(d) = &c.default {
+                s.push_str(&format!(" DEFAULT {d}"));
+            }
+            s.push_str(if c.nullable { " NULL" } else { " NOT NULL" });
+        }
         _ => {
             s.push_str(&c.data_type);
             if !c.nullable {
@@ -305,6 +532,89 @@ pub(crate) fn column_def(t: &Target<'_>, c: &Column) -> String {
         }
     }
     s.trim_end().to_owned()
+}
+
+/// SQL Server: `PRIMARY KEY NONCLUSTERED` when another index is the
+/// clustered one.
+fn pk_kind(t: &Target<'_>, table: &Table) -> &'static str {
+    let clustered = table.indexes.iter().any(|i| {
+        i.method
+            .as_deref()
+            .is_some_and(|m| m.starts_with("CLUSTERED"))
+    });
+    if t.dialect == Dialect::SqlServer && clustered {
+        "NONCLUSTERED "
+    } else {
+        ""
+    }
+}
+
+/// `N'…'` (T-SQL Unicode literal).
+pub(crate) fn nliteral(s: &str) -> String {
+    format!("N'{}'", s.replace('\'', "''"))
+}
+
+/// SQL Server: drops the (usually system-named) default constraint of a
+/// column, if it has one, through dynamic SQL.
+pub(crate) fn mssql_drop_default(t: &Target<'_>, table: &str, column: &str) -> String {
+    let obj = nliteral(&t.qualified(table));
+    let col = nliteral(column);
+    let stmt = nliteral(&format!(
+        "ALTER TABLE {} DROP CONSTRAINT ",
+        t.qualified(table)
+    ));
+    format!(
+        "DECLARE @df sysname = (SELECT name FROM sys.default_constraints \
+         WHERE parent_object_id = OBJECT_ID({obj}) \
+         AND parent_column_id = COLUMNPROPERTY(OBJECT_ID({obj}), {col}, 'ColumnId')); \
+         IF @df IS NOT NULL BEGIN DECLARE @dfsql nvarchar(max) = {stmt} + QUOTENAME(@df); EXEC(@dfsql); END"
+    )
+}
+
+/// SQL Server `MS_Description` of a table or view (`column = None`) or of
+/// a column; `comment = None` removes it.
+pub(crate) fn mssql_comment(
+    t: &Target<'_>,
+    table: &str,
+    kind: &str,
+    column: Option<&str>,
+    comment: Option<&str>,
+) -> String {
+    let mut levels = format!(
+        "@level0type = N'SCHEMA', @level0name = {}, @level1type = N'{kind}', @level1name = {}",
+        nliteral(t.schema()),
+        nliteral(table)
+    );
+    if let Some(c) = column {
+        levels.push_str(&format!(
+            ", @level2type = N'COLUMN', @level2name = {}",
+            nliteral(c)
+        ));
+    }
+    let obj = nliteral(&t.qualified(table));
+    let minor = column
+        .map(|c| {
+            format!(
+                "COLUMNPROPERTY(OBJECT_ID({obj}), {}, 'ColumnId')",
+                nliteral(c)
+            )
+        })
+        .unwrap_or_else(|| "0".into());
+    let exists = format!(
+        "EXISTS (SELECT 1 FROM sys.extended_properties WHERE class = 1 \
+         AND name = N'MS_Description' AND major_id = OBJECT_ID({obj}) AND minor_id = {minor})"
+    );
+    match comment {
+        Some(text) => format!(
+            "IF {exists} EXEC sys.sp_updateextendedproperty @name = N'MS_Description', \
+             @value = {v}, {levels} ELSE EXEC sys.sp_addextendedproperty \
+             @name = N'MS_Description', @value = {v}, {levels};",
+            v = nliteral(text)
+        ),
+        None => format!(
+            "IF {exists} EXEC sys.sp_dropextendedproperty @name = N'MS_Description', {levels};"
+        ),
+    }
 }
 
 pub(crate) fn constraint_name(t: &Target<'_>, name: &Option<String>) -> String {
@@ -350,6 +660,27 @@ pub(crate) fn index_stmt(t: &Target<'_>, table: &Table, i: &Index) -> String {
             t.qualified(&table.name),
             i.columns.join(", ")
         ),
+        Dialect::SqlServer => {
+            let method = i.method.as_deref().unwrap_or("NONCLUSTERED");
+            let mut s = format!(
+                "CREATE {}{method} INDEX {} ON {}",
+                if i.unique { "UNIQUE " } else { "" },
+                t.q(&i.name),
+                t.qualified(&table.name)
+            );
+            // A clustered columnstore index covers every column.
+            if method != "CLUSTERED COLUMNSTORE" {
+                s.push_str(&format!(" ({})", i.columns.join(", ")));
+            }
+            if !i.include.is_empty() {
+                s.push_str(&format!(" INCLUDE ({})", i.include.join(", ")));
+            }
+            if let Some(p) = &i.predicate {
+                s.push_str(&format!(" WHERE {p}"));
+            }
+            s.push(';');
+            s
+        }
         // SQLite qualifies the index, never the table.
         Dialect::Sqlite => format!(
             "CREATE {}INDEX {} ON {} ({}){};",
@@ -431,6 +762,15 @@ pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey])
         }
         return out;
     }
+    // CockroachDB tables and Redshift external tables keep the server's
+    // own statement.
+    if t.dialect == Dialect::Postgres
+        && let Some(sql) = &table.server_sql
+    {
+        out.push_str(&format!("{};\n", retarget(t, sql.trim_end_matches(';'))));
+        comments(t, table, &mut out);
+        return out;
+    }
     let name = t.qualified(&table.name);
     if t.dialect == Dialect::Postgres
         && let Some((parent, bound)) = &table.partition_of
@@ -467,8 +807,9 @@ pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey])
             format!("PRIMARY KEY ({})", idents(t, &pk.columns))
         } else {
             format!(
-                "{}PRIMARY KEY ({})",
+                "{}PRIMARY KEY {}({})",
                 constraint_name(t, &pk.name),
+                pk_kind(t, table),
                 idents(t, &pk.columns)
             )
         });
@@ -506,6 +847,9 @@ pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey])
     if let Some(p) = &table.partition_by {
         out.push_str(&format!(" PARTITION BY {p}"));
     }
+    if let Some(o) = &table.table_options {
+        out.push_str(&format!(" {o}"));
+    }
     if mysql {
         if let Some(e) = &table.engine {
             out.push_str(&format!(" ENGINE={e}"));
@@ -539,6 +883,11 @@ pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey])
 
 fn trigger_stmt(t: &Target<'_>, def: &str) -> String {
     let def = def.trim().trim_end_matches(';');
+    // T-SQL modules are kept as the server stores them (a `;` would become
+    // part of the module text); `GO` separates them.
+    if t.dialect == Dialect::SqlServer {
+        return format!("{}\n", retarget(t, def));
+    }
     // A MySQL body may contain `;` (BEGIN … END): the console splitter
     // understands trigger bodies.
     format!("{};\n", retarget(t, def))
@@ -556,6 +905,26 @@ fn retarget(t: &Target<'_>, def: &str) -> String {
 }
 
 pub(crate) fn comments(t: &Target<'_>, table: &Table, out: &mut String) {
+    if t.dialect == Dialect::SqlServer && t.opts.include_comments {
+        let kind = if table.is_view() { "VIEW" } else { "TABLE" };
+        if let Some(c) = &table.comment {
+            out.push_str(&mssql_comment(t, &table.name, kind, None, Some(c)));
+            out.push('\n');
+        }
+        for c in &table.columns {
+            if let Some(cm) = &c.comment {
+                out.push_str(&mssql_comment(
+                    t,
+                    &table.name,
+                    kind,
+                    Some(&c.name),
+                    Some(cm),
+                ));
+                out.push('\n');
+            }
+        }
+        return;
+    }
     if t.dialect != Dialect::Postgres || !t.opts.include_comments {
         return;
     }
@@ -588,6 +957,20 @@ pub(crate) fn view_ddl(t: &Target<'_>, v: &Table) -> String {
         && let Some(sql) = &v.server_sql
     {
         return format!("{};\n", sql.trim_end_matches(';'));
+    }
+    // SQL Server keeps the whole `CREATE VIEW` (options, column list).
+    if t.dialect == Dialect::SqlServer
+        && let Some(sql) = &v.server_sql
+    {
+        let mut out = format!("{}\n", retarget(t, sql.trim().trim_end_matches(';')));
+        if t.opts.include_indexes {
+            for i in &v.indexes {
+                out.push_str(&index_stmt(t, v, i));
+                out.push('\n');
+            }
+        }
+        comments(t, v, &mut out);
+        return out;
     }
     let def = v
         .view_definition
@@ -676,6 +1059,30 @@ pub(crate) fn sequence_ddl(t: &Target<'_>, s: &Sequence) -> String {
         }
         if let Some(v) = s.cache {
             out.push_str(&format!(" CACHE {v}"));
+        }
+        if s.cycle {
+            out.push_str(" CYCLE");
+        }
+    }
+    if t.dialect == Dialect::SqlServer {
+        if let Some(ty) = &s.data_type {
+            out.push_str(&format!(" AS {ty}"));
+        }
+        if let Some(v) = s.start {
+            out.push_str(&format!(" START WITH {v}"));
+        }
+        if let Some(v) = s.increment {
+            out.push_str(&format!(" INCREMENT BY {v}"));
+        }
+        if let Some(v) = s.min {
+            out.push_str(&format!(" MINVALUE {v}"));
+        }
+        if let Some(v) = s.max {
+            out.push_str(&format!(" MAXVALUE {v}"));
+        }
+        match s.cache {
+            Some(v) => out.push_str(&format!(" CACHE {v}")),
+            None => out.push_str(" NO CACHE"),
         }
         if s.cycle {
             out.push_str(" CYCLE");
@@ -815,6 +1222,17 @@ pub fn container_ddl(t: &Target<'_>, content: &Content) -> String {
             t.q(t.schema())
         ));
     }
+    // T-SQL: views, routines and triggers must each be alone in a batch.
+    let go = if t.dialect == Dialect::SqlServer {
+        out.push_str(&format!(
+            "IF SCHEMA_ID({}) IS NULL EXEC({});\nGO\n\n",
+            nliteral(t.schema()),
+            nliteral(&format!("CREATE SCHEMA {}", t.q(t.schema())))
+        ));
+        "GO\n"
+    } else {
+        ""
+    };
     for s in &content.sequences {
         out.push_str(&sequence_ddl(t, s));
     }
@@ -824,15 +1242,29 @@ pub fn container_ddl(t: &Target<'_>, content: &Content) -> String {
     let tables: Vec<&Table> = content.tables.iter().filter(|x| !x.is_view()).collect();
     if !tables.is_empty() {
         out.push_str(&tables_ddl(t, &tables));
+        out.push_str(go);
+        out.push('\n');
+    }
+    for s in &content.synonyms {
+        out.push_str(&format!(
+            "CREATE SYNONYM {} FOR {};\n",
+            t.qualified(&s.name),
+            s.target
+        ));
+    }
+    if !content.synonyms.is_empty() {
+        out.push_str(go);
         out.push('\n');
     }
     let views: Vec<&Table> = content.tables.iter().filter(|x| x.is_view()).collect();
     for v in order_views(&views) {
         out.push_str(&view_ddl(t, v));
+        out.push_str(go);
         out.push('\n');
     }
     for r in &content.routines {
         out.push_str(&routine_ddl(t, r));
+        out.push_str(go);
         out.push('\n');
     }
     for table in &content.tables {
@@ -843,6 +1275,7 @@ pub fn container_ddl(t: &Target<'_>, content: &Content) -> String {
                 } else {
                     trigger_stmt(t, d)
                 });
+                out.push_str(go);
             }
         }
     }
@@ -869,8 +1302,13 @@ pub fn object_ddl(t: &Target<'_>, o: Object<'_>) -> String {
         Object::Table(x) if x.is_view() => view_ddl(t, x),
         Object::Table(x) => table_ddl(t, x, &[]),
         Object::Column(x, c) => format!(
-            "ALTER TABLE {} ADD COLUMN {};\n",
+            "ALTER TABLE {} ADD {}{};\n",
             t.qualified(&x.name),
+            if t.dialect == Dialect::SqlServer {
+                ""
+            } else {
+                "COLUMN "
+            },
             column_def(t, c)
         ),
         Object::PrimaryKey(x, k) => format!(
@@ -931,6 +1369,10 @@ pub fn script(t: &Target<'_>, o: Object<'_>, kind: ScriptKind) -> Option<String>
                 .filter(|c| {
                     c.generated.is_none()
                         && c.identity.as_deref() != Some("ALWAYS")
+                        && !c
+                            .identity
+                            .as_deref()
+                            .is_some_and(|i| i.starts_with("IDENTITY("))
                         && !c.serial
                         && !c.auto_increment
                 })
@@ -983,6 +1425,40 @@ pub fn script(t: &Target<'_>, o: Object<'_>, kind: ScriptKind) -> Option<String>
                     }
                 })
                 .collect();
+            if t.dialect == Dialect::SqlServer {
+                let named: Vec<String> = r
+                    .arguments
+                    .iter()
+                    .enumerate()
+                    .map(|(i, a)| {
+                        let n = a.name.clone().unwrap_or_else(|| format!("@arg{}", i + 1));
+                        let p = param(n.trim_start_matches('@'));
+                        if a.mode == "INOUT" {
+                            format!("{n} = {p} OUTPUT")
+                        } else {
+                            format!("{n} = {p}")
+                        }
+                    })
+                    .collect();
+                let positional: Vec<String> = r
+                    .arguments
+                    .iter()
+                    .enumerate()
+                    .map(|(i, a)| {
+                        let n = a.name.clone().unwrap_or_else(|| format!("arg{}", i + 1));
+                        param(n.trim_start_matches('@'))
+                    })
+                    .collect();
+                let name = t.qualified(&r.name);
+                return Some(match r.kind {
+                    RoutineKind::Procedure if named.is_empty() => format!("EXEC {name};\n"),
+                    RoutineKind::Procedure => format!("EXEC {name} {};\n", named.join(", ")),
+                    RoutineKind::Function if r.returns.as_deref() == Some("TABLE") => {
+                        format!("SELECT *\nFROM {name}({});\n", positional.join(", "))
+                    }
+                    RoutineKind::Function => format!("SELECT {name}({});\n", positional.join(", ")),
+                });
+            }
             let call = format!("{}({})", t.qualified(&r.name), args.join(", "));
             Some(match r.kind {
                 RoutineKind::Procedure => format!("CALL {call};\n"),
@@ -1041,6 +1517,13 @@ pub(crate) fn drop_stmt(t: &Target<'_>, o: Object<'_>) -> String {
             },
             t.qualified(&x.name)
         ),
+        // SQL Server refuses to drop a column that has a default constraint.
+        Object::Column(x, c) if t.dialect == Dialect::SqlServer => format!(
+            "{}\nALTER TABLE {} DROP COLUMN {};\n",
+            mssql_drop_default(t, &x.name, &c.name),
+            t.qualified(&x.name),
+            t.q(&c.name)
+        ),
         Object::Column(x, c) => format!(
             "ALTER TABLE {} DROP COLUMN {};\n",
             t.qualified(&x.name),
@@ -1072,7 +1555,7 @@ pub(crate) fn drop_stmt(t: &Target<'_>, o: Object<'_>) -> String {
             t.q(f.name.as_deref().unwrap_or("?"))
         ),
         Object::Index(x, i) => {
-            if t.dialect.is_mysql() {
+            if t.dialect.is_mysql() || t.dialect == Dialect::SqlServer {
                 format!("DROP INDEX {} ON {};\n", t.q(&i.name), t.qualified(&x.name))
             } else {
                 format!("DROP INDEX {};\n", t.qualified(&i.name))

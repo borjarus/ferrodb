@@ -10,7 +10,7 @@ publish = false
 [features]
 default = ["sqlite", "pgwire", "mysql", "mongodb"]
 sqlite = ["dep:rusqlite"]
-pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls"]
+pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls", "dep:tokio-rustls", "dep:ring"]
 mysql = ["dep:mysql_async"]
 mongodb = ["dep:mongodb"]
 duckdb = ["dep:duckdb"]
@@ -18,6 +18,8 @@ redis = ["dep:redis"]
 cql = ["dep:scylla", "dep:async-trait"]
 dynamodb = ["dep:aws-config", "dep:aws-sdk-dynamodb", "dep:aws-smithy-http-client", "dep:base64"]
 couchbase = ["dep:reqwest", "dep:base64"]
+# SQL Server and Azure SQL (TDS, `tiberius`, rustls).
+tds = ["dep:tiberius", "dep:tokio-rustls", "dep:ring", "tokio-util/compat"]
 
 [dependencies]
 ferrodb-api.workspace = true
@@ -26,13 +28,13 @@ ferrodb-lang.workspace = true
 bson.workspace = true
 futures.workspace = true
 bytes.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["process"] }
+serde_json.workspace = true
 tokio-util.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
 chrono.workspace = true
 tracing.workspace = true
-serde_json.workspace = true
 rustls.workspace = true
 rusqlite = { workspace = true, optional = true }
 tokio-postgres = { workspace = true, optional = true }
@@ -48,6 +50,10 @@ aws-sdk-dynamodb = { workspace = true, optional = true }
 aws-smithy-http-client = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
+tiberius = { workspace = true, optional = true }
+# HTTPS calls for cloud authentication (Redshift IAM, Microsoft Entra ID).
+tokio-rustls = { workspace = true, optional = true }
+ring = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

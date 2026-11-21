@@ -316,6 +316,56 @@ fn alter_column(
                 ddl::column_def(t, b)
             )]
         }
+        Dialect::SqlServer => {
+            let mut out = Vec::new();
+            if (a.generated.is_some() || b.generated.is_some())
+                && a.generated.as_deref().map(normalize_text)
+                    != b.generated.as_deref().map(normalize_text)
+            {
+                // A computed column is dropped and added again.
+                out.push(
+                    ddl::drop_stmt(t, Object::Column(&named(table), a))
+                        .trim_end()
+                        .to_owned(),
+                );
+                out.push(format!("ALTER TABLE {name} ADD {};", ddl::column_def(t, b)));
+                return out;
+            }
+            // Type and nullability are restated together.
+            if !same_type(&a.data_type, &b.data_type, opts)
+                || a.nullable != b.nullable
+                || a.collation != b.collation
+            {
+                let mut def = format!("ALTER TABLE {name} ALTER COLUMN {col} {}", b.data_type);
+                if let Some(c) = &b.collation {
+                    def.push_str(&format!(" COLLATE {c}"));
+                }
+                def.push_str(if b.nullable { " NULL;" } else { " NOT NULL;" });
+                out.push(def);
+            }
+            if !same_default(&a.default, &b.default) {
+                out.push(ddl::mssql_drop_default(t, table, &b.name));
+                if let Some(d) = &b.default {
+                    out.push(format!("ALTER TABLE {name} ADD DEFAULT {d} FOR {col};"));
+                }
+            }
+            if a.identity.is_some() != b.identity.is_some() {
+                out.push(format!(
+                    "-- {col}: SQL Server cannot add or remove IDENTITY on an existing column; \
+                     recreate the table to change it"
+                ));
+            }
+            if !opts.ignore_comments && a.comment != b.comment {
+                out.push(ddl::mssql_comment(
+                    t,
+                    table,
+                    "TABLE",
+                    Some(&b.name),
+                    b.comment.as_deref(),
+                ));
+            }
+            out
+        }
         _ => {
             let mut out = Vec::new();
             if !same_type(&a.data_type, &b.data_type, opts) {
@@ -399,7 +449,22 @@ fn add_check(t: &Target<'_>, table: &str, c: &Check) -> String {
     )
 }
 
+/// A table known by name only (for statements that need just the name).
+fn named(name: &str) -> Table {
+    Table {
+        name: name.to_owned(),
+        ..Default::default()
+    }
+}
+
 fn rename_table(t: &Target<'_>, from: &str, to: &str) -> String {
+    if t.dialect == Dialect::SqlServer {
+        return format!(
+            "EXEC sp_rename {}, {};",
+            ddl::nliteral(&t.qualified(from)),
+            ddl::nliteral(to)
+        );
+    }
     if t.dialect.is_mysql() {
         format!("RENAME TABLE {} TO {};", t.qualified(from), t.qualified(to))
     } else {
@@ -654,11 +719,19 @@ pub fn alter_table(
         if n != o && old.column(o).is_some() {
             ch.push(
                 P_ALTER,
-                format!(
-                    "ALTER TABLE {qname} RENAME COLUMN {} TO {};",
-                    t.q(o),
-                    t.q(n)
-                ),
+                if t.dialect == Dialect::SqlServer {
+                    format!(
+                        "EXEC sp_rename {}, {}, N'COLUMN';",
+                        ddl::nliteral(&format!("{qname}.{}", t.q(o))),
+                        ddl::nliteral(n)
+                    )
+                } else {
+                    format!(
+                        "ALTER TABLE {qname} RENAME COLUMN {} TO {};",
+                        t.q(o),
+                        t.q(n)
+                    )
+                },
             );
         }
     }
@@ -725,10 +798,24 @@ pub fn alter_table(
             if k.name.is_none() && t.dialect == Dialect::Postgres {
                 k.name = Some(format!("{}_pkey", old.name));
             }
-            ch.push(
-                P_ALTER,
-                ddl::drop_stmt(t, Object::PrimaryKey(&with_name(old, &name), &k)),
-            );
+            if k.name.is_none() && t.dialect == Dialect::SqlServer {
+                // Look the system-generated name up at run time.
+                ch.push(
+                    P_ALTER,
+                    format!(
+                        "DECLARE @pk sysname = (SELECT name FROM sys.key_constraints \
+                         WHERE parent_object_id = OBJECT_ID({}) AND type = 'PK'); \
+                         IF @pk IS NOT NULL BEGIN DECLARE @pksql nvarchar(max) = {} + QUOTENAME(@pk); EXEC(@pksql); END",
+                        ddl::nliteral(&qname),
+                        ddl::nliteral(&format!("ALTER TABLE {qname} DROP CONSTRAINT "))
+                    ),
+                );
+            } else {
+                ch.push(
+                    P_ALTER,
+                    ddl::drop_stmt(t, Object::PrimaryKey(&with_name(old, &name), &k)),
+                );
+            }
         }
         if !new_pk.is_empty() {
             ch.push(
@@ -767,8 +854,25 @@ pub fn alter_table(
                 }
                 ch.push(
                     P_ALTER,
-                    format!("ALTER TABLE {qname} ADD COLUMN {};", ddl::column_def(t, c)),
+                    format!(
+                        "ALTER TABLE {qname} ADD {}{};",
+                        if t.dialect == Dialect::SqlServer {
+                            ""
+                        } else {
+                            "COLUMN "
+                        },
+                        ddl::column_def(t, c)
+                    ),
                 );
+                if t.dialect == Dialect::SqlServer
+                    && !opts.ignore_comments
+                    && let Some(cm) = &c.comment
+                {
+                    ch.push(
+                        P_ALTER,
+                        ddl::mssql_comment(t, &name, "TABLE", Some(&c.name), Some(cm)),
+                    );
+                }
                 if t.dialect == Dialect::Postgres
                     && !opts.ignore_comments
                     && let Some(cm) = &c.comment
@@ -911,6 +1015,10 @@ pub fn alter_table(
                     "ALTER TABLE {qname} COMMENT = {};",
                     ddl::literal(t.dialect, new.comment.as_deref().unwrap_or(""))
                 ),
+            ),
+            Dialect::SqlServer => ch.push(
+                P_ALTER,
+                ddl::mssql_comment(t, &name, "TABLE", None, new.comment.as_deref()),
             ),
             _ => {}
         }
@@ -1482,6 +1590,7 @@ pub fn design_to_table(
                 if c.auto_increment {
                     match d {
                         Dialect::Postgres => col.identity = Some("BY DEFAULT".into()),
+                        Dialect::SqlServer => col.identity = Some("IDENTITY(1,1)".into()),
                         _ => col.auto_increment = true,
                     }
                 }

@@ -73,8 +73,13 @@ fn parse_json(raw: &str) -> Result<Value> {
     serde_json::from_str(raw.trim()).map_err(|e| err(e.to_string()))
 }
 
+pub use crate::{
+    plan_mssql::sqlserver_xml,
+    plan_text::{cockroach_text, postgres_text},
+};
+
 /// Adds the warnings that apply to every database.
-fn common_warnings(n: &mut PlanNode, full_scan: bool) {
+pub(crate) fn common_warnings(n: &mut PlanNode, full_scan: bool) {
     if full_scan {
         let rows = n.actual_rows.unwrap_or(n.rows);
         if rows >= SCAN_WARNING_ROWS {
@@ -236,6 +241,13 @@ fn pg_node(v: &Value) -> Result<PlanNode> {
     {
         n.warnings.push(format!(
             "sort spilled to disk ({m}); consider more work_mem"
+        ));
+    }
+    // Greenplum: a broadcast copies its input to every segment.
+    if ty == "Broadcast Motion" && n.actual_rows.unwrap_or(n.rows) >= SCAN_WARNING_ROWS {
+        n.warnings.push(format!(
+            "broadcasts about {} rows to every segment; a distribution key on the join columns may avoid it",
+            n.actual_rows.unwrap_or(n.rows)
         ));
     }
     if let (Some(removed), Some(actual)) = (count(o.get("Rows Removed by Filter")), n.actual_rows)

@@ -35,9 +35,11 @@ pub mod mongo;
 mod mysql;
 mod pg;
 pub mod redis;
+mod pg_flavors;
 pub mod rows;
 pub mod sql_model;
 mod sqlite;
+mod sqlserver;
 pub mod tree;
 
 pub use cache::Catalogs;
@@ -77,7 +79,7 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::Mongo => &mongo::MongoIntrospector,
         Dialect::DuckDb => &duckdb::DuckDbIntrospector,
         // Phase 8 introspectors are added per database.
-        Dialect::SqlServer => &Unavailable(Dialect::SqlServer),
+        Dialect::SqlServer => &sqlserver::SqlServerIntrospector,
         Dialect::Sybase => &Unavailable(Dialect::Sybase),
         Dialect::Oracle => &Unavailable(Dialect::Oracle),
         Dialect::Db2 => &Unavailable(Dialect::Db2),
@@ -156,3 +158,5 @@ pub fn now() -> u64 {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_native;

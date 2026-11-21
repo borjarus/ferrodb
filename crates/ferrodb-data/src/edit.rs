@@ -95,7 +95,7 @@ pub fn plan(
                         _ => format!("INSERT INTO {} DEFAULT VALUES", t.table),
                     }
                 } else {
-                    sql.insert(&t.table, &cols, &[vals])
+                    sql.insert_row(&t.table, &cols, vals)
                 });
             }
             Change::DeleteRow { row } => deletes.push(*row),

@@ -42,6 +42,8 @@ impl Registry {
         r.drivers.extend(crate::dynamodb::drivers());
         #[cfg(feature = "couchbase")]
         r.drivers.extend(crate::couchbase::drivers());
+        #[cfg(feature = "tds")]
+        r.drivers.extend(crate::tds::drivers());
         r
     }
 
@@ -71,9 +73,9 @@ pub fn relational_capabilities(dialect: &str, auth: Vec<AuthMethod>) -> Capabili
         // Plans parsed into the shared model (phase 7); other dialects get
         // theirs in phase 8.
         explain: match dialect {
-            "postgresql" | "greenplum" | "mysql" | "mariadb" | "sqlite" | "duckdb" => {
-                ExplainSupport::Structured
-            }
+            "postgresql" | "greenplum" | "cockroachdb" | "tsql" | "mysql" | "mariadb"
+            | "sqlite" | "duckdb" => ExplainSupport::Structured,
+            "redshift" => ExplainSupport::Text,
             _ => ExplainSupport::None,
         },
         server_cancel: true,

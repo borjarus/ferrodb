@@ -216,7 +216,19 @@ pub struct Content {
     pub sequences: Vec<Sequence>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub collections: Vec<Collection>,
+    /// SQL Server synonyms.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub synonyms: Vec<Synonym>,
     pub refreshed_at: u64,
+}
+
+/// An alternative name of another object (SQL Server, Oracle).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Synonym {
+    pub name: String,
+    /// The object it names, as the server spells it (`[db].[dbo].[t]`).
+    pub target: String,
 }
 
 impl Content {
@@ -237,6 +249,7 @@ impl Content {
             .sum::<usize>()
             + self.routines.len()
             + self.sequences.len()
+            + self.synonyms.len()
             + self
                 .collections
                 .iter()
@@ -288,6 +301,10 @@ pub struct Table {
     /// PostgreSQL: (parent, `FOR VALUES …`) of a partition.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partition_of: Option<(String, String)>,
+    /// Storage clauses written after the column list, verbatim: Greenplum
+    /// `DISTRIBUTED BY (id)`, Redshift `DISTSTYLE KEY DISTKEY (id) SORTKEY (ts)`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub table_options: Option<String>,
     /// MySQL table options: engine, charset, collation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine: Option<String>,
@@ -335,7 +352,8 @@ pub struct Column {
     pub default: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
-    /// `GENERATED ALWAYS|BY DEFAULT AS IDENTITY` (PostgreSQL): `ALWAYS` / `BY DEFAULT`.
+    /// `GENERATED ALWAYS|BY DEFAULT AS IDENTITY` (PostgreSQL): `ALWAYS` / `BY DEFAULT`;
+    /// SQL Server and Redshift: `IDENTITY(seed,increment)`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<String>,
     /// PostgreSQL `serial` column (default from an owned sequence).

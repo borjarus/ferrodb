@@ -20,6 +20,8 @@ pub mod kv;
 pub mod registry;
 pub mod sink;
 
+#[cfg(feature = "pgwire")]
+pub mod aws;
 #[cfg(feature = "cql")]
 pub mod cql;
 #[cfg(feature = "couchbase")]
@@ -28,6 +30,8 @@ pub mod couchbase;
 pub mod duckdb;
 #[cfg(feature = "dynamodb")]
 pub mod dynamodb;
+#[cfg(any(feature = "pgwire", feature = "tds"))]
+pub mod http;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
 #[cfg(feature = "mysql")]
@@ -38,6 +42,8 @@ pub mod pgwire;
 pub mod redis;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
+#[cfg(feature = "tds")]
+pub mod tds;
 
 use std::sync::Arc;
 

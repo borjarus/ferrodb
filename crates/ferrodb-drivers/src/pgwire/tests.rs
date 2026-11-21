@@ -485,5 +485,5 @@ fn descriptor_and_variant() {
     let q = v.list_queries(&[(ObjectKind::Schema, "it's".into())]);
     assert_eq!(q.len(), 2);
     assert!(q[0].sql.contains("'it''s'"));
-    assert_eq!(drivers().len(), 1);
+    assert_eq!(drivers().len(), 4);
 }
