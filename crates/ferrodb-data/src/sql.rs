@@ -12,6 +12,15 @@ pub enum Family {
     Postgres,
     MySql,
     Sqlite,
+    /// Oracle: no boolean literals before 23ai, typed date literals, one
+    /// row per `VALUES`.
+    Oracle,
+    /// Sybase ASE through JDBC: `bit` booleans, `0x…` binaries.
+    Sybase,
+    /// Apache Hive: `STRING`, `unhex(…)` binaries.
+    Hive,
+    /// Vertica: one row per `VALUES`.
+    Vertica,
     Other,
 }
 
@@ -37,6 +46,10 @@ impl Sql {
             "postgresql" | "greenplum" | "cockroachdb" | "redshift" | "duckdb" => Family::Postgres,
             "mysql" | "mariadb" => Family::MySql,
             "sqlite" => Family::Sqlite,
+            "oracle" => Family::Oracle,
+            "sybase" => Family::Sybase,
+            "hiveql" | "hive" => Family::Hive,
+            "vertica" => Family::Vertica,
             _ => Family::Other,
         };
         Self {
@@ -75,7 +88,9 @@ impl Sql {
         match v {
             Value::Null => "NULL".into(),
             Value::Bool(b) => match self.family {
-                Family::Sqlite => if *b { "1" } else { "0" }.into(),
+                Family::Sqlite | Family::Oracle | Family::Sybase => {
+                    if *b { "1" } else { "0" }.into()
+                }
                 _ => if *b { "TRUE" } else { "FALSE" }.into(),
             },
             Value::Int(i) => i.to_string(),
@@ -95,8 +110,24 @@ impl Sql {
             }
             Value::Bytes(b) => match self.family {
                 Family::Postgres => format!("'\\x{}'::bytea", hex(b)),
+                Family::Oracle => format!("HEXTORAW('{}')", hex(b)),
+                Family::Sybase => format!("0x{}", hex(b)),
+                Family::Hive => format!("unhex('{}')", hex(b)),
                 _ => format!("X'{}'", hex(b)),
             },
+            // Oracle reads plain strings with the session's NLS format:
+            // typed literals are unambiguous.
+            Value::Date(d) if matches!(self.family, Family::Oracle | Family::Hive) => {
+                format!("DATE {}", self.string(&format_date(*d)))
+            }
+            Value::Timestamp { micros, .. }
+                if matches!(self.family, Family::Oracle | Family::Hive) =>
+            {
+                format!(
+                    "TIMESTAMP {}",
+                    self.string(&format_timestamp(*micros, false))
+                )
+            }
             Value::Date(d) => self.string(&format_date(*d)),
             Value::Time(t) => self.string(&format_time(*t)),
             Value::Timestamp { micros, tz } => {
@@ -135,6 +166,35 @@ impl Sql {
                 .collect::<Vec<_>>()
                 .join(", "),
         );
+        // Oracle (before 23ai), Sybase and Vertica take one row per
+        // `VALUES`: several rows become `SELECT … UNION ALL SELECT …`.
+        if rows.len() > 1
+            && matches!(
+                self.family,
+                Family::Oracle | Family::Sybase | Family::Vertica
+            )
+        {
+            s.push_str(") ");
+            let from = if self.family == Family::Oracle {
+                " FROM DUAL"
+            } else {
+                ""
+            };
+            for (i, row) in rows.iter().enumerate() {
+                if i > 0 {
+                    s.push_str(" UNION ALL ");
+                }
+                s.push_str("SELECT ");
+                s.push_str(
+                    &row.iter()
+                        .map(|v| self.literal(v))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
+                s.push_str(from);
+            }
+            return s;
+        }
         s.push_str(") VALUES ");
         for (i, row) in rows.iter().enumerate() {
             if i > 0 {
@@ -238,6 +298,50 @@ impl Sql {
                 T::Time => "TIME".into(),
                 T::Timestamp { .. } => "TIMESTAMP".into(),
                 T::Json => "JSON".into(),
+            },
+            Family::Oracle => match c.ty {
+                T::Bool => "NUMBER(1)".into(),
+                T::Int => "NUMBER(19)".into(),
+                T::Float => "BINARY_DOUBLE".into(),
+                T::Decimal => format!("NUMBER{}", dec("")),
+                T::Text | T::Any | T::Json => "VARCHAR2(4000)".into(),
+                T::Bytes => "BLOB".into(),
+                T::Date => "DATE".into(),
+                T::Time | T::Timestamp { tz: false } => "TIMESTAMP".into(),
+                T::Timestamp { tz: true } => "TIMESTAMP WITH TIME ZONE".into(),
+            },
+            Family::Sybase => match c.ty {
+                T::Bool => "bit".into(),
+                T::Int => "bigint".into(),
+                T::Float => "float".into(),
+                T::Decimal => format!("numeric{}", dec("(38,10)")),
+                T::Text | T::Any | T::Json => "text".into(),
+                T::Bytes => "image".into(),
+                T::Date => "date".into(),
+                T::Time => "time".into(),
+                T::Timestamp { .. } => "datetime".into(),
+            },
+            Family::Hive => match c.ty {
+                T::Bool => "BOOLEAN".into(),
+                T::Int => "BIGINT".into(),
+                T::Float => "DOUBLE".into(),
+                T::Decimal => format!("DECIMAL{}", dec("(38,10)")),
+                T::Text | T::Any | T::Json | T::Time => "STRING".into(),
+                T::Bytes => "BINARY".into(),
+                T::Date => "DATE".into(),
+                T::Timestamp { .. } => "TIMESTAMP".into(),
+            },
+            Family::Vertica => match c.ty {
+                T::Bool => "BOOLEAN".into(),
+                T::Int => "INTEGER".into(),
+                T::Float => "FLOAT".into(),
+                T::Decimal => format!("NUMERIC{}", dec("(37,10)")),
+                T::Text | T::Any | T::Json => "LONG VARCHAR".into(),
+                T::Bytes => "LONG VARBINARY".into(),
+                T::Date => "DATE".into(),
+                T::Time => "TIME".into(),
+                T::Timestamp { tz: false } => "TIMESTAMP".into(),
+                T::Timestamp { tz: true } => "TIMESTAMPTZ".into(),
             },
             Family::Other => match c.ty {
                 T::Bool => "BOOLEAN".into(),
@@ -399,6 +503,61 @@ mod tests {
             ddl,
             "CREATE TABLE t (\n  id bigint,\n  amount numeric(10,2)\n)"
         );
+    }
+
+    #[test]
+    fn jdbc_dialects() {
+        let ora = Sql::new("oracle");
+        assert_eq!(ora.literal(&Value::Bool(true)), "1");
+        assert_eq!(ora.literal(&Value::Bytes(vec![1, 255])), "HEXTORAW('01ff')");
+        assert_eq!(ora.literal(&Value::Date(0)), "DATE '1970-01-01'");
+        assert_eq!(
+            ora.literal(&Value::Timestamp {
+                micros: 0,
+                tz: false
+            }),
+            "TIMESTAMP '1970-01-01 00:00:00'"
+        );
+        let rows = [vec![Value::Int(1)], vec![Value::Int(2)]];
+        assert_eq!(
+            ora.insert("T", &["A".into()], &rows),
+            "INSERT INTO T (A) SELECT 1 FROM DUAL UNION ALL SELECT 2 FROM DUAL"
+        );
+        assert_eq!(
+            Sql::new("vertica").insert("t", &["a".into()], &rows),
+            "INSERT INTO t (a) SELECT 1 UNION ALL SELECT 2"
+        );
+        assert_eq!(
+            ora.insert("T", &["A".into()], &rows[..1]),
+            "INSERT INTO T (A) VALUES (1)"
+        );
+        // No LIMIT outside MySQL.
+        assert_eq!(
+            ora.update(
+                "T",
+                &[("A".into(), Value::Int(2))],
+                &[("ID".into(), Value::Int(1))],
+                true
+            ),
+            "UPDATE T SET A = 2 WHERE ID = 1"
+        );
+        assert_eq!(
+            Sql::new("h2").delete("T", &[("ID".into(), Value::Int(1))], true),
+            "DELETE FROM T WHERE ID = 1"
+        );
+        let syb = Sql::new("sybase");
+        assert_eq!(syb.literal(&Value::Bytes(vec![10])), "0x0a");
+        assert_eq!(syb.literal(&Value::Bool(false)), "0");
+        let hive = Sql::new("hiveql");
+        assert_eq!(hive.literal(&Value::Bytes(vec![10])), "unhex('0a')");
+        let col = ColumnDef {
+            name: "x".into(),
+            ty: ValueType::Text,
+            decimal: None,
+        };
+        assert_eq!(hive.type_name(&col), "STRING");
+        assert_eq!(ora.type_name(&col), "VARCHAR2(4000)");
+        assert_eq!(Sql::new("derby").literal(&Value::Bool(true)), "TRUE");
     }
 
     #[test]

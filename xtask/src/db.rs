@@ -57,6 +57,19 @@ const CONTAINERS: &[Container] = &[
         ],
         &[],
     ),
+    // Oracle Database Free (JDBC bridge, phase 8): needs ~3 GB and a few
+    // minutes before the PDB FREEPDB1 opens; user `tck` / `ferrodb`.
+    (
+        "ferrodb-tck-oracle",
+        "gvenzl/oracle-free:slim",
+        "56121:1521",
+        &[
+            "ORACLE_PASSWORD=ferrodb",
+            "APP_USER=tck",
+            "APP_USER_PASSWORD=ferrodb",
+        ],
+        &[],
+    ),
 ];
 
 const NETWORK: &str = "ferrodb-tck";
@@ -189,6 +202,13 @@ pub fn env_vars() -> Vec<(String, String)> {
         (
             "FERRODB_TCK_SSH".into(),
             format!("ssh://ferrodb:ferrodb@{h}:52222"),
+        ),
+        // JDBC: H2 / Derby / HyperSQL run embedded (jars downloaded into
+        // target/ferrodb-drivers-test); Oracle runs in its container.
+        ("FERRODB_TCK_JDBC".into(), "1".into()),
+        (
+            "FERRODB_TCK_ORACLE".into(),
+            format!("oracle://tck:ferrodb@{h}:56121/FREEPDB1"),
         ),
     ]
 }

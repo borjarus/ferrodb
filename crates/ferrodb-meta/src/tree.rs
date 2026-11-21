@@ -21,7 +21,6 @@ pub fn container_kind(d: Dialect) -> ObjectKind {
         | Dialect::Sqlite
         | Dialect::DuckDb
         | Dialect::SqlServer
-        | Dialect::Sybase
         | Dialect::Oracle
         | Dialect::Db2
         | Dialect::H2
@@ -30,6 +29,8 @@ pub fn container_kind(d: Dialect) -> ObjectKind {
         | Dialect::Exasol
         | Dialect::Vertica
         | Dialect::Snowflake => ObjectKind::Schema,
+        // Sybase ASE through JDBC: databases (catalogs), `db..name`.
+        Dialect::Sybase => ObjectKind::Database,
         Dialect::MySql
         | Dialect::MariaDb
         | Dialect::Mongo
@@ -81,8 +82,12 @@ pub fn hierarchy(d: Dialect) -> HierarchySpec {
             level(Collection, &[Index]),
             level(View, &[]),
         ],
+        Dialect::Sybase => vec![
+            level(Database, &[Table, View, Function, Procedure]),
+            level(Table, &table_children),
+            level(View, &[Column]),
+        ],
         Dialect::SqlServer
-        | Dialect::Sybase
         | Dialect::Oracle
         | Dialect::Db2
         | Dialect::H2
@@ -110,7 +115,10 @@ pub fn hierarchy(d: Dialect) -> HierarchySpec {
             level(MaterializedView, &[Column]),
         ],
         Dialect::BigQuery => vec![
-            level(Dataset, &[Table, View, MaterializedView, Function, Procedure]),
+            level(
+                Dataset,
+                &[Table, View, MaterializedView, Function, Procedure],
+            ),
             level(Table, &[Column]),
             level(View, &[Column]),
             level(MaterializedView, &[Column]),

@@ -1,0 +1,13 @@
+----------------------------------------------------------------
+Sat Nov 21 22:23:12 CET 2026:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.17.1.0 - (1913217): instance a816c00e-01a1-fffd-e230-0000243ac860 
+on database directory memory:D:\projects\rust\ferrodb-p8\jdbc\crates\ferrodb-driver-tck\tck_derby with class loader java.net.URLClassLoader@4aa853e2 
+Loaded from file:/D:/projects/rust/ferrodb-p8/jdbc/crates/ferrodb-jdbc/../../target/ferrodb-drivers-test/jdbc/derby/10.17.1.0/derby-10.17.1.0.jar
+java.vendor=Eclipse Adoptium
+java.runtime.version=25.0.5+8-LTS
+user.dir=D:\projects\rust\ferrodb-p8\jdbc\crates\ferrodb-driver-tck
+os.name=Windows 11
+os.arch=amd64
+os.version=10.0
+derby.system.home=null
+Database Class Loader started - derby.database.classpath=''

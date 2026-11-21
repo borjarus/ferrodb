@@ -49,6 +49,10 @@ impl<'a> Target<'a> {
 
     /// `schema.name` with the target schema.
     pub fn qualified(&self, name: &str) -> String {
+        // Sybase ASE: containers are databases, `db..name` (default owner).
+        if self.dialect == Dialect::Sybase {
+            return format!("{}..{}", self.q(self.schema()), self.q(name));
+        }
         format!("{}.{}", self.q(self.schema()), self.q(name))
     }
 
@@ -294,6 +298,50 @@ pub(crate) fn column_def(t: &Target<'_>, c: &Column) -> String {
                 s.push_str(&format!(" COMMENT {}", literal(t.dialect, cm)));
             }
         }
+        // JDBC databases: identity, generated expression, `DEFAULT` before
+        // `NOT NULL` (the order Oracle requires; the others accept it).
+        Dialect::Oracle
+        | Dialect::Db2
+        | Dialect::H2
+        | Dialect::Derby
+        | Dialect::Hsqldb
+        | Dialect::Exasol
+        | Dialect::Vertica
+        | Dialect::Sybase => {
+            match (&c.identity, t.dialect) {
+                // Vertica: `IDENTITY` stands for the type.
+                (Some(_), Dialect::Vertica) => s.push_str("IDENTITY"),
+                (Some(_), Dialect::Exasol | Dialect::Sybase) => {
+                    s.push_str(&format!("{} IDENTITY", c.data_type));
+                }
+                (Some(id), _) => {
+                    s.push_str(&format!("{} GENERATED {id} AS IDENTITY", c.data_type));
+                }
+                (None, _) => s.push_str(&c.data_type),
+            }
+            if let Some(g) = &c.generated {
+                if t.dialect == Dialect::Oracle {
+                    s.push_str(&format!(" AS ({g})"));
+                } else {
+                    s.push_str(&format!(" GENERATED ALWAYS AS ({g})"));
+                }
+            }
+            if let Some(d) = &c.default {
+                s.push_str(&format!(" DEFAULT {d}"));
+            }
+            if !c.nullable {
+                s.push_str(" NOT NULL");
+            }
+        }
+        // Hive: no defaults; constraints are informational only.
+        Dialect::Hive => {
+            s.push_str(&c.data_type);
+            if t.opts.include_comments
+                && let Some(cm) = &c.comment
+            {
+                s.push_str(&format!(" COMMENT {}", literal(t.dialect, cm)));
+            }
+        }
         _ => {
             s.push_str(&c.data_type);
             if !c.nullable {
@@ -323,10 +371,24 @@ pub(crate) fn fk_clause(t: &Target<'_>, fk: &ForeignKey) -> String {
     if !fk.ref_columns.is_empty() {
         s.push_str(&format!(" ({})", idents(t, &fk.ref_columns)));
     }
-    if let Some(a) = &fk.on_update {
+    // Oracle has no `ON UPDATE` and only `CASCADE` / `SET NULL` on delete;
+    // Db2 and Derby accept `ON UPDATE RESTRICT` only.
+    let on_update = match t.dialect {
+        Dialect::Oracle => None,
+        Dialect::Db2 | Dialect::Derby => fk.on_update.as_ref().filter(|a| *a == "RESTRICT"),
+        _ => fk.on_update.as_ref(),
+    };
+    let on_delete = match t.dialect {
+        Dialect::Oracle => fk
+            .on_delete
+            .as_ref()
+            .filter(|a| *a == "CASCADE" || *a == "SET NULL"),
+        _ => fk.on_delete.as_ref(),
+    };
+    if let Some(a) = on_update {
         s.push_str(&format!(" ON UPDATE {a}"));
     }
-    if let Some(a) = &fk.on_delete {
+    if let Some(a) = on_delete {
         s.push_str(&format!(" ON DELETE {a}"));
     }
     if fk.deferrable {
@@ -363,10 +425,18 @@ pub(crate) fn index_stmt(t: &Target<'_>, table: &Table, i: &Index) -> String {
                 .unwrap_or_default()
         ),
         _ => {
+            // Indexes live in a schema: qualify them where the database
+            // would otherwise use the session's current schema.
+            let name = match t.dialect {
+                Dialect::Oracle | Dialect::Db2 | Dialect::H2 | Dialect::Derby | Dialect::Hsqldb => {
+                    t.qualified(&i.name)
+                }
+                _ => t.q(&i.name),
+            };
             let mut s = format!(
                 "CREATE {}INDEX {} ON {}",
                 if i.unique { "UNIQUE " } else { "" },
-                t.q(&i.name),
+                name,
                 t.qualified(&table.name)
             );
             if let Some(m) = &i.method {
@@ -440,6 +510,24 @@ pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey])
             t.qualified(parent)
         ));
         comments(t, table, &mut out);
+        return out;
+    }
+    // Hive: columns, comment and partition columns; no keys or indexes.
+    if t.dialect == Dialect::Hive {
+        let cols: Vec<String> = table.columns.iter().map(|c| column_def(t, c)).collect();
+        out.push_str(&format!(
+            "CREATE TABLE {name} (\n    {}\n)",
+            cols.join(",\n    ")
+        ));
+        if t.opts.include_comments
+            && let Some(c) = &table.comment
+        {
+            out.push_str(&format!(" COMMENT {}", literal(t.dialect, c)));
+        }
+        if let Some(p) = &table.partition_by {
+            out.push_str(&format!(" PARTITIONED BY ({p})"));
+        }
+        out.push_str(";\n");
         return out;
     }
     let mysql = t.dialect.is_mysql();
@@ -556,7 +644,17 @@ fn retarget(t: &Target<'_>, def: &str) -> String {
 }
 
 pub(crate) fn comments(t: &Target<'_>, table: &Table, out: &mut String) {
-    if t.dialect != Dialect::Postgres || !t.opts.include_comments {
+    let comment_on = matches!(
+        t.dialect,
+        Dialect::Postgres
+            | Dialect::Oracle
+            | Dialect::Db2
+            | Dialect::H2
+            | Dialect::Hsqldb
+            | Dialect::Exasol
+            | Dialect::Vertica
+    );
+    if !comment_on || !t.opts.include_comments {
         return;
     }
     let what = match table.kind {
@@ -584,6 +682,12 @@ pub(crate) fn comments(t: &Target<'_>, table: &Table, out: &mut String) {
 }
 
 pub(crate) fn view_ddl(t: &Target<'_>, v: &Table) -> String {
+    // Oracle synonyms are listed with the views; their DDL is kept whole.
+    if t.dialect == Dialect::Oracle
+        && let Some(sql) = &v.server_sql
+    {
+        return format!("{};\n", retarget(t, sql.trim_end_matches(';')));
+    }
     if t.dialect == Dialect::Sqlite
         && let Some(sql) = &v.server_sql
     {
@@ -675,6 +779,37 @@ pub(crate) fn sequence_ddl(t: &Target<'_>, s: &Sequence) -> String {
             out.push_str(&format!(" START WITH {v}"));
         }
         if let Some(v) = s.cache {
+            out.push_str(&format!(" CACHE {v}"));
+        }
+        if s.cycle {
+            out.push_str(" CYCLE");
+        }
+    }
+    if matches!(
+        t.dialect,
+        Dialect::Oracle
+            | Dialect::Db2
+            | Dialect::H2
+            | Dialect::Derby
+            | Dialect::Hsqldb
+            | Dialect::Vertica
+    ) {
+        if let Some(v) = s.start {
+            out.push_str(&format!(" START WITH {v}"));
+        }
+        if let Some(v) = s.increment {
+            out.push_str(&format!(" INCREMENT BY {v}"));
+        }
+        if let Some(v) = s.min {
+            out.push_str(&format!(" MINVALUE {v}"));
+        }
+        if let Some(v) = s.max {
+            out.push_str(&format!(" MAXVALUE {v}"));
+        }
+        // Derby and HyperSQL have no sequence cache clause.
+        if let Some(v) = s.cache.filter(|c| *c > 1)
+            && !matches!(t.dialect, Dialect::Derby | Dialect::Hsqldb)
+        {
             out.push_str(&format!(" CACHE {v}"));
         }
         if s.cycle {

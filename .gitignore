@@ -6,3 +6,4 @@
 *.arrow
 .DS_Store
 /target-p8
+/java/jdbc-host/target

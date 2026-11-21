@@ -57,6 +57,14 @@ pub struct CoreOptions {
     pub data_dir: Option<PathBuf>,
     pub secrets: Box<dyn SecretStore>,
     pub registry: Registry,
+    /// Driver manager files (JDBC jars, downloaded Java runtime); `None` =
+    /// `<data_dir>/drivers`, or a directory under the system temp dir.
+    pub drivers_dir: Option<PathBuf>,
+    /// `ferrodb-jdbc-host.jar`; `None` = looked up next to the executable
+    /// (`ferrodb_jdbc::find_host_jar`).
+    pub jdbc_host_jar: Option<PathBuf>,
+    /// Register the JDBC drivers (Oracle, Db2, H2…) in the registry.
+    pub jdbc: bool,
 }
 
 impl CoreOptions {
@@ -68,6 +76,9 @@ impl CoreOptions {
             data_dir: Some(data_dir),
             secrets: ferrodb_secrets::system_store("FerroDb"),
             registry: Registry::builtin(),
+            drivers_dir: None,
+            jdbc_host_jar: None,
+            jdbc: true,
         }
     }
 
@@ -78,6 +89,9 @@ impl CoreOptions {
             data_dir: None,
             secrets: Box::new(MemoryStore::new()),
             registry: Registry::builtin(),
+            drivers_dir: None,
+            jdbc_host_jar: None,
+            jdbc: true,
         }
     }
 }
@@ -104,6 +118,27 @@ impl CoreBackend {
             .as_ref()
             .map(|d| language::load_templates(&d.join("templates.toml")))
             .unwrap_or_default();
+        // Driver manager and JDBC bridge (phase 8): JDBC drivers are
+        // registered like native ones; they connect once their jars and a
+        // Java runtime are present.
+        let drivers_dir = opts
+            .drivers_dir
+            .clone()
+            .or_else(|| opts.data_dir.as_ref().map(|d| d.join("drivers")))
+            .unwrap_or_else(|| std::env::temp_dir().join("ferrodb-drivers"));
+        let driver_manager = Arc::new(ferrodb_driver_manager::DriverManager::new(
+            drivers_dir,
+            ferrodb_driver_manager::Catalog::builtin(),
+        ));
+        let bridge = ferrodb_jdbc::Bridge::new(driver_manager.clone(), opts.jdbc_host_jar.clone());
+        let mut registry = opts.registry;
+        if opts.jdbc {
+            for d in ferrodb_jdbc::drivers(&bridge) {
+                if registry.get(&d.id()).is_none() {
+                    registry.register(d);
+                }
+            }
+        }
         let config_path = opts.config_dir.map(|d| d.join("data-sources.toml"));
         let sources = match &config_path {
             Some(p) => config::load(p)?,
@@ -121,7 +156,9 @@ impl CoreBackend {
             me: weak.clone(),
             handle: rt.handle().clone(),
             rt: Mutex::new(Some(rt)),
-            registry: opts.registry,
+            registry,
+            driver_manager,
+            bridge,
             secrets: Arc::from(opts.secrets),
             storage: Arc::new(storage),
             config_path,
@@ -148,6 +185,19 @@ impl CoreBackend {
             ds_subs: Mutex::new(Vec::new()),
             driver_subs: Mutex::new(Vec::new()),
             next_id: AtomicU64::new(1),
+        });
+        // Download progress and bridge restarts reach the Drivers / Services UI.
+        let weak = Arc::downgrade(&inner);
+        inner.driver_manager.on_status(move |id, status| {
+            if let Some(i) = weak.upgrade() {
+                i.emit_driver(DriverEvent::StatusChanged(id.into(), status.clone()));
+            }
+        });
+        let weak = Arc::downgrade(&inner);
+        inner.bridge.on_change(move |state| {
+            if let Some(i) = weak.upgrade() {
+                i.emit_driver(DriverEvent::BridgeChanged(state.clone()));
+            }
         });
         // The explorer starts from the metadata cache: read it off the UI path.
         let ids: Vec<DataSourceId> = inner.state().sources.keys().cloned().collect();
@@ -220,6 +270,10 @@ pub(crate) struct Inner {
     handle: tokio::runtime::Handle,
     rt: Mutex<Option<Runtime>>,
     pub registry: Registry,
+    /// JDBC jars, Java runtime (phase 8).
+    pub driver_manager: Arc<ferrodb_driver_manager::DriverManager>,
+    /// The JDBC host process shared by every JDBC connection.
+    pub bridge: Arc<ferrodb_jdbc::Bridge>,
     pub secrets: Arc<dyn SecretStore>,
     pub storage: Arc<Storage>,
     pub config_path: Option<PathBuf>,
@@ -319,6 +373,11 @@ impl Inner {
         rx
     }
 
+    pub fn emit_driver(&self, ev: DriverEvent) {
+        let mut subs = self.driver_subs.lock().unwrap_or_else(|p| p.into_inner());
+        subs.retain(|s| s.try_send(ev.clone()).is_ok() || !s.is_closed());
+    }
+
     pub fn subscribe_drivers(&self) -> async_channel::Receiver<DriverEvent> {
         let (tx, rx) = async_channel::unbounded();
         self.driver_subs
@@ -331,6 +390,8 @@ impl Inner {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_jdbc;
 #[cfg(test)]
 mod tests_mongo;
 #[cfg(test)]

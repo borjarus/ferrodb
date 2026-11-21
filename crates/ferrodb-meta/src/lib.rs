@@ -27,6 +27,7 @@ pub mod ddl;
 pub mod diff;
 mod duckdb;
 pub mod infer;
+mod jdbc;
 pub mod model;
 pub mod mongo;
 mod mysql;
@@ -74,15 +75,15 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::DuckDb => &duckdb::DuckDbIntrospector,
         // Phase 8 introspectors are added per database.
         Dialect::SqlServer => &Unavailable(Dialect::SqlServer),
-        Dialect::Sybase => &Unavailable(Dialect::Sybase),
-        Dialect::Oracle => &Unavailable(Dialect::Oracle),
-        Dialect::Db2 => &Unavailable(Dialect::Db2),
-        Dialect::H2 => &Unavailable(Dialect::H2),
-        Dialect::Derby => &Unavailable(Dialect::Derby),
-        Dialect::Hsqldb => &Unavailable(Dialect::Hsqldb),
-        Dialect::Exasol => &Unavailable(Dialect::Exasol),
-        Dialect::Vertica => &Unavailable(Dialect::Vertica),
-        Dialect::Hive => &Unavailable(Dialect::Hive),
+        Dialect::Sybase => &jdbc::JdbcIntrospector(Dialect::Sybase),
+        Dialect::Oracle => &jdbc::JdbcIntrospector(Dialect::Oracle),
+        Dialect::Db2 => &jdbc::JdbcIntrospector(Dialect::Db2),
+        Dialect::H2 => &jdbc::JdbcIntrospector(Dialect::H2),
+        Dialect::Derby => &jdbc::JdbcIntrospector(Dialect::Derby),
+        Dialect::Hsqldb => &jdbc::JdbcIntrospector(Dialect::Hsqldb),
+        Dialect::Exasol => &jdbc::JdbcIntrospector(Dialect::Exasol),
+        Dialect::Vertica => &jdbc::JdbcIntrospector(Dialect::Vertica),
+        Dialect::Hive => &jdbc::JdbcIntrospector(Dialect::Hive),
         Dialect::Snowflake => &Unavailable(Dialect::Snowflake),
         Dialect::BigQuery => &Unavailable(Dialect::BigQuery),
         Dialect::ClickHouse => &Unavailable(Dialect::ClickHouse),

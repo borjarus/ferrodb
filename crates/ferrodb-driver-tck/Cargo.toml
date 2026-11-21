@@ -20,6 +20,7 @@ arrow-schema.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+ferrodb-jdbc.workspace = true
 ferrodb-net.workspace = true
 
 [lints]

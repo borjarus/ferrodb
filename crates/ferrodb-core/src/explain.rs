@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use bson::{Bson, Document, doc};
 use ferrodb_api::{Error, ExecutionPlan, PlanNode, Result};
-use ferrodb_data::plan;
+use ferrodb_data::{plan, plan_jdbc};
 use ferrodb_drivers::{Request, sink::CollectedOutput};
 use ferrodb_lang::{
     mql::{self, Op},
@@ -23,6 +23,11 @@ pub(crate) enum Format {
     SqliteRows,
     DuckJson,
     Mongo,
+    /// Oracle `PLAN_TABLE` rows (JDBC native call `explain_plan`).
+    OraclePlan,
+    /// A text plan of a JDBC database (native call `explain_text`), with
+    /// the title of the plan's root.
+    TextPlan(&'static str),
 }
 
 /// What the session runs for a plan.
@@ -97,6 +102,48 @@ pub(crate) fn request(dialect: &str, mql: bool, stmt: &str, analyze: bool) -> Re
             },
             Format::DuckJson,
         ),
+        // JDBC databases: the driver runs the explain statements (Oracle
+        // needs two, Derby and Exasol a measured run) and returns the rows.
+        "oracle" => {
+            return Ok(Explain {
+                request: Request::native("explain_plan", &[("sql", &stmt)]),
+                statement: format!("EXPLAIN PLAN FOR {stmt}"),
+                format: Format::OraclePlan,
+                measure: None,
+            });
+        }
+        "h2" | "hsqldb" | "derby" | "db2" | "vertica" | "exasol" | "hiveql" | "sybase" => {
+            let (title, statement) = match dialect {
+                "h2" if analyze => ("H2 plan", format!("EXPLAIN ANALYZE {stmt}")),
+                "h2" => ("H2 plan", format!("EXPLAIN {stmt}")),
+                "hsqldb" => ("HyperSQL plan", format!("EXPLAIN PLAN FOR {stmt}")),
+                "derby" => (
+                    "Derby runtime statistics",
+                    format!("CALL SYSCS_UTIL.SYSCS_SET_RUNTIMESTATISTICS(1); {stmt}"),
+                ),
+                "db2" => ("Db2 plan", format!("EXPLAIN PLAN FOR {stmt}")),
+                "vertica" => ("Vertica plan", format!("EXPLAIN {stmt}")),
+                "exasol" => (
+                    "Exasol profile",
+                    format!("ALTER SESSION SET PROFILE = 'ON'; {stmt}"),
+                ),
+                "hiveql" => ("Hive plan", format!("EXPLAIN {stmt}")),
+                _ => (
+                    "Sybase ASE showplan",
+                    format!("SET SHOWPLAN ON; SET NOEXEC ON; {stmt}"),
+                ),
+            };
+            let analyze_arg = if analyze { "true" } else { "false" };
+            return Ok(Explain {
+                request: Request::native(
+                    "explain_text",
+                    &[("sql", &stmt), ("analyze", analyze_arg)],
+                ),
+                statement,
+                format: Format::TextPlan(title),
+                measure: None,
+            });
+        }
         other => {
             return Err(Error::Unsupported(format!(
                 "execution plans of the `{other}` dialect"
@@ -264,6 +311,41 @@ pub(crate) fn parse(format: Format, out: &CollectedOutput) -> Result<ExecutionPl
                 .collect();
             plan::sqlite_rows(&rows).map_err(bad)
         }
+        Format::OraclePlan => {
+            let rows: Vec<plan_jdbc::OracleRow> = ferrodb_meta::rows::rows(&out.results)
+                .iter()
+                .map(|r| {
+                    let num = |k: &str| r.get(k).and_then(|v| v.trim().parse::<f64>().ok());
+                    let count = |k: &str| num(k).map(|v| v.max(0.0) as u64);
+                    plan_jdbc::OracleRow {
+                        id: r.int("id").unwrap_or(0),
+                        parent_id: r.int("parent_id"),
+                        depth: r.int("depth").unwrap_or(0),
+                        operation: r.string("operation"),
+                        options: r.text("options"),
+                        object_owner: r.text("object_owner"),
+                        object_name: r.text("object_name"),
+                        object_alias: r.text("object_alias"),
+                        object_type: r.text("object_type"),
+                        optimizer: r.text("optimizer"),
+                        cost: num("cost"),
+                        cardinality: count("cardinality"),
+                        bytes: count("bytes"),
+                        cpu_cost: count("cpu_cost"),
+                        io_cost: count("io_cost"),
+                        time: count("time"),
+                        access_predicates: r.text("access_predicates"),
+                        filter_predicates: r.text("filter_predicates"),
+                        partition_start: r.text("partition_start"),
+                        partition_stop: r.text("partition_stop"),
+                    }
+                })
+                .collect();
+            plan_jdbc::oracle_plan_table(&rows).map_err(bad)
+        }
+        Format::TextPlan(title) => {
+            plan_jdbc::text_plan(&first_column(out).join("\n"), title).map_err(bad)
+        }
         Format::Mongo => {
             let raw = out
                 .documents
@@ -309,6 +391,17 @@ mod tests {
         assert!(request("postgresql", false, "delete from t", true).is_err());
         assert!(request("postgresql", false, "delete from t", false).is_ok());
         assert!(request("tsql", false, "select 1", false).is_err());
+        let e = request("oracle", false, "select * from dual;", false).unwrap();
+        assert_eq!(e.format, Format::OraclePlan);
+        assert_eq!(e.request.arg("sql"), Some("select * from dual"));
+        let e = request("h2", false, "select 1", true).unwrap();
+        assert_eq!(e.statement, "EXPLAIN ANALYZE select 1");
+        assert_eq!(e.request.arg("analyze"), Some("true"));
+        assert!(matches!(
+            request("hiveql", false, "select 1", false).unwrap().format,
+            Format::TextPlan("Hive plan")
+        ));
+        assert!(request("derby", false, "delete from t", true).is_err());
         assert_eq!(
             first_statement("select 1; select 2", "postgresql", false).as_deref(),
             Some("select 1")

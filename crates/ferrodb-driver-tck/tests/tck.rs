@@ -9,6 +9,11 @@
 //! - `FERRODB_TCK_MARIADB=mariadb://root:ferrodb@localhost:53307/tck`
 //! - `FERRODB_TCK_MONGODB=mongodb://localhost:57017/tck?directConnection=true`
 //!
+//! JDBC databases embedded in the bridge (H2, Derby, HyperSQL) run when
+//! Java ≥ 17 and `ferrodb-jdbc-host.jar` are present and their jars are
+//! installed in `target/ferrodb-drivers-test` (`FERRODB_TCK_JDBC=1`
+//! downloads them).
+//!
 //! Each report is also written to `target/tck/<driver>.md`.
 
 use ferrodb_driver_tck::{Profile, Report, profiles, run};
@@ -114,4 +119,60 @@ fn postgresql_via_ssh_tunnel() {
         ..cfg
     };
     check("postgresql", cfg, profiles::postgresql());
+}
+
+/// The TCK on a JDBC flavor through the bridge, embedded in memory.
+fn check_jdbc(id: &str, user: &str, profile: Profile) {
+    let cfg = ResolvedConfig::new(id)
+        .with("mode", "memory")
+        .with("database", format!("tck_{id}"))
+        .with("user", user);
+    check_jdbc_with(id, cfg, profile);
+}
+
+fn check_jdbc_with(id: &str, cfg: ResolvedConfig, profile: Profile) {
+    let bridge = match ferrodb_jdbc::testing::bridge(&[id]) {
+        Ok(b) => b,
+        Err(why) => {
+            eprintln!("{id}: skipped: {why}");
+            return;
+        }
+    };
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let d = ferrodb_jdbc::JdbcDriver::new(ferrodb_jdbc::flavor(id).unwrap(), bridge.clone());
+    let report: Report = rt.block_on(run(&d, &cfg, &profile));
+    rt.block_on(bridge.shutdown());
+    let md = report.markdown();
+    println!("{md}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tck");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join(format!("{id}.md")), &md);
+    assert!(
+        report.passed(),
+        "TCK failed for {id}:
+{md}"
+    );
+}
+
+#[test]
+fn h2() {
+    check_jdbc("h2", "sa", profiles::h2());
+}
+
+#[test]
+fn derby() {
+    check_jdbc("derby", "app", profiles::derby());
+}
+
+#[test]
+fn hsqldb() {
+    check_jdbc("hsqldb", "SA", profiles::hsqldb());
+}
+
+/// Oracle through the bridge: `FERRODB_TCK_ORACLE=oracle://tck:ferrodb@localhost:56121/FREEPDB1`.
+#[test]
+fn oracle() {
+    if let Some(cfg) = from_env("FERRODB_TCK_ORACLE", "oracle") {
+        check_jdbc_with("oracle", cfg, profiles::oracle());
+    }
 }
