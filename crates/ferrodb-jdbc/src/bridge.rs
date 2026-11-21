@@ -300,6 +300,8 @@ impl Bridge {
             .arg("-Dfile.encoding=UTF-8")
             .arg("-Dstdout.encoding=UTF-8")
             .arg("-XX:+UseSerialGC")
+            // Derby logs to `derby.log` in the working directory otherwise.
+            .arg("-Dderby.stream.error.field=java.lang.System.err")
             .arg("-jar")
             .arg(&jar)
             .stdin(Stdio::piped())
