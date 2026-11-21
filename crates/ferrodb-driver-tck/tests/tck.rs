@@ -115,3 +115,90 @@ fn postgresql_via_ssh_tunnel() {
     };
     check("postgresql", cfg, profiles::postgresql());
 }
+
+/// The key-value TCK: `FERRODB_TCK_REDIS=redis://localhost:56401/0` (add
+/// `?mode=cluster` with the seeds as host for a cluster).
+#[test]
+fn redis() {
+    let Some(cfg) = from_env("FERRODB_TCK_REDIS", "redis") else {
+        return;
+    };
+    key_value("redis", cfg);
+}
+
+/// Redis Cluster: `FERRODB_TCK_REDIS_CLUSTER=redis://127.0.0.1:56411?mode=cluster`.
+#[test]
+fn redis_cluster() {
+    let Some(cfg) = from_env("FERRODB_TCK_REDIS_CLUSTER", "redis") else {
+        return;
+    };
+    key_value("redis-cluster", cfg.with("mode", "cluster"));
+}
+
+/// Redis behind Sentinel: `FERRODB_TCK_REDIS_SENTINEL=redis://127.0.0.1:56421?sentinel.master=mymaster`.
+#[test]
+fn redis_sentinel() {
+    let Some(cfg) = from_env("FERRODB_TCK_REDIS_SENTINEL", "redis") else {
+        return;
+    };
+    key_value("redis-sentinel", cfg.with("mode", "sentinel"));
+}
+
+fn key_value(name: &str, cfg: ResolvedConfig) {
+    let registry = Registry::builtin();
+    let d = registry.get(&"redis".into()).expect("driver is built in");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let report = rt.block_on(ferrodb_driver_tck::run_key_value(d.as_ref(), &cfg));
+    let md = report.markdown();
+    println!("{md}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tck");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join(format!("{name}.md")), &md);
+    assert!(
+        report.passed(),
+        "TCK failed for {name}:
+{md}"
+    );
+}
+
+/// Apache Cassandra on the tabular TCK with CQL adjustments:
+/// `FERRODB_TCK_CASSANDRA=cassandra://localhost:56442/tck` (the keyspace is
+/// created when missing).
+#[test]
+fn cassandra() {
+    let Some(cfg) = from_env("FERRODB_TCK_CASSANDRA", "cassandra") else {
+        return;
+    };
+    let registry = Registry::builtin();
+    let d = registry
+        .get(&"cassandra".into())
+        .expect("driver is built in");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let ks = cfg.database().unwrap_or("tck").to_owned();
+    rt.block_on(async {
+        let mut admin = cfg.clone();
+        admin.properties.remove("database");
+        let mut c = d.connect(&admin).await.expect("connect without keyspace");
+        ferrodb_drivers::sink::collect(
+            c.as_mut(),
+            format!(
+                "create keyspace if not exists {ks} with replication = {{'class': 'SimpleStrategy', 'replication_factor': 1}}"
+            ),
+            ferrodb_drivers::CancellationToken::new(),
+        )
+        .await
+        .expect("create the TCK keyspace");
+    });
+    let report = rt.block_on(ferrodb_driver_tck::run_adjusted(
+        d.as_ref(),
+        &cfg,
+        &profiles::cassandra(),
+        &profiles::cassandra_adjustments(),
+    ));
+    let md = report.markdown();
+    println!("{md}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tck");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join("cassandra.md"), &md);
+    assert!(report.passed(), "TCK failed for cassandra:\n{md}");
+}

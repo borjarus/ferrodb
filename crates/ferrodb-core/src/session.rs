@@ -109,6 +109,10 @@ struct Ctx {
     dialect: String,
     /// MongoDB shell statements instead of SQL.
     mql: bool,
+    /// Redis commands, one per line.
+    redis: bool,
+    /// CQL (Cassandra): its own statement classes and warnings.
+    cql: bool,
     read_only: bool,
     manual_tx: bool,
     timeout: Option<Duration>,
@@ -126,6 +130,8 @@ impl Ctx {
         Self {
             dialect: ferrodb_lang::service::dialect_of(&caps.language).to_owned(),
             mql: caps.language == ferrodb_api::QueryLanguage::Mql,
+            redis: caps.language == ferrodb_api::QueryLanguage::RedisCommands,
+            cql: caps.language == ferrodb_api::QueryLanguage::Cql,
             read_only: cfg.read_only,
             manual_tx: cfg.tx_mode == TxMode::Manual && caps.supports_transactions(),
             timeout,
@@ -473,6 +479,9 @@ impl Actor {
         if self.ctx.mql {
             return self.run_mql(job, ev, token, start_gen).await;
         }
+        if self.ctx.redis {
+            return self.run_redis(job, ev, token, start_gen).await;
+        }
         let text = &job.script.text;
         let base = job.script.base_offset;
         let flavor = Flavor::for_dialect(&self.ctx.dialect);
@@ -518,7 +527,11 @@ impl Actor {
                 range: abs.clone(),
             })
             .await;
-            let class = sql::classify(body, &self.ctx.dialect);
+            let class = if self.ctx.cql {
+                crate::kv::cql_class(body)
+            } else {
+                sql::classify(body, &self.ctx.dialect)
+            };
             if self.ctx.read_only && !class.allowed_read_only() {
                 ev.error(
                     "the data source is read-only: this statement would modify data or schema",
@@ -542,10 +555,20 @@ impl Actor {
                 }
                 self.session.status().in_tx = true;
             }
+            if self.ctx.cql
+                && let Some(w) = crate::kv::allow_filtering_warning(body)
+            {
+                ev.send(QueryEvent::Notice(ServerNotice {
+                    level: NoticeLevel::Warning,
+                    message: w,
+                }))
+                .await;
+            }
             let started = (SystemTime::now(), Instant::now());
             let r = self
                 .run_statement(
                     StatementRun {
+                        keys: None,
                         request: Request::Text { text: sql.clone() },
                         edit: (class == StatementClass::Read).then(|| {
                             (
@@ -722,6 +745,7 @@ impl Actor {
             let r = self
                 .run_statement(
                     StatementRun {
+                        keys: None,
                         request: Request::Mql(cmd),
                         edit: None,
                         title: st.title.clone(),
@@ -774,6 +798,144 @@ impl Actor {
                         }
                         None => abs.clone(),
                     });
+                    self.record_history(body, started.1.elapsed(), false);
+                    self.log(
+                        LogSource::User,
+                        body,
+                        started,
+                        None,
+                        Some(q.message.clone()),
+                    );
+                    ev.send(QueryEvent::Error(q)).await;
+                    return false;
+                }
+            }
+        }
+        false
+    }
+
+    /// A Redis console script: one command per line; key listings (`SCAN 0
+    /// MATCH …`, `KEYS …`) become key browser results, other replies tables.
+    async fn run_redis(
+        &mut self,
+        job: &Job,
+        ev: &Events,
+        token: &CancellationToken,
+        start_gen: u64,
+    ) -> bool {
+        let text = &job.script.text;
+        let base = job.script.base_offset;
+        if let Some(db) = job.opts.schema.clone().filter(|s| !s.is_empty()) {
+            let current = self.session.status().schema.clone();
+            if current.as_deref() != Some(db.as_str()) {
+                match self.internal(Op::SetSchema(&db)).await {
+                    Ok(()) => self.session.status().schema = Some(db),
+                    Err(e) => {
+                        ev.error(e.to_string(), None, None).await;
+                        return false;
+                    }
+                }
+            }
+        }
+        if let Err(e) = self.connection(Some(ev)).await {
+            ev.error(e.to_string(), None, None).await;
+            return false;
+        }
+        let lines = ferrodb_drivers::kv::split_commands(text);
+        let count = lines.len();
+        for (index, range) in lines.into_iter().enumerate() {
+            if token.is_cancelled() || ev.closed() {
+                ev.error("cancelled", Some("FERRODB-CANCELLED"), None).await;
+                return false;
+            }
+            let body = &text[range.clone()];
+            let abs = base + range.start..base + range.end;
+            ev.send(QueryEvent::StatementStarted {
+                index,
+                range: abs.clone(),
+            })
+            .await;
+            let (request, keys, class) = match crate::kv::redis_line(body) {
+                Ok(crate::kv::RedisLine::Keys(pattern, req)) => {
+                    (req, Some(pattern), ferrodb_drivers::kv::CommandClass::Read)
+                }
+                Ok(crate::kv::RedisLine::Command(class)) => (
+                    Request::Text {
+                        text: body.to_owned(),
+                    },
+                    None,
+                    class,
+                ),
+                Err(m) => {
+                    ev.error(m, Some("FERRODB-REDIS"), Some(abs)).await;
+                    self.record_history(body, Duration::ZERO, false);
+                    return false;
+                }
+            };
+            if self.ctx.read_only && !class.allowed_read_only() {
+                ev.error(
+                    "the data source is read-only: this command would modify data or the server",
+                    Some("FERRODB-READ-ONLY"),
+                    Some(abs),
+                )
+                .await;
+                self.record_history(body, Duration::ZERO, false);
+                return false;
+            }
+            let started = (SystemTime::now(), Instant::now());
+            let r = self
+                .run_statement(
+                    StatementRun {
+                        request,
+                        keys,
+                        edit: None,
+                        title: None,
+                        index,
+                        last: index + 1 == count,
+                        page_size: job.opts.page_size.max(1),
+                        timeout: job.opts.timeout.or(self.ctx.timeout),
+                        started: started.1,
+                        start_gen,
+                    },
+                    ev,
+                    token,
+                )
+                .await;
+            match r {
+                Ok(out) => {
+                    if body
+                        .split_whitespace()
+                        .next()
+                        .is_some_and(|w| w.eq_ignore_ascii_case("select"))
+                        && let Ok(conn) = self.connection(None).await
+                        && let Ok(s) = conn.current_schema().await
+                    {
+                        self.session.status().schema = s;
+                    }
+                    let elapsed = out.elapsed.unwrap_or_else(|| started.1.elapsed());
+                    if !out.finished_sent {
+                        ev.send(QueryEvent::StatementFinished {
+                            index,
+                            affected: out.affected,
+                            elapsed,
+                        })
+                        .await;
+                    }
+                    self.record_history(body, elapsed, true);
+                    self.log(
+                        LogSource::User,
+                        body,
+                        started,
+                        out.affected.or(Some(out.rows)),
+                        None,
+                    );
+                    if out.finished_sent {
+                        return true;
+                    }
+                }
+                Err(e) => {
+                    let mut q = to_query_error(&e, job.opts.timeout.or(self.ctx.timeout));
+                    q.range = Some(abs.clone());
                     self.record_history(body, started.1.elapsed(), false);
                     self.log(
                         LogSource::User,
@@ -860,6 +1022,8 @@ enum Op<'a> {
 
 struct StatementRun {
     request: Request,
+    /// Key listing (Redis) with this pattern: rows are key entries.
+    keys: Option<String>,
     /// Tabular results of this statement can be edited: (dialect,
     /// statement text, session schema).
     edit: Option<(String, String, Option<String>)>,
@@ -965,7 +1129,15 @@ async fn forward(
         }
         let Some(event) = next else { break };
         let (shape, items) = match event {
-            SinkEvent::Begin { schema } => (Some(ResultShape::Table(schema)), None),
+            SinkEvent::Begin { schema } => match &run.keys {
+                Some(pattern) => (
+                    Some(ResultShape::Keys {
+                        pattern: pattern.clone(),
+                    }),
+                    None,
+                ),
+                None => (Some(ResultShape::Table(schema)), None),
+            },
             SinkEvent::BeginDocuments {
                 database,
                 collection,
@@ -1046,6 +1218,16 @@ async fn forward(
                         arrow: arrow.clone(),
                         batches: Vec::new(),
                         rows: 0,
+                    },
+                );
+            }
+            if matches!(shape, ResultShape::Keys { .. }) {
+                core.register_keys(
+                    rid,
+                    crate::kv::KeyResult {
+                        session: session.id,
+                        data_source: session.data_source.clone(),
+                        database: session.status().schema.clone(),
                     },
                 );
             }
@@ -1154,11 +1336,11 @@ async fn forward(
                 }));
             }
         }
-        ev.send(QueryEvent::Data {
-            result: rid,
-            chunk: page.chunk(),
-        })
-        .await;
+        let chunk = match (&run.keys, page) {
+            (Some(_), Items::Rows(b)) => crate::kv::keys_chunk(&b),
+            (_, page) => page.chunk(),
+        };
+        ev.send(QueryEvent::Data { result: rid, chunk }).await;
         if let Some(rest) = rest {
             pending = Some(rest.event());
         }
@@ -1182,6 +1364,7 @@ impl Inner {
             let mut st = self.state();
             st.documents.retain(|_, d| d.session != id);
             st.tables.retain(|_, t| t.session != id);
+            st.keys.retain(|_, k| k.session != id);
             st.sessions.remove(&id)
         };
         if let Some(s) = s {
@@ -1190,6 +1373,13 @@ impl Inner {
                 let _ = rx.await;
             }
         }
+    }
+
+    /// The data source and current schema / database of a session.
+    pub(crate) fn session_place(&self, id: SessionId) -> Result<(DataSourceId, Option<String>)> {
+        let s = self.session(id)?;
+        let schema = s.status().schema.clone();
+        Ok((s.data_source.clone(), schema))
     }
 
     fn session(&self, id: SessionId) -> Result<Arc<Session>> {
@@ -1367,8 +1557,9 @@ impl QueryService for Inner {
         })
     }
 
-    fn key_value(&self, _session: SessionId, _key: String) -> BoxFuture<'_, Result<KeyValue>> {
-        Box::pin(async { Err(Error::Unsupported("key-value sources".into())) })
+    fn key_value(&self, session: SessionId, key: String) -> BoxFuture<'_, Result<KeyValue>> {
+        let me = self.arc();
+        self.spawn(async move { me.key_value_of(session, key).await })
     }
 
     fn preview_changes(
@@ -1379,6 +1570,10 @@ impl QueryService for Inner {
         if self.is_table_result(result) {
             let me = self.arc();
             return self.spawn(async move { me.preview_table(result, &changes).await });
+        }
+        if self.is_key_result(result) {
+            let me = self.arc();
+            return self.spawn(async move { me.preview_keys(result, &changes).await });
         }
         let r = self.preview_documents(result, &changes);
         Box::pin(async move { r })
@@ -1392,6 +1587,9 @@ impl QueryService for Inner {
         let me = self.arc();
         if self.is_table_result(result) {
             return self.spawn(async move { me.apply_table(result, changes).await });
+        }
+        if self.is_key_result(result) {
+            return self.spawn(async move { me.apply_keys(result, changes).await });
         }
         self.spawn(async move { me.apply_documents(result, changes).await })
     }
@@ -1434,6 +1632,7 @@ impl QueryService for Inner {
         let mut st = self.state();
         st.tables.remove(&result);
         st.documents.remove(&result);
+        st.keys.remove(&result);
     }
 
     fn commit(&self, session: SessionId) -> BoxFuture<'_, Result<()>> {

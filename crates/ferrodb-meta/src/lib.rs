@@ -23,6 +23,7 @@
 //! cycle (ADR-008 amendment in `docs/phase-4.md`).
 
 pub mod cache;
+pub mod cassandra;
 pub mod ddl;
 pub mod diff;
 mod duckdb;
@@ -31,6 +32,7 @@ pub mod model;
 pub mod mongo;
 mod mysql;
 mod pg;
+pub mod redis;
 pub mod rows;
 pub mod sql_model;
 mod sqlite;
@@ -86,10 +88,10 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::Snowflake => &Unavailable(Dialect::Snowflake),
         Dialect::BigQuery => &Unavailable(Dialect::BigQuery),
         Dialect::ClickHouse => &Unavailable(Dialect::ClickHouse),
-        Dialect::Cassandra => &Unavailable(Dialect::Cassandra),
+        Dialect::Cassandra => &cassandra::CassandraIntrospector,
         Dialect::Couchbase => &Unavailable(Dialect::Couchbase),
         Dialect::DynamoDb => &Unavailable(Dialect::DynamoDb),
-        Dialect::Redis => &Unavailable(Dialect::Redis),
+        Dialect::Redis => &redis::RedisIntrospector,
     }
 }
 

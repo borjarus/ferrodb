@@ -11,12 +11,16 @@
 //! Later phases add introspection, editing and export scenarios.
 //!
 //! v2 (phase 4b) adds the document model: [`run_documents`].
+//!
+//! v3 (phase 8) adds the key-value model: [`run_key_value`].
 
 mod documents;
+mod key_value;
 
 use std::time::{Duration, Instant};
 
 pub use documents::run_documents;
+pub use key_value::run_key_value;
 
 use arrow_array::{Array, Int64Array, RecordBatch};
 use arrow_schema::DataType;
@@ -43,6 +47,46 @@ pub struct Profile {
     pub error_positions: bool,
     /// The container level of the explorer tree (schema / database).
     pub container: ObjectKind,
+}
+
+/// What the generic SQL of the scenarios cannot express for a database
+/// (CQL: keys required, no multi-row `VALUES`, no subqueries, no sleep), as
+/// data. [`run`] uses the defaults (standard SQL).
+#[derive(Clone, Debug)]
+pub struct Adjustments {
+    /// Statements run once before the scenarios (fixtures such as the
+    /// table behind `series`).
+    pub setup: fn() -> Vec<String>,
+    /// `CREATE TABLE {t}` with one integer column `a`.
+    pub int_table: fn(&str) -> String,
+    /// Statements inserting rows with `a` = each value.
+    pub insert_ints: fn(&str, &[i64]) -> Vec<String>,
+    /// The `INSERT` of [`Profile::types_row`] into the types table.
+    pub insert_types: fn(&str, &str) -> String,
+    /// A query returning no rows and one integer column.
+    pub empty_query: fn(&Profile) -> String,
+    /// DML reports affected rows (Cassandra does not).
+    pub affected_counts: bool,
+    /// [`Profile::sleep`] really runs for a while; otherwise the cancel
+    /// scenario cancels a stream stalled by backpressure.
+    pub sleep: bool,
+}
+
+impl Default for Adjustments {
+    fn default() -> Self {
+        Self {
+            setup: Vec::new,
+            int_table: |t| format!("create table {t} (a integer)"),
+            insert_ints: |t, v| {
+                let rows: Vec<String> = v.iter().map(|i| format!("({i})")).collect();
+                vec![format!("insert into {t} values {}", rows.join(", "))]
+            },
+            insert_types: |t, row| format!("insert into {t} values {row}"),
+            empty_query: |p| format!("select i from ({}) s where i < 0", (p.series)(3)),
+            affected_counts: true,
+            sleep: true,
+        }
+    }
 }
 
 /// Outcome of one scenario.
@@ -136,6 +180,7 @@ struct Ctx<'a> {
     driver: &'a dyn Driver,
     cfg: &'a ResolvedConfig,
     profile: &'a Profile,
+    adj: &'a Adjustments,
     conn: Box<dyn Connection>,
 }
 
@@ -151,6 +196,18 @@ impl Ctx<'_> {
 
 /// Runs every scenario. Never panics; failures are reported.
 pub async fn run(driver: &dyn Driver, cfg: &ResolvedConfig, profile: &Profile) -> Report {
+    run_adjusted(driver, cfg, profile, &Adjustments::default()).await
+}
+
+/// [`run`] with database-specific statements. Scenarios a database cannot
+/// support by its capabilities (transactions, affected counts, listing
+/// queries) pass as "skipped" with the reason.
+pub async fn run_adjusted(
+    driver: &dyn Driver,
+    cfg: &ResolvedConfig,
+    profile: &Profile,
+    adj: &Adjustments,
+) -> Report {
     let mut report = Report {
         driver: driver.descriptor().name,
         ..Default::default()
@@ -179,8 +236,24 @@ pub async fn run(driver: &dyn Driver, cfg: &ResolvedConfig, profile: &Profile) -
         driver,
         cfg,
         profile,
+        adj,
         conn,
     };
+    for st in (adj.setup)() {
+        if let Err(e) = run_sql(ctx.conn.as_mut(), &st).await {
+            report.outcomes.push(Outcome {
+                scenario: "setup",
+                passed: false,
+                // Fixture statements are long: keep the error readable.
+                detail: match e.char_indices().nth(160) {
+                    Some((i, _)) => format!("{}… {}", &e[..i], e.rsplit(": ").next().unwrap_or("")),
+                    None => e,
+                },
+                elapsed: started.elapsed(),
+            });
+            return report;
+        }
+    }
     macro_rules! scenario {
         ($name:literal, $fut:expr) => {{
             let t = Instant::now();
@@ -244,7 +317,7 @@ async fn types(c: &mut Ctx<'_>) -> Result<String, String> {
     let r = async {
         run_sql(
             c.conn.as_mut(),
-            &format!("insert into {t} values {}", c.profile.types_row),
+            &(c.adj.insert_types)(&t, c.profile.types_row),
         )
         .await?;
         let out = run_sql(
@@ -293,6 +366,9 @@ async fn types(c: &mut Ctx<'_>) -> Result<String, String> {
 }
 
 async fn dml(c: &mut Ctx<'_>) -> Result<String, String> {
+    if !c.adj.affected_counts {
+        return Ok("skipped: the database reports no affected row counts".into());
+    }
     let t = table_name("dml");
     run_sql(c.conn.as_mut(), &format!("create table {t} (a integer)")).await?;
     let r = async {
@@ -326,11 +402,7 @@ async fn dml(c: &mut Ctx<'_>) -> Result<String, String> {
 }
 
 async fn empty_shape(c: &mut Ctx<'_>) -> Result<String, String> {
-    let out = run_sql(
-        c.conn.as_mut(),
-        &format!("select i from ({}) s where i < 0", (c.profile.series)(3)),
-    )
-    .await?;
+    let out = run_sql(c.conn.as_mut(), &(c.adj.empty_query)(c.profile)).await?;
     let r = out
         .results
         .first()
@@ -404,6 +476,9 @@ async fn truncate(c: &mut Ctx<'_>) -> Result<String, String> {
 }
 
 async fn cancel(c: &mut Ctx<'_>) -> Result<String, String> {
+    if !c.adj.sleep {
+        return cancel_stalled(c).await;
+    }
     let token = CancellationToken::new();
     let t2 = token.clone();
     let sql = (c.profile.sleep)(30);
@@ -426,6 +501,39 @@ async fn cancel(c: &mut Ctx<'_>) -> Result<String, String> {
         .await
         .map_err(|e| format!("connection unusable after cancel: {e}"))?;
     Ok(format!("{} ms", took.as_millis()))
+}
+
+/// Cancels a statement whose consumer stopped reading (databases without a
+/// sleep function): the driver must give up within a second.
+async fn cancel_stalled(c: &mut Ctx<'_>) -> Result<String, String> {
+    let token = CancellationToken::new();
+    let t2 = token.clone();
+    let (sink, rx) = ResultSink::channel(1, 100);
+    let sql = (c.profile.series)(1_000_000);
+    let exec = c.conn.execute(Request::Text { text: sql }, sink, token);
+    let canceller = async move {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        t2.cancel();
+        Instant::now()
+    };
+    let (r, at) = futures::join!(exec, canceller);
+    let took = at.elapsed();
+    drop(rx);
+    match r {
+        Err(Error::Cancelled) => {}
+        other => return Err(format!("expected Cancelled, got {other:?}")),
+    }
+    if took > Duration::from_secs(1) {
+        return Err(format!("cancel took {} ms", took.as_millis()));
+    }
+    c.conn
+        .ping()
+        .await
+        .map_err(|e| format!("connection unusable after cancel: {e}"))?;
+    Ok(format!(
+        "stalled stream cancelled in {} ms",
+        took.as_millis()
+    ))
 }
 
 async fn errors(c: &mut Ctx<'_>) -> Result<String, String> {
@@ -451,15 +559,25 @@ async fn errors(c: &mut Ctx<'_>) -> Result<String, String> {
 }
 
 async fn transactions(c: &mut Ctx<'_>) -> Result<String, String> {
+    if !c.driver.capabilities().supports_transactions() {
+        return Ok(format!(
+            "skipped: transactions are {:?}",
+            c.driver.capabilities().transactions
+        ));
+    }
     let t = table_name("tx");
-    run_sql(c.conn.as_mut(), &format!("create table {t} (a integer)")).await?;
+    run_sql(c.conn.as_mut(), &(c.adj.int_table)(&t)).await?;
     let r = async {
         c.conn.begin().await.map_err(|e| e.to_string())?;
-        run_sql(c.conn.as_mut(), &format!("insert into {t} values (1)")).await?;
+        for st in (c.adj.insert_ints)(&t, &[1]) {
+            run_sql(c.conn.as_mut(), &st).await?;
+        }
         c.conn.rollback().await.map_err(|e| e.to_string())?;
         let after_rollback = c.count(&t).await?;
         c.conn.begin().await.map_err(|e| e.to_string())?;
-        run_sql(c.conn.as_mut(), &format!("insert into {t} values (2)")).await?;
+        for st in (c.adj.insert_ints)(&t, &[2]) {
+            run_sql(c.conn.as_mut(), &st).await?;
+        }
         c.conn.commit().await.map_err(|e| e.to_string())?;
         let after_commit = c.count(&t).await?;
         if (after_rollback, after_commit) != (0, 1) {
@@ -491,6 +609,9 @@ async fn schema(c: &mut Ctx<'_>) -> Result<String, String> {
 
 async fn listing(c: &mut Ctx<'_>) -> Result<String, String> {
     let v = c.driver.variant();
+    if v.list_queries(&[]).is_empty() {
+        return Ok("skipped: the explorer uses the introspector, not listing queries".into());
+    }
     if v.hierarchy().levels.first().map(|l| l.kind) != Some(c.profile.container) {
         return Err("unexpected first hierarchy level".into());
     }
@@ -561,7 +682,7 @@ fn names(out: &ferrodb_drivers::sink::CollectedOutput) -> Vec<String> {
 
 async fn read_only(c: &mut Ctx<'_>) -> Result<String, String> {
     let t = table_name("ro");
-    run_sql(c.conn.as_mut(), &format!("create table {t} (a integer)")).await?;
+    run_sql(c.conn.as_mut(), &(c.adj.int_table)(&t)).await?;
     let r = async {
         let cfg = ResolvedConfig {
             read_only: true,
@@ -570,12 +691,8 @@ async fn read_only(c: &mut Ctx<'_>) -> Result<String, String> {
         let mut ro = c.driver.connect(&cfg).await.map_err(|e| e.to_string())?;
         ro.set_read_only(true).await.map_err(|e| e.to_string())?;
         let reads = run_sql(ro.as_mut(), &format!("select count(*) from {t}")).await;
-        let writes = collect(
-            ro.as_mut(),
-            format!("insert into {t} values (1)"),
-            CancellationToken::new(),
-        )
-        .await;
+        let insert = (c.adj.insert_ints)(&t, &[1]).remove(0);
+        let writes = collect(ro.as_mut(), insert, CancellationToken::new()).await;
         match (reads, writes) {
             (Ok(_), Err(e)) => Ok(format!("write rejected: {e}")),
             (Err(e), _) => Err(format!("read failed: {e}")),
@@ -647,6 +764,65 @@ pub mod profiles {
             ],
             error_positions: true,
             container: ObjectKind::Schema,
+        }
+    }
+
+    /// Apache Cassandra: `series` reads the `tck_series` fixture table
+    /// filled by [`cassandra_adjustments`] (CQL has no row generator).
+    pub fn cassandra() -> Profile {
+        Profile {
+            series: |n| format!("select i from tck_series limit {n}"),
+            // No sleep: the cancel scenario stalls a stream instead.
+            sleep: |_| "select i from tck_series".into(),
+            types_table: |t| {
+                format!(
+                    "create table {t} (i int primary key, d decimal, s text, b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12+0000')",
+            // decimal: arbitrary precision and scale per value, as text.
+            types: [
+                DataType::Int32,
+                DataType::Utf8,
+                DataType::Utf8,
+                DataType::Boolean,
+                DataType::Date32,
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
+            ],
+            error_positions: false,
+            container: ObjectKind::Keyspace,
+        }
+    }
+
+    /// Rows of the `tck_series` fixture.
+    pub const CASSANDRA_SERIES_ROWS: i64 = 100_000;
+
+    pub fn cassandra_adjustments() -> super::Adjustments {
+        super::Adjustments {
+            setup: || {
+                let mut v =
+                    vec!["create table if not exists tck_series (i bigint primary key)".to_owned()];
+                let per = 250;
+                for chunk in 0..(CASSANDRA_SERIES_ROWS / per) {
+                    let mut b = String::from("begin unlogged batch ");
+                    for i in chunk * per..(chunk + 1) * per {
+                        b.push_str(&format!("insert into tck_series (i) values ({}); ", i + 1));
+                    }
+                    b.push_str("apply batch");
+                    v.push(b);
+                }
+                v
+            },
+            int_table: |t| format!("create table {t} (a int primary key)"),
+            insert_ints: |t, v| {
+                v.iter()
+                    .map(|i| format!("insert into {t} (a) values ({i})"))
+                    .collect()
+            },
+            insert_types: |t, row| format!("insert into {t} (i, d, s, b, dt, ts) values {row}"),
+            empty_query: |_| "select i from tck_series where i = -1".into(),
+            affected_counts: false,
+            sleep: false,
         }
     }
 

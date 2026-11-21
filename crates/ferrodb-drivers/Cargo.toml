@@ -14,6 +14,8 @@ pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls"]
 mysql = ["dep:mysql_async"]
 mongodb = ["dep:mongodb"]
 duckdb = ["dep:duckdb"]
+redis = ["dep:redis"]
+cql = ["dep:scylla", "dep:async-trait"]
 
 [dependencies]
 ferrodb-api.workspace = true
@@ -28,6 +30,7 @@ arrow-array.workspace = true
 arrow-schema.workspace = true
 chrono.workspace = true
 tracing.workspace = true
+serde_json.workspace = true
 rustls.workspace = true
 rusqlite = { workspace = true, optional = true }
 tokio-postgres = { workspace = true, optional = true }
@@ -35,6 +38,9 @@ tokio-postgres-rustls = { workspace = true, optional = true }
 mysql_async = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
 duckdb = { workspace = true, optional = true }
+redis = { workspace = true, optional = true }
+scylla = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

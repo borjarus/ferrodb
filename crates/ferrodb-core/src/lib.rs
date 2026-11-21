@@ -14,6 +14,7 @@
 mod config;
 mod documents;
 mod explain;
+mod kv;
 mod language;
 mod local_history;
 mod metadata;
@@ -213,6 +214,8 @@ pub(crate) struct State {
     pub documents: HashMap<ResultId, documents::DocResult>,
     /// Tabular results that can be edited: result → statement and rows.
     pub tables: HashMap<ResultId, tables::TableResult>,
+    /// Key listings (Redis) whose keys can be edited: result → session.
+    pub keys: HashMap<ResultId, kv::KeyResult>,
 }
 
 pub(crate) struct Inner {
@@ -331,6 +334,8 @@ impl Inner {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_kv;
 #[cfg(test)]
 mod tests_mongo;
 #[cfg(test)]

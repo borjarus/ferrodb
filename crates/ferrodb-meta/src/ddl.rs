@@ -412,7 +412,7 @@ fn mysql_key_clause(t: &Target<'_>, i: &Index) -> String {
 /// `deferred` are left out (added later with `ALTER TABLE`).
 pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey]) -> String {
     let mut out = String::new();
-    if t.dialect == Dialect::Sqlite
+    if matches!(t.dialect, Dialect::Sqlite | Dialect::Cassandra)
         && let Some(sql) = &table.server_sql
     {
         out.push_str(&format!("{};\n", sql.trim_end_matches(';')));
@@ -584,7 +584,7 @@ pub(crate) fn comments(t: &Target<'_>, table: &Table, out: &mut String) {
 }
 
 pub(crate) fn view_ddl(t: &Target<'_>, v: &Table) -> String {
-    if t.dialect == Dialect::Sqlite
+    if matches!(t.dialect, Dialect::Sqlite | Dialect::Cassandra)
         && let Some(sql) = &v.server_sql
     {
         return format!("{};\n", sql.trim_end_matches(';'));

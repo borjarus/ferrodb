@@ -20,6 +20,7 @@
 
 pub mod chart;
 pub mod compare;
+pub mod cql;
 pub mod docs;
 pub mod edit;
 pub mod export;

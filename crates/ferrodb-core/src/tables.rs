@@ -231,6 +231,17 @@ impl Inner {
                 RowIdentity::Key(k.to_vec()),
                 None,
             ),
+            // Cassandra rows are addressed by the full primary key only.
+            Some(k) if r.dialect == "cql" => {
+                return Err(not(&format!(
+                    "the result lacks primary key column(s) {} (Cassandra rows are changed by their full primary key: partition and clustering columns)",
+                    k.iter()
+                        .filter(|c| index_of(c).is_none())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )));
+            }
             other => {
                 let why = match other {
                     Some(k) => format!("the result lacks the key column(s) {}", k.join(", ")),
@@ -309,8 +320,28 @@ impl Inner {
             )
         })?;
         let t = self.edit_target(&r).await?;
-        let planned = edit::plan(&t.sql, &t.edit, changes, |row, col| r.value(row, col))
-            .map_err(Error::Other)?;
+        let planned = if r.dialect == "cql" {
+            let ct = ferrodb_data::cql::CqlTable {
+                table: t.edit.table.clone(),
+                columns: t.edit.columns.clone(),
+                types: t
+                    .edit
+                    .columns
+                    .iter()
+                    .map(|c| {
+                        c.as_deref()
+                            .and_then(|c| t.table.column(c))
+                            .map(|c| c.data_type.clone())
+                            .unwrap_or_else(|| "text".into())
+                    })
+                    .collect(),
+                key: t.edit.key.clone(),
+            };
+            ferrodb_data::cql::plan(&ct, changes, |row, col| r.value(row, col))
+        } else {
+            edit::plan(&t.sql, &t.edit, changes, |row, col| r.value(row, col))
+        }
+        .map_err(Error::Other)?;
         Ok((r, t, planned))
     }
 
@@ -343,6 +374,21 @@ impl Inner {
             return Err(Error::ReadOnly);
         }
         let statements: Vec<String> = planned.iter().map(|p| format!("{};", p.sql)).collect();
+        if r.dialect == "cql" {
+            // No transactions and no affected counts: statement by statement.
+            let mut conn = self.checkout(&r.data_source).await?;
+            if let Some(s) = r.schema.as_deref() {
+                let _ = conn.set_schema(s).await;
+            }
+            let res = run_planned(conn.as_mut(), &planned).await;
+            self.checkin(&r.data_source, conn);
+            res?;
+            return Ok(ApplyReport {
+                applied: planned.len(),
+                statements,
+                pending_commit: false,
+            });
+        }
         let manual = cfg.tx_mode == ferrodb_api::TxMode::Manual
             && self
                 .driver_for(&cfg)?
