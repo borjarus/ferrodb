@@ -72,6 +72,57 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::Sqlite => &sqlite::SqliteIntrospector,
         Dialect::Mongo => &mongo::MongoIntrospector,
         Dialect::DuckDb => &duckdb::DuckDbIntrospector,
+        // Phase 8 introspectors are added per database.
+        Dialect::SqlServer => &Unavailable(Dialect::SqlServer),
+        Dialect::Sybase => &Unavailable(Dialect::Sybase),
+        Dialect::Oracle => &Unavailable(Dialect::Oracle),
+        Dialect::Db2 => &Unavailable(Dialect::Db2),
+        Dialect::H2 => &Unavailable(Dialect::H2),
+        Dialect::Derby => &Unavailable(Dialect::Derby),
+        Dialect::Hsqldb => &Unavailable(Dialect::Hsqldb),
+        Dialect::Exasol => &Unavailable(Dialect::Exasol),
+        Dialect::Vertica => &Unavailable(Dialect::Vertica),
+        Dialect::Hive => &Unavailable(Dialect::Hive),
+        Dialect::Snowflake => &Unavailable(Dialect::Snowflake),
+        Dialect::BigQuery => &Unavailable(Dialect::BigQuery),
+        Dialect::ClickHouse => &Unavailable(Dialect::ClickHouse),
+        Dialect::Cassandra => &Unavailable(Dialect::Cassandra),
+        Dialect::Couchbase => &Unavailable(Dialect::Couchbase),
+        Dialect::DynamoDb => &Unavailable(Dialect::DynamoDb),
+        Dialect::Redis => &Unavailable(Dialect::Redis),
+    }
+}
+
+/// Placeholder for a dialect without an introspector in this build.
+struct Unavailable(Dialect);
+
+impl Introspector for Unavailable {
+    fn dialect(&self) -> Dialect {
+        self.0
+    }
+    fn containers<'a>(
+        &'a self,
+        _conn: &'a mut dyn Connection,
+    ) -> BoxFuture<'a, Result<Vec<Container>>> {
+        let d = self.0;
+        Box::pin(async move {
+            Err(ferrodb_api::Error::Unsupported(format!(
+                "introspection of {d:?}"
+            )))
+        })
+    }
+    fn content<'a>(
+        &'a self,
+        _conn: &'a mut dyn Connection,
+        _container: &'a str,
+        _only: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Content>> {
+        let d = self.0;
+        Box::pin(async move {
+            Err(ferrodb_api::Error::Unsupported(format!(
+                "introspection of {d:?}"
+            )))
+        })
     }
 }
 

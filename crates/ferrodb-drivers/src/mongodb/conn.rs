@@ -343,6 +343,9 @@ impl Connection for MongoConnection {
         Box::pin(async move {
             let cmd = match req {
                 Request::Mql(c) => c,
+                Request::Native { method, .. } => {
+                    return Err(Error::Unsupported(format!("native call `{method}`")));
+                }
                 Request::Text { text } => mql::parse(&text).map_err(|e| {
                     Error::Query(QueryError {
                         message: e.message,

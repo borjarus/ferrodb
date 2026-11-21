@@ -19,6 +19,33 @@ pub enum Dialect {
     Mongo,
     /// DuckDB: PostgreSQL-like SQL, file data sources (phase 7).
     DuckDb,
+    // Phase 8. Greenplum, CockroachDB and Redshift stay `Postgres`: same
+    // catalog; their differences are detected from the server version.
+    /// Microsoft SQL Server and Azure SQL (T-SQL, `[brackets]`).
+    SqlServer,
+    /// Sybase ASE (T-SQL through JDBC).
+    Sybase,
+    Oracle,
+    Db2,
+    H2,
+    Derby,
+    Hsqldb,
+    Exasol,
+    Vertica,
+    /// Apache Hive (HiveQL, databases, no transactions).
+    Hive,
+    Snowflake,
+    /// Google BigQuery (GoogleSQL, projects -> datasets).
+    BigQuery,
+    ClickHouse,
+    /// Apache Cassandra (CQL, keyspaces).
+    Cassandra,
+    /// Couchbase (SQL++, buckets -> scopes -> collections).
+    Couchbase,
+    /// Amazon DynamoDB (PartiQL, tables).
+    DynamoDb,
+    /// Redis (databases -> keys).
+    Redis,
 }
 
 impl Dialect {
@@ -31,13 +58,91 @@ impl Dialect {
             "sqlite" => Self::Sqlite,
             "duckdb" => Self::DuckDb,
             "mql" | "mongodb" => Self::Mongo,
+            "tsql" | "sqlserver" | "azuresql" => Self::SqlServer,
+            "sybase" => Self::Sybase,
+            "oracle" => Self::Oracle,
+            "db2" => Self::Db2,
+            "h2" => Self::H2,
+            "derby" => Self::Derby,
+            "hsqldb" => Self::Hsqldb,
+            "exasol" => Self::Exasol,
+            "vertica" => Self::Vertica,
+            "hiveql" | "hive" => Self::Hive,
+            "snowflake" => Self::Snowflake,
+            "googlesql" | "bigquery" => Self::BigQuery,
+            "clickhouse" => Self::ClickHouse,
+            "cql" | "cassandra" => Self::Cassandra,
+            "sqlpp" | "couchbase" => Self::Couchbase,
+            "partiql" | "dynamodb" => Self::DynamoDb,
+            "redis" => Self::Redis,
             _ => return None,
         })
+    }
+
+    /// The dialect of a query language (SQL dialect id, MQL, CQL...).
+    pub fn from_language(lang: &ferrodb_api::QueryLanguage) -> Option<Self> {
+        use ferrodb_api::QueryLanguage as L;
+        match lang {
+            L::Sql(d) => Self::from_id(d.as_str()),
+            L::Mql => Some(Self::Mongo),
+            L::Cql => Some(Self::Cassandra),
+            L::SqlPlusPlus => Some(Self::Couchbase),
+            L::PartiQl => Some(Self::DynamoDb),
+            L::RedisCommands => Some(Self::Redis),
+        }
+    }
+
+    /// How identifiers are quoted and folded.
+    pub fn quoting(self) -> Quoting {
+        match self {
+            Self::Postgres | Self::Sqlite | Self::DuckDb | Self::Vertica | Self::Cassandra => {
+                Quoting::DoubleLower
+            }
+            Self::MySql | Self::MariaDb => Quoting::BacktickAlways,
+            Self::SqlServer | Self::Sybase => Quoting::Brackets,
+            Self::Oracle
+            | Self::Db2
+            | Self::H2
+            | Self::Derby
+            | Self::Hsqldb
+            | Self::Exasol
+            | Self::Snowflake => Quoting::DoubleUpper,
+            Self::Hive | Self::BigQuery | Self::ClickHouse | Self::Couchbase => Quoting::Backtick,
+            Self::DynamoDb => Quoting::DoubleCaseSensitive,
+            Self::Mongo | Self::Redis => Quoting::None,
+        }
+    }
+
+    /// SQL databases whose DDL this crate generates (tables, keys, indexes).
+    pub fn is_sql(self) -> bool {
+        !matches!(
+            self,
+            Self::Mongo | Self::Redis | Self::DynamoDb | Self::Couchbase
+        )
     }
 
     pub fn is_mysql(self) -> bool {
         matches!(self, Self::MySql | Self::MariaDb)
     }
+}
+
+/// Identifier quoting rules of a [`Dialect`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Quoting {
+    /// `"x"` unless lowercase and not reserved (PostgreSQL, SQLite, CQL).
+    DoubleLower,
+    /// `"X"` unless uppercase and not reserved (Oracle, Db2, H2, Snowflake...).
+    DoubleUpper,
+    /// `"x"` unless a plain identifier; case is preserved (PartiQL).
+    DoubleCaseSensitive,
+    /// `` `x` `` always (MySQL, MariaDB).
+    BacktickAlways,
+    /// `` `x` `` unless a plain identifier (HiveQL, GoogleSQL, ClickHouse, SQL++).
+    Backtick,
+    /// `[x]` unless a plain identifier (T-SQL).
+    Brackets,
+    /// Names are used as they are (MongoDB, Redis).
+    None,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

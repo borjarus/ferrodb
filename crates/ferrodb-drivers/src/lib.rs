@@ -75,6 +75,15 @@ pub enum Request {
     Text { text: String },
     /// A parsed MongoDB shell statement.
     Mql(ferrodb_lang::mql::Command),
+    /// A driver-specific call that is not a statement of the source's
+    /// language: JDBC `DatabaseMetaData`, ADBC `GetObjects`, DynamoDB
+    /// `ListTables`, Redis key scans... Results stream into the sink like
+    /// any statement. Drivers answer unknown methods with
+    /// [`Error::Unsupported`].
+    Native {
+        method: String,
+        args: Vec<(String, String)>,
+    },
 }
 
 impl Request {
@@ -85,6 +94,31 @@ impl Request {
             Self::Mql(_) => Err(Error::Unsupported(
                 "MongoDB commands on an SQL connection".into(),
             )),
+            Self::Native { method, .. } => {
+                Err(Error::Unsupported(format!("native call `{method}`")))
+            }
+        }
+    }
+
+    /// A native call with `args` as `key=value` pairs.
+    pub fn native(method: &str, args: &[(&str, &str)]) -> Self {
+        Self::Native {
+            method: method.to_owned(),
+            args: args
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect(),
+        }
+    }
+
+    /// Argument `key` of a native call.
+    pub fn arg(&self, key: &str) -> Option<&str> {
+        match self {
+            Self::Native { args, .. } => args
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.as_str()),
+            _ => None,
         }
     }
 }

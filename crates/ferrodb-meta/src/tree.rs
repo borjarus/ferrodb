@@ -17,8 +17,30 @@ use crate::{ddl::Object, model::*};
 /// Kind of the top-level containers.
 pub fn container_kind(d: Dialect) -> ObjectKind {
     match d {
-        Dialect::Postgres | Dialect::Sqlite | Dialect::DuckDb => ObjectKind::Schema,
-        Dialect::MySql | Dialect::MariaDb | Dialect::Mongo => ObjectKind::Database,
+        Dialect::Postgres
+        | Dialect::Sqlite
+        | Dialect::DuckDb
+        | Dialect::SqlServer
+        | Dialect::Sybase
+        | Dialect::Oracle
+        | Dialect::Db2
+        | Dialect::H2
+        | Dialect::Derby
+        | Dialect::Hsqldb
+        | Dialect::Exasol
+        | Dialect::Vertica
+        | Dialect::Snowflake => ObjectKind::Schema,
+        Dialect::MySql
+        | Dialect::MariaDb
+        | Dialect::Mongo
+        | Dialect::Hive
+        | Dialect::ClickHouse
+        | Dialect::Redis
+        // DynamoDB: tables directly under one container (the region).
+        | Dialect::DynamoDb => ObjectKind::Database,
+        Dialect::BigQuery => ObjectKind::Dataset,
+        Dialect::Cassandra => ObjectKind::Keyspace,
+        Dialect::Couchbase => ObjectKind::Bucket,
     }
 }
 
@@ -59,10 +81,59 @@ pub fn hierarchy(d: Dialect) -> HierarchySpec {
             level(Collection, &[Index]),
             level(View, &[]),
         ],
+        Dialect::SqlServer
+        | Dialect::Sybase
+        | Dialect::Oracle
+        | Dialect::Db2
+        | Dialect::H2
+        | Dialect::Derby
+        | Dialect::Hsqldb
+        | Dialect::Exasol
+        | Dialect::Vertica => vec![
+            level(Schema, &[Table, View, Function, Procedure, Sequence]),
+            level(Table, &table_children),
+            level(View, &[Column]),
+        ],
+        Dialect::Snowflake => vec![
+            level(
+                Schema,
+                &[Table, View, MaterializedView, Function, Procedure, Sequence],
+            ),
+            level(Table, &[Column, PrimaryKey, ForeignKey]),
+            level(View, &[Column]),
+            level(MaterializedView, &[Column]),
+        ],
+        Dialect::Hive | Dialect::ClickHouse => vec![
+            level(Database, &[Table, View, MaterializedView]),
+            level(Table, &[Column, Index]),
+            level(View, &[Column]),
+            level(MaterializedView, &[Column]),
+        ],
+        Dialect::BigQuery => vec![
+            level(Dataset, &[Table, View, MaterializedView, Function, Procedure]),
+            level(Table, &[Column]),
+            level(View, &[Column]),
+            level(MaterializedView, &[Column]),
+        ],
+        Dialect::Cassandra => vec![
+            level(Keyspace, &[Table, MaterializedView, Function]),
+            level(Table, &[Column, PrimaryKey, Index]),
+            level(MaterializedView, &[Column]),
+        ],
+        Dialect::Couchbase => vec![
+            level(Bucket, &[Scope]),
+            level(Scope, &[Collection]),
+            level(Collection, &[Index]),
+        ],
+        Dialect::DynamoDb => vec![level(Database, &[Table]), level(Table, &[Column, Index])],
+        Dialect::Redis => vec![
+            level(Database, &[KeyPrefix, Key]),
+            level(KeyPrefix, &[KeyPrefix, Key]),
+        ],
     };
     HierarchySpec {
         levels,
-        key_separator: None,
+        key_separator: (d == Dialect::Redis).then(|| ":".to_owned()),
     }
 }
 

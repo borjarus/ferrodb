@@ -171,24 +171,44 @@ const PG_RESERVED: &[&str] = &[
 
 /// Quotes an identifier when the dialect needs it (MySQL: always).
 pub fn quote(dialect: Dialect, ident: &str) -> String {
-    match dialect {
-        Dialect::MySql | Dialect::MariaDb => format!("`{}`", ident.replace('`', "``")),
-        Dialect::Postgres | Dialect::Sqlite | Dialect::DuckDb => {
-            let plain = ident
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_lowercase() || c == '_')
-                && ident
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-                && !PG_RESERVED.contains(&ident);
-            if plain {
+    let reserved = || PG_RESERVED.contains(&ident.to_ascii_lowercase().as_str());
+    let plain = |first: fn(char) -> bool, rest: fn(char) -> bool| {
+        ident.chars().next().is_some_and(first) && ident.chars().all(rest) && !reserved()
+    };
+    let double = || format!("\"{}\"", ident.replace('"', "\"\""));
+    let backtick = || format!("`{}`", ident.replace('`', "``"));
+    let any_case = || {
+        plain(
+            |c| c.is_ascii_alphabetic() || c == '_',
+            |c| c.is_ascii_alphanumeric() || c == '_',
+        )
+    };
+    match dialect.quoting() {
+        Quoting::BacktickAlways => backtick(),
+        Quoting::DoubleLower => {
+            if plain(
+                |c| c.is_ascii_lowercase() || c == '_',
+                |c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_',
+            ) {
                 ident.to_owned()
             } else {
-                format!("\"{}\"", ident.replace('"', "\"\""))
+                double()
             }
         }
-        Dialect::Mongo => ident.to_owned(),
+        Quoting::DoubleUpper => {
+            if plain(
+                |c| c.is_ascii_uppercase(),
+                |c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_',
+            ) {
+                ident.to_owned()
+            } else {
+                double()
+            }
+        }
+        Quoting::DoubleCaseSensitive if !any_case() => double(),
+        Quoting::Backtick if !any_case() => backtick(),
+        Quoting::Brackets if !any_case() => format!("[{}]", ident.replace(']', "]]")),
+        _ => ident.to_owned(),
     }
 }
 
@@ -274,7 +294,7 @@ pub(crate) fn column_def(t: &Target<'_>, c: &Column) -> String {
                 s.push_str(&format!(" COMMENT {}", literal(t.dialect, cm)));
             }
         }
-        Dialect::Sqlite | Dialect::Mongo | Dialect::DuckDb => {
+        _ => {
             s.push_str(&c.data_type);
             if !c.nullable {
                 s.push_str(" NOT NULL");
