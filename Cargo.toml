@@ -15,6 +15,7 @@ members = [
   "crates/ferrodb-meta",
   "crates/ferrodb-core",
   "crates/ferrodb-data",
+  "crates/ferrodb-adbc",
   "apps/ferrodb-gallery",
   "xtask",
   "spikes/gui",
@@ -45,6 +46,7 @@ ferrodb-storage = { path = "crates/ferrodb-storage" }
 ferrodb-core = { path = "crates/ferrodb-core" }
 ferrodb-meta = { path = "crates/ferrodb-meta" }
 ferrodb-data = { path = "crates/ferrodb-data" }
+ferrodb-adbc = { path = "crates/ferrodb-adbc" }
 
 # GUI — exactly pinned (pins the gpui-pre 0.3.10 snapshot); see ADR-001
 gpui-kit = { version = "=0.8.1" }
@@ -74,6 +76,17 @@ duckdb = { version = "=1.20000.2", default-features = false, features = ["bundle
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 rustls-platform-verifier = "0.7.1"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+# HTTP (ClickHouse HTTP interface, BigQuery REST): rustls with the workspace's
+# `ring` config passed in (`tls_backend_preconfigured`), no aws-lc / OpenSSL.
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream", "query", "json", "form"] }
+# ADBC (phase 8): drivers loaded at run time (Snowflake, BigQuery).
+adbc_core = "0.25.0"
+adbc_driver_manager = "0.25.0"
+arrow-buffer = "60.1.0"
+ring = "0.17.14"
+base64 = "0.22.1"
+# ADBC driver libraries ship inside Python wheels (zip, deflate).
+zip = { version = "9.6.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 russh = { version = "0.65.1", default-features = false, features = ["flate2", "ring", "rsa"] }
 
 # languages

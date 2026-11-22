@@ -23,6 +23,12 @@ pub(crate) enum Format {
     SqliteRows,
     DuckJson,
     Mongo,
+    /// `EXPLAIN json = 1, …` (phase 8).
+    ClickHouseJson,
+    /// `EXPLAIN USING JSON`.
+    SnowflakeJson,
+    /// A BigQuery job resource from the driver's `explain` native call.
+    BigQueryJob,
 }
 
 /// What the session runs for a plan.
@@ -97,6 +103,45 @@ pub(crate) fn request(dialect: &str, mql: bool, stmt: &str, analyze: bool) -> Re
             },
             Format::DuckJson,
         ),
+        "clickhouse" if analyze => {
+            return Err(Error::Unsupported(
+                "ClickHouse has no EXPLAIN ANALYZE; the estimated plan shows the parts and \
+                 granules each index selects"
+                    .into(),
+            ));
+        }
+        "clickhouse" => (
+            format!("EXPLAIN json = 1, actions = 1, indexes = 1, description = 1 {stmt}"),
+            Format::ClickHouseJson,
+        ),
+        "snowflake" if analyze => {
+            return Err(Error::Unsupported(
+                "Snowflake has no EXPLAIN ANALYZE; the query profile of a run is in Snowsight"
+                    .into(),
+            ));
+        }
+        "snowflake" => (format!("EXPLAIN USING JSON {stmt}"), Format::SnowflakeJson),
+        // No EXPLAIN statement: a dry run (estimate) or the statistics of
+        // the job (analyze), through the driver.
+        "googlesql" | "bigquery" => {
+            let statement = if analyze {
+                format!("-- BigQuery job statistics (the query is run)\n{stmt}")
+            } else {
+                format!("-- BigQuery dry run\n{stmt}")
+            };
+            return Ok(Explain {
+                request: Request::native(
+                    "explain",
+                    &[
+                        ("sql", &stmt),
+                        ("analyze", if analyze { "true" } else { "false" }),
+                    ],
+                ),
+                statement,
+                format: Format::BigQueryJob,
+                measure: None,
+            });
+        }
         other => {
             return Err(Error::Unsupported(format!(
                 "execution plans of the `{other}` dialect"
@@ -251,6 +296,9 @@ pub(crate) fn parse(format: Format, out: &CollectedOutput) -> Result<ExecutionPl
         Format::MySqlJson => plan::mysql_json(&first_column(out).join("\n")).map_err(bad),
         Format::MySqlTree => plan::mysql_tree(&first_column(out).join("\n")).map_err(bad),
         Format::DuckJson => plan::duckdb_json(&last_column(out).join("\n")).map_err(bad),
+        Format::ClickHouseJson => plan::clickhouse_json(&first_column(out).join("\n")).map_err(bad),
+        Format::SnowflakeJson => plan::snowflake_json(&first_column(out).join("\n")).map_err(bad),
+        Format::BigQueryJob => plan::bigquery_job(&first_column(out).join("\n")).map_err(bad),
         Format::SqliteRows => {
             let rows: Vec<(i64, i64, String)> = ferrodb_meta::rows::rows(&out.results)
                 .iter()
@@ -309,6 +357,15 @@ mod tests {
         assert!(request("postgresql", false, "delete from t", true).is_err());
         assert!(request("postgresql", false, "delete from t", false).is_ok());
         assert!(request("tsql", false, "select 1", false).is_err());
+        let e = request("clickhouse", false, "select 1", false).unwrap();
+        assert_eq!(e.format, Format::ClickHouseJson);
+        assert!(e.statement.starts_with("EXPLAIN json = 1"));
+        assert!(request("clickhouse", false, "select 1", true).is_err());
+        let e = request("snowflake", false, "select 1", false).unwrap();
+        assert_eq!(e.statement, "EXPLAIN USING JSON select 1");
+        let e = request("googlesql", false, "select 1", true).unwrap();
+        assert_eq!(e.request.arg("analyze"), Some("true"));
+        assert_eq!(e.format, Format::BigQueryJob);
         assert_eq!(
             first_statement("select 1; select 2", "postgresql", false).as_deref(),
             Some("select 1")

@@ -19,6 +19,8 @@ pub mod config;
 pub mod registry;
 pub mod sink;
 
+#[cfg(feature = "clickhouse")]
+pub mod clickhouse;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "mongodb")]

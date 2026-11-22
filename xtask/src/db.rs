@@ -43,6 +43,14 @@ const CONTAINERS: &[Container] = &[
         &[],
         &["--replSet", "rs0", "--bind_ip_all"],
     ),
+    // ClickHouse over HTTP (phase 8).
+    (
+        "ferrodb-tck-clickhouse",
+        "clickhouse/clickhouse-server:26.10",
+        "56323:8123",
+        &["CLICKHOUSE_PASSWORD=ferrodb", "CLICKHOUSE_DB=tck"],
+        &[],
+    ),
     (
         "ferrodb-tck-ssh",
         "linuxserver/openssh-server:latest",
@@ -181,6 +189,10 @@ pub fn env_vars() -> Vec<(String, String)> {
         (
             "FERRODB_TCK_MONGODB".into(),
             format!("mongodb://{h}:57017/tck?directConnection=true"),
+        ),
+        (
+            "FERRODB_TCK_CLICKHOUSE".into(),
+            format!("clickhouse://default:ferrodb@{h}:56323/tck"),
         ),
         (
             "FERRODB_TEST_SSH".into(),

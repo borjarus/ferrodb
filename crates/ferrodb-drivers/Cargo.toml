@@ -14,6 +14,8 @@ pgwire = ["dep:tokio-postgres", "dep:tokio-postgres-rustls"]
 mysql = ["dep:mysql_async"]
 mongodb = ["dep:mongodb"]
 duckdb = ["dep:duckdb"]
+# ClickHouse over its HTTP interface, results as Arrow IPC streams (phase 8).
+clickhouse = ["dep:reqwest", "dep:arrow-ipc", "dep:arrow-buffer", "dep:serde_json"]
 
 [dependencies]
 ferrodb-api.workspace = true
@@ -35,6 +37,10 @@ tokio-postgres-rustls = { workspace = true, optional = true }
 mysql_async = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
 duckdb = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+arrow-ipc = { workspace = true, optional = true }
+arrow-buffer = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

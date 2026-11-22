@@ -11,6 +11,7 @@
 //! channel, so GPUI can poll it on its own executor. Each session is an
 //! actor task owning its connection; commands are processed in order.
 
+pub mod adbc;
 mod config;
 mod documents;
 mod explain;
@@ -65,9 +66,9 @@ impl CoreOptions {
     pub fn system(config_dir: PathBuf, data_dir: PathBuf) -> Self {
         Self {
             config_dir: Some(config_dir),
-            data_dir: Some(data_dir),
+            data_dir: Some(data_dir.clone()),
             secrets: ferrodb_secrets::system_store("FerroDb"),
-            registry: Registry::builtin(),
+            registry: adbc::with_adbc(Registry::builtin(), Some(&data_dir)),
         }
     }
 
@@ -337,3 +338,5 @@ mod tests_mongo;
 mod tests_phase6;
 #[cfg(test)]
 mod tests_phase7;
+#[cfg(test)]
+mod tests_phase8;
