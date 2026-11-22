@@ -416,6 +416,9 @@ pub fn quote(dialect: Dialect, ident: &str) -> String {
 pub fn literal(dialect: Dialect, s: &str) -> String {
     match dialect {
         Dialect::MySql | Dialect::MariaDb => crate::mysql::literal(s),
+        // Backslash escapes are always on; `''` is not an escape in GoogleSQL.
+        Dialect::ClickHouse | Dialect::BigQuery => crate::clickhouse::literal(s),
+        Dialect::Snowflake => format!("'{}'", s.replace('\\', "\\\\").replace('\'', "''")),
         _ => format!("'{}'", s.replace('\'', "''")),
     }
 }
@@ -813,6 +816,17 @@ fn mysql_key_clause(t: &Target<'_>, i: &Index) -> String {
 /// `deferred` are left out (added later with `ALTER TABLE`).
 pub(crate) fn table_ddl(t: &Target<'_>, table: &Table, deferred: &[&ForeignKey]) -> String {
     let mut out = String::new();
+    // ClickHouse (`create_table_query`), BigQuery (`INFORMATION_SCHEMA`
+    // `ddl`) and Snowflake (`GET_DDL`) keep the full statement: engine,
+    // partitioning, clustering, TTL and options included.
+    if matches!(
+        t.dialect,
+        Dialect::ClickHouse | Dialect::BigQuery | Dialect::Snowflake
+    ) && let Some(sql) = &table.server_sql
+    {
+        out.push_str(&format!("{};\n", sql.trim().trim_end_matches(';')));
+        return out;
+    }
     if matches!(t.dialect, Dialect::Sqlite | Dialect::Cassandra)
         && let Some(sql) = &table.server_sql
     {
@@ -1056,6 +1070,13 @@ pub(crate) fn view_ddl(t: &Target<'_>, v: &Table) -> String {
         && let Some(sql) = &v.server_sql
     {
         return format!("{};\n", retarget(t, sql.trim_end_matches(';')));
+    }
+    if matches!(
+        t.dialect,
+        Dialect::ClickHouse | Dialect::BigQuery | Dialect::Snowflake
+    ) && let Some(sql) = &v.server_sql
+    {
+        return format!("{};\n", sql.trim().trim_end_matches(';'));
     }
     if matches!(t.dialect, Dialect::Sqlite | Dialect::Cassandra)
         && let Some(sql) = &v.server_sql

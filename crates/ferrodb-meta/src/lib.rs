@@ -24,6 +24,8 @@
 
 pub mod cache;
 pub mod cassandra;
+mod clickhouse;
+mod cloud;
 pub mod couchbase;
 pub mod ddl;
 pub mod diff;
@@ -35,8 +37,8 @@ pub mod model;
 pub mod mongo;
 mod mysql;
 mod pg;
-pub mod redis;
 mod pg_flavors;
+pub mod redis;
 pub mod rows;
 pub mod sql_model;
 mod sqlite;
@@ -90,46 +92,13 @@ pub fn introspector(d: Dialect) -> &'static dyn Introspector {
         Dialect::Exasol => &jdbc::JdbcIntrospector(Dialect::Exasol),
         Dialect::Vertica => &jdbc::JdbcIntrospector(Dialect::Vertica),
         Dialect::Hive => &jdbc::JdbcIntrospector(Dialect::Hive),
-        Dialect::Snowflake => &Unavailable(Dialect::Snowflake),
-        Dialect::BigQuery => &Unavailable(Dialect::BigQuery),
-        Dialect::ClickHouse => &Unavailable(Dialect::ClickHouse),
+        Dialect::Snowflake => &cloud::SnowflakeIntrospector,
+        Dialect::BigQuery => &cloud::BigQueryIntrospector,
+        Dialect::ClickHouse => &clickhouse::ClickHouseIntrospector,
         Dialect::Cassandra => &cassandra::CassandraIntrospector,
         Dialect::Couchbase => &couchbase::CouchbaseIntrospector,
         Dialect::DynamoDb => &dynamodb::DynamoIntrospector,
         Dialect::Redis => &redis::RedisIntrospector,
-    }
-}
-
-/// Placeholder for a dialect without an introspector in this build.
-struct Unavailable(Dialect);
-
-impl Introspector for Unavailable {
-    fn dialect(&self) -> Dialect {
-        self.0
-    }
-    fn containers<'a>(
-        &'a self,
-        _conn: &'a mut dyn Connection,
-    ) -> BoxFuture<'a, Result<Vec<Container>>> {
-        let d = self.0;
-        Box::pin(async move {
-            Err(ferrodb_api::Error::Unsupported(format!(
-                "introspection of {d:?}"
-            )))
-        })
-    }
-    fn content<'a>(
-        &'a self,
-        _conn: &'a mut dyn Connection,
-        _container: &'a str,
-        _only: Option<&'a str>,
-    ) -> BoxFuture<'a, Result<Content>> {
-        let d = self.0;
-        Box::pin(async move {
-            Err(ferrodb_api::Error::Unsupported(format!(
-                "introspection of {d:?}"
-            )))
-        })
     }
 }
 

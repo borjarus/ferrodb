@@ -12,11 +12,12 @@ use ferrodb_api::{
 use crate::Inner;
 
 impl Inner {
-    /// Drivers whose files come from the driver manager (JDBC).
+    /// Drivers whose files come from the driver manager (JDBC jars, ADBC
+    /// libraries).
     fn managed(&self, id: &DriverId) -> bool {
         self.registry
             .get(id)
-            .is_some_and(|d| d.family().as_str() == "jdbc")
+            .is_some_and(|d| matches!(d.family().as_str(), "jdbc" | "adbc"))
     }
 }
 
@@ -54,6 +55,10 @@ impl DriverCatalogService for Inner {
     fn download(&self, id: &DriverId, version: Option<String>) -> BoxFuture<'_, Result<()>> {
         let managed = self.managed(id);
         let built_in = self.registry.get(id).is_some();
+        let jdbc = self
+            .registry
+            .get(id)
+            .is_some_and(|d| d.family().as_str() == "jdbc");
         let manager = self.driver_manager.clone();
         let id = id.clone();
         let me = self.arc();
@@ -68,7 +73,7 @@ impl DriverCatalogService for Inner {
             me.blocking(move || {
                 manager.download(id.as_str(), version.as_deref())?;
                 // The bridge needs Java: fetch a runtime when none is installed.
-                if manager.java().is_none() {
+                if jdbc && manager.java().is_none() {
                     manager.download_java()?;
                 }
                 Ok(())

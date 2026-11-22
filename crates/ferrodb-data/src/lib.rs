@@ -30,9 +30,9 @@ pub mod edit;
 pub mod export;
 pub mod import;
 pub mod plan;
+pub mod plan_jdbc;
 pub mod plan_mssql;
 pub mod plan_text;
-pub mod plan_jdbc;
 pub mod sql;
 pub mod value;
 

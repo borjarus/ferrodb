@@ -100,7 +100,8 @@ pub fn map_literal(json: &str) -> Option<String> {
     let obj = v.as_object()?;
     Some(format!(
         "{{{}}}",
-        obj.iter()
+        sorted(obj)
+            .into_iter()
             .map(|(k, v)| {
                 let v = match v {
                     serde_json::Value::String(s) => s.clone(),
@@ -205,8 +206,8 @@ pub fn replication_text(json: &str) -> Option<String> {
         .get("class")
         .and_then(|c| c.as_str())
         .map(|c| c.rsplit('.').next().unwrap_or(c).to_owned())?;
-    let rest: Vec<String> = obj
-        .iter()
+    let rest: Vec<String> = sorted(obj)
+        .into_iter()
         .filter(|(k, _)| *k != "class")
         .map(|(k, v)| {
             format!(
@@ -629,6 +630,15 @@ async fn routines(conn: &mut dyn Connection, keyspace: &str) -> Result<Vec<Routi
     }
     out.sort_by(|a, b| a.signature.cmp(&b.signature));
     Ok(out)
+}
+
+/// Object members in key order, whether or not `serde_json` preserves the
+/// input order (its `preserve_order` feature is unified across the
+/// workspace).
+fn sorted(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<(&String, &serde_json::Value)> {
+    let mut v: Vec<_> = obj.iter().collect();
+    v.sort_by(|a, b| a.0.cmp(b.0));
+    v
 }
 
 #[cfg(test)]

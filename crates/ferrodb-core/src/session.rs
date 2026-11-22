@@ -93,6 +93,11 @@ enum Cmd {
         opts: ExplainOptions,
         reply: oneshot::Sender<Result<ExecutionPlan>>,
     },
+    /// Bytes the first statement would process (BigQuery dry run, phase 8).
+    EstimateCost {
+        script: Script,
+        reply: oneshot::Sender<Result<Option<u64>>>,
+    },
 }
 
 struct Job {
@@ -231,6 +236,17 @@ impl Actor {
                     self.session.status().busy = true;
                     let r = self.explain(&script, &opts).await;
                     self.session.status().busy = false;
+                    let _ = reply.send(r);
+                }
+                Cmd::EstimateCost { script, reply } => {
+                    let r = match crate::explain::first_statement(
+                        &script.text,
+                        &self.ctx.dialect,
+                        self.ctx.mql,
+                    ) {
+                        Some(stmt) => self.estimate_cost(&stmt).await,
+                        None => Ok(None),
+                    };
                     let _ = reply.send(r);
                 }
             }
@@ -421,6 +437,26 @@ impl Actor {
         Ok(plan)
     }
 
+    /// Bytes `stmt` would process, from the driver's `dry_run` native call
+    /// (BigQuery); `None` where the source has no estimate.
+    async fn estimate_cost(&mut self, stmt: &str) -> Result<Option<u64>> {
+        let conn = self.connection(None).await?;
+        let out = ferrodb_drivers::sink::collect_request(
+            conn.as_mut(),
+            Request::native("dry_run", &[("sql", stmt)]),
+            CancellationToken::new(),
+        )
+        .await;
+        match out {
+            Ok(out) => Ok(ferrodb_meta::rows::rows(&out.results)
+                .first()
+                .and_then(|r| r.int("bytes"))
+                .and_then(|b| u64::try_from(b).ok())),
+            Err(Error::Unsupported(_)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     async fn transaction(&mut self, commit: bool) -> Result<()> {
         if self.conn.is_none() {
             return Ok(());
@@ -526,6 +562,11 @@ impl Actor {
                 range: abs.clone(),
             })
             .await;
+            if job.opts.estimate_cost
+                && let Ok(Some(bytes)) = self.estimate_cost(&sql).await
+            {
+                ev.send(QueryEvent::CostEstimate { bytes }).await;
+            }
             let class = if self.ctx.cql {
                 crate::kv::cql_class(body)
             } else {
@@ -1554,10 +1595,18 @@ impl QueryService for Inner {
 
     fn estimate_cost(
         &self,
-        _session: SessionId,
-        _script: Script,
+        session: SessionId,
+        script: Script,
     ) -> BoxFuture<'_, Result<Option<u64>>> {
-        Box::pin(async { Ok(None) })
+        let s = self.session(session);
+        Box::pin(async move {
+            let s = s?;
+            let (tx, rx) = oneshot::channel();
+            if !s.send(Cmd::EstimateCost { script, reply: tx }) {
+                return Err(Error::ConnectionLost);
+            }
+            rx.await.map_err(|_| Error::ConnectionLost)?
+        })
     }
 
     fn explain(

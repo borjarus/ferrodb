@@ -2985,6 +2985,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrodb-adbc"
+version = "0.1.0"
+dependencies = [
+ "adbc_core",
+ "adbc_driver_manager",
+ "arrow-array",
+ "arrow-schema",
+ "base64 0.22.1",
+ "ferrodb-api",
+ "ferrodb-driver-tck",
+ "ferrodb-drivers",
+ "ferrodb-net",
+ "futures",
+ "reqwest",
+ "ring",
+ "rustls 0.23.46",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "ferrodb-api"
 version = "0.1.0"
 dependencies = [
@@ -3023,6 +3049,7 @@ dependencies = [
  "arrow-schema",
  "async-channel",
  "bson",
+ "ferrodb-adbc",
  "ferrodb-api",
  "ferrodb-data",
  "ferrodb-driver-manager",
@@ -3030,6 +3057,7 @@ dependencies = [
  "ferrodb-jdbc",
  "ferrodb-lang",
  "ferrodb-meta",
+ "ferrodb-mock",
  "ferrodb-net",
  "ferrodb-secrets",
  "ferrodb-storage",
@@ -3105,6 +3133,8 @@ name = "ferrodb-drivers"
 version = "0.1.0"
 dependencies = [
  "arrow-array",
+ "arrow-buffer",
+ "arrow-ipc",
  "arrow-schema",
  "async-trait",
  "aws-config",
@@ -8663,6 +8693,9 @@ dependencies = [
  "rustls 0.23.46",
  "rustls-pki-types",
  "rustls-platform-verifier",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-rustls 0.26.6",

@@ -20,6 +20,9 @@ use serde_json::{Map, Value};
 
 mod couchbase;
 pub use couchbase::couchbase_json;
+// ClickHouse, Snowflake and BigQuery (phase 8).
+mod cloud;
+pub use cloud::{bigquery_job, clickhouse_json, snowflake_json};
 
 /// Rows below which a full scan is not worth a warning.
 pub const SCAN_WARNING_ROWS: u64 = 1000;

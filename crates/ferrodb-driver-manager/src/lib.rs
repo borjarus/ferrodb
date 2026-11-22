@@ -618,7 +618,9 @@ impl DriverManager {
                 let expected = v.and_then(|v| {
                     v.files
                         .iter()
-                        .find(|f| Some(f.local_name()) == name)
+                        // The hash of an extracted member is the archive's,
+                        // checked when it was downloaded.
+                        .find(|f| f.extract.is_none() && Some(f.local_name()) == name)
                         .map(|f| f.sha256.clone())
                 });
                 if let Some(expected) = expected {

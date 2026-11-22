@@ -23,6 +23,12 @@ pub enum Family {
     Hive,
     /// Vertica: one row per `VALUES`.
     Vertica,
+    /// ClickHouse: backticks, backslash escapes, mutations (phase 8).
+    ClickHouse,
+    /// Snowflake: `"UPPER"` identifiers, backslash escapes.
+    Snowflake,
+    /// BigQuery (GoogleSQL): backticks, backslash escapes.
+    BigQuery,
     Other,
 }
 
@@ -53,6 +59,9 @@ impl Sql {
             "sybase" => Family::Sybase,
             "hiveql" | "hive" => Family::Hive,
             "vertica" => Family::Vertica,
+            "clickhouse" => Family::ClickHouse,
+            "snowflake" => Family::Snowflake,
+            "googlesql" | "bigquery" => Family::BigQuery,
             _ => Family::Other,
         };
         Self {
@@ -62,7 +71,26 @@ impl Sql {
     }
 
     pub fn ident(&self, name: &str) -> String {
-        self.dialect.quote_if_needed(name)
+        let plain = |upper: bool| {
+            name.chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                && name.chars().all(|c| {
+                    c == '_'
+                        || c.is_ascii_digit()
+                        || (c.is_ascii_alphabetic() && (!upper || c.is_ascii_uppercase()))
+                })
+                && !self.dialect.is_keyword(name)
+        };
+        match self.family {
+            Family::ClickHouse | Family::BigQuery if !plain(false) => {
+                format!("`{}`", name.replace('\\', "\\\\").replace('`', "\\`"))
+            }
+            // Unquoted Snowflake identifiers fold to upper case.
+            Family::Snowflake if !plain(true) => format!("\"{}\"", name.replace('"', "\"\"")),
+            Family::ClickHouse | Family::BigQuery | Family::Snowflake => name.to_owned(),
+            _ => self.dialect.quote_if_needed(name),
+        }
     }
 
     /// `schema.table`, each part quoted when needed.
@@ -82,8 +110,18 @@ impl Sql {
         out.push('\'');
         for ch in s.chars() {
             match ch {
+                // `''` is no escape in GoogleSQL.
+                '\'' if matches!(self.family, Family::ClickHouse | Family::BigQuery) => {
+                    out.push_str("\\'")
+                }
                 '\'' => out.push_str("''"),
-                '\\' if self.family == Family::MySql => out.push_str("\\\\"),
+                '\\' if matches!(
+                    self.family,
+                    Family::MySql | Family::ClickHouse | Family::BigQuery | Family::Snowflake
+                ) =>
+                {
+                    out.push_str("\\\\")
+                }
                 c => out.push(c),
             }
         }
@@ -120,6 +158,8 @@ impl Sql {
                 Family::Oracle => format!("HEXTORAW('{}')", hex(b)),
                 Family::SqlServer | Family::Sybase => format!("0x{}", hex(b)),
                 Family::Hive => format!("unhex('{}')", hex(b)),
+                Family::ClickHouse => format!("unhex('{}')", hex(b)),
+                Family::BigQuery => format!("FROM_HEX('{}')", hex(b)),
                 _ => format!("X'{}'", hex(b)),
             },
             // Oracle reads plain strings with the session's NLS format:
@@ -233,6 +273,14 @@ impl Sql {
             .map(|(c, v)| format!("{} = {}", self.ident(c), self.literal(v)))
             .collect::<Vec<_>>()
             .join(", ");
+        // ClickHouse: a mutation (lightweight `UPDATE` needs a table
+        // setting), synchronous so the refreshed result shows it.
+        if self.family == Family::ClickHouse {
+            return format!(
+                "ALTER TABLE {table} UPDATE {assignments} WHERE {} SETTINGS mutations_sync = 1",
+                self.conditions(key)
+            );
+        }
         // T-SQL limits with `TOP (1)` after the verb.
         let top = if one && self.family == Family::SqlServer {
             "TOP (1) "
@@ -433,6 +481,52 @@ impl Sql {
                 T::Timestamp { tz: false } => "TIMESTAMP".into(),
                 T::Timestamp { tz: true } => "TIMESTAMPTZ".into(),
             },
+            // Imported values may be missing: every column is Nullable.
+            Family::ClickHouse => format!(
+                "Nullable({})",
+                match c.ty {
+                    T::Bool => "Bool".into(),
+                    T::Int => "Int64".into(),
+                    T::Float => "Float64".into(),
+                    T::Decimal => format!("Decimal{}", dec("(38,10)")),
+                    T::Text | T::Any | T::Json | T::Bytes => "String".into(),
+                    T::Date => "Date32".into(),
+                    T::Time => "String".into(),
+                    T::Timestamp { tz: false } => "DateTime64(6)".into(),
+                    T::Timestamp { tz: true } => "DateTime64(6, 'UTC')".into(),
+                }
+            ),
+            Family::Snowflake => match c.ty {
+                T::Bool => "BOOLEAN".into(),
+                T::Int => "NUMBER(38,0)".into(),
+                T::Float => "FLOAT".into(),
+                T::Decimal => format!("NUMBER{}", dec("(38,10)")),
+                T::Text | T::Any => "VARCHAR".into(),
+                T::Bytes => "BINARY".into(),
+                T::Date => "DATE".into(),
+                T::Time => "TIME".into(),
+                T::Timestamp { tz: false } => "TIMESTAMP_NTZ".into(),
+                T::Timestamp { tz: true } => "TIMESTAMP_TZ".into(),
+                T::Json => "VARIANT".into(),
+            },
+            Family::BigQuery => match c.ty {
+                T::Bool => "BOOL".into(),
+                T::Int => "INT64".into(),
+                T::Float => "FLOAT64".into(),
+                T::Decimal => match c.decimal {
+                    Some((p, s)) if s >= 0 && p <= 38 && s <= 9 && p - s as u8 <= 29 => {
+                        format!("NUMERIC({p},{s})")
+                    }
+                    _ => "BIGNUMERIC".into(),
+                },
+                T::Text | T::Any => "STRING".into(),
+                T::Bytes => "BYTES".into(),
+                T::Date => "DATE".into(),
+                T::Time => "TIME".into(),
+                T::Timestamp { tz: false } => "DATETIME".into(),
+                T::Timestamp { tz: true } => "TIMESTAMP".into(),
+                T::Json => "JSON".into(),
+            },
             Family::Other => match c.ty {
                 T::Bool => "BOOLEAN".into(),
                 T::Int => "BIGINT".into(),
@@ -453,7 +547,13 @@ impl Sql {
             .map(|c| format!("  {} {}", self.ident(&c.name), self.type_name(c)))
             .collect::<Vec<_>>()
             .join(",\n");
-        format!("CREATE TABLE {table} (\n{cols}\n)")
+        match self.family {
+            // A table engine is required; no sorting key is known.
+            Family::ClickHouse => {
+                format!("CREATE TABLE {table} (\n{cols}\n) ENGINE = MergeTree ORDER BY tuple()")
+            }
+            _ => format!("CREATE TABLE {table} (\n{cols}\n)"),
+        }
     }
 
     /// Appends one row in the `COPY` / `LOAD DATA` text format.
@@ -734,5 +834,76 @@ mod tests {
             &mut out,
         );
         assert_eq!(out, b"0\t\\0\\t\n");
+    }
+
+    #[test]
+    fn analytical_cloud_dialects() {
+        let ch = Sql::new("clickhouse");
+        let t = ch.qualified(Some("tck"), "my table");
+        assert_eq!(t, "tck.`my table`");
+        assert_eq!(
+            ch.literal(&Value::Text("it's a\\b".into())),
+            "'it\\'s a\\\\b'"
+        );
+        assert_eq!(ch.literal(&Value::Bytes(vec![1, 255])), "unhex('01ff')");
+        assert_eq!(
+            ch.update(
+                &t,
+                &[("v".into(), Value::Text("x".into()))],
+                &[("id".into(), Value::Int(7))],
+                true
+            ),
+            "ALTER TABLE tck.`my table` UPDATE v = 'x' WHERE id = 7 SETTINGS mutations_sync = 1"
+        );
+        assert_eq!(
+            ch.delete(&t, &[("id".into(), Value::Int(7))], true),
+            "DELETE FROM tck.`my table` WHERE id = 7"
+        );
+        let ddl = ch.create_table(
+            "t",
+            &[ColumnDef {
+                name: "id".into(),
+                ty: ValueType::Int,
+                decimal: None,
+            }],
+        );
+        assert!(
+            ddl.ends_with("ENGINE = MergeTree ORDER BY tuple()"),
+            "{ddl}"
+        );
+        assert!(ddl.contains("id Nullable(Int64)"), "{ddl}");
+
+        let bq = Sql::new("googlesql");
+        assert_eq!(
+            bq.qualified(Some("my-project.ds"), "t"),
+            "`my-project.ds`.t"
+        );
+        assert_eq!(bq.literal(&Value::Text("it's".into())), "'it\\'s'");
+        assert_eq!(bq.literal(&Value::Bytes(vec![10])), "FROM_HEX('0a')");
+        assert_eq!(
+            bq.update(
+                "ds.t",
+                &[("a".into(), Value::Int(1))],
+                &[("k".into(), Value::Int(2))],
+                true
+            ),
+            "UPDATE ds.t SET a = 1 WHERE k = 2"
+        );
+
+        let sf = Sql::new("snowflake");
+        assert_eq!(sf.ident("ORDERS"), "ORDERS");
+        assert_eq!(sf.ident("orders"), "\"orders\"");
+        assert_eq!(
+            sf.literal(&Value::Text("it's a\\b".into())),
+            "'it''s a\\\\b'"
+        );
+        assert_eq!(
+            sf.type_name(&ColumnDef {
+                name: "x".into(),
+                ty: ValueType::Timestamp { tz: true },
+                decimal: None
+            }),
+            "TIMESTAMP_TZ"
+        );
     }
 }

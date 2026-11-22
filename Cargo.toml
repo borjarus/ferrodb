@@ -17,6 +17,7 @@ members = [
   "crates/ferrodb-data",
   "crates/ferrodb-jdbc",
   "crates/ferrodb-driver-manager",
+  "crates/ferrodb-adbc",
   "apps/ferrodb-gallery",
   "xtask",
   "spikes/gui",
@@ -51,6 +52,7 @@ ferrodb-meta = { path = "crates/ferrodb-meta" }
 ferrodb-data = { path = "crates/ferrodb-data" }
 ferrodb-jdbc = { path = "crates/ferrodb-jdbc" }
 ferrodb-driver-manager = { path = "crates/ferrodb-driver-manager" }
+ferrodb-adbc = { path = "crates/ferrodb-adbc" }
 
 # GUI — exactly pinned (pins the gpui-pre 0.3.10 snapshot); see ADR-001
 gpui-kit = { version = "=0.8.1" }
@@ -86,6 +88,15 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 tiberius = { path = "third_party/tiberius", default-features = false, features = ["tds73", "rustls", "winauth"] }
 ring = "0.17.14"
 roxmltree = "0.21.2"
+# HTTP (ClickHouse HTTP interface, BigQuery REST): rustls with the workspace's
+# `ring` config passed in (`tls_backend_preconfigured`), no aws-lc / OpenSSL.
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream", "query", "json", "form"] }
+# ADBC (phase 8): drivers loaded at run time (Snowflake, BigQuery).
+adbc_core = "0.25.0"
+adbc_driver_manager = "0.25.0"
+arrow-buffer = "60.1.0"
+# ADBC driver libraries ship inside Python wheels (zip, deflate).
+zip = { version = "9.6.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 russh = { version = "0.65.1", default-features = false, features = ["flate2", "ring", "rsa"] }
 # NoSQL drivers (phase 8): Redis (tokio + rustls/ring, cluster, Sentinel) and
 # Apache Cassandra through the ScyllaDB driver (its rustls feature would pull
@@ -99,9 +110,8 @@ async-trait = "0.1.92"
 aws-config = { version = "1.13.3", default-features = false, features = ["rt-tokio", "sso", "credentials-process", "behavior-version-latest"] }
 aws-sdk-dynamodb = { version = "1.140.0", default-features = false, features = ["rt-tokio", "behavior-version-latest"] }
 aws-smithy-http-client = { version = "1.5.3", default-features = false, features = ["rustls-ring"] }
-# Couchbase (phase 8): REST services (query, cluster manager) over HTTP,
-# rustls with the process-wide ring provider.
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream"] }
+# Couchbase (phase 8): REST services (query, cluster manager) over HTTP
+# (`reqwest` above), rustls with the process-wide ring provider.
 base64 = "0.22.1"
 
 # languages
@@ -126,10 +136,8 @@ directories = "6.0.0"
 # driver manager / JDBC bridge (phase 8): downloads over rustls + ring, SHA-256, archives
 ureq = { version = "3.5.2", default-features = false, features = ["rustls"] }
 sha2 = "0.10.9"
-zip = { version = "9.6.1", default-features = false, features = ["deflate-flate2"] }
 flate2 = "1.1.10"
 tar = "0.4.46"
-arrow-buffer = "60.1.0"
 
 # tests
 proptest = "1"

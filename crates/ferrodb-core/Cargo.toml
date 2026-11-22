@@ -15,7 +15,8 @@ duckdb = ["ferrodb-drivers/duckdb"]
 [dependencies]
 ferrodb-api.workspace = true
 ferrodb-lang.workspace = true
-ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb", "redis", "cql", "dynamodb", "couchbase", "tds"] }
+ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "mongodb", "redis", "cql", "dynamodb", "couchbase", "tds", "clickhouse"] }
+ferrodb-adbc.workspace = true
 ferrodb-meta.workspace = true
 ferrodb-data.workspace = true
 ferrodb-jdbc.workspace = true
@@ -38,6 +39,8 @@ tracing.workspace = true
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }
 tempfile.workspace = true
+# The UI's mock catalog of the 26 databases: real descriptors must match it.
+ferrodb-mock.workspace = true
 
 [lints]
 workspace = true

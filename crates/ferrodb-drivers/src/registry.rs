@@ -44,6 +44,8 @@ impl Registry {
         r.drivers.extend(crate::couchbase::drivers());
         #[cfg(feature = "tds")]
         r.drivers.extend(crate::tds::drivers());
+        #[cfg(feature = "clickhouse")]
+        r.drivers.extend(crate::clickhouse::drivers());
         r
     }
 

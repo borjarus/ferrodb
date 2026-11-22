@@ -11,6 +11,7 @@
 //! channel, so GPUI can poll it on its own executor. Each session is an
 //! actor task owning its connection; commands are processed in order.
 
+pub mod adbc;
 mod config;
 mod documents;
 mod explain;
@@ -128,9 +129,12 @@ impl CoreBackend {
             .clone()
             .or_else(|| opts.data_dir.as_ref().map(|d| d.join("drivers")))
             .unwrap_or_else(|| std::env::temp_dir().join("ferrodb-drivers"));
+        // ADBC libraries (Snowflake, BigQuery) are downloaded like JDBC jars.
+        let mut catalog = ferrodb_driver_manager::Catalog::builtin();
+        catalog.extend(adbc::catalog_artifacts());
         let driver_manager = Arc::new(ferrodb_driver_manager::DriverManager::new(
             drivers_dir,
-            ferrodb_driver_manager::Catalog::builtin(),
+            catalog,
         ));
         let bridge = ferrodb_jdbc::Bridge::new(driver_manager.clone(), opts.jdbc_host_jar.clone());
         let mut registry = opts.registry;
@@ -140,6 +144,19 @@ impl CoreBackend {
                     registry.register(d);
                 }
             }
+        }
+        if registry.get(&"snowflake".into()).is_none() {
+            let locator = adbc::ManagerLocator {
+                manager: driver_manager.clone(),
+                fallback: ferrodb_adbc::DefaultLocator::new(
+                    opts.data_dir
+                        .as_deref()
+                        .map(adbc::library_dir)
+                        .into_iter()
+                        .collect(),
+                ),
+            };
+            ferrodb_adbc::register(&mut registry, Arc::new(locator));
         }
         let config_path = opts.config_dir.map(|d| d.join("data-sources.toml"));
         let sources = match &config_path {
@@ -395,9 +412,11 @@ impl Inner {
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-mod tests_kv;
+mod tests_catalog;
 #[cfg(test)]
 mod tests_jdbc;
+#[cfg(test)]
+mod tests_kv;
 #[cfg(test)]
 mod tests_mongo;
 #[cfg(test)]
@@ -406,3 +425,5 @@ mod tests_nosql_docs;
 mod tests_phase6;
 #[cfg(test)]
 mod tests_phase7;
+#[cfg(test)]
+mod tests_phase8;

@@ -274,7 +274,8 @@ fn from_json(ty: &CqlType, j: &serde_json::Value) -> Result<String, String> {
                 .ok_or_else(|| format!("expected a JSON object, got {j}"))?;
             format!(
                 "{{{}}}",
-                obj.iter()
+                sorted(obj)
+                    .into_iter()
                     .map(|(key, val)| {
                         // JSON keys are strings: numbers etc. are parsed back.
                         let kj = match k.as_ref() {
@@ -295,7 +296,8 @@ fn from_json(ty: &CqlType, j: &serde_json::Value) -> Result<String, String> {
                 .ok_or_else(|| format!("expected a JSON object, got {j}"))?;
             format!(
                 "{{{}}}",
-                obj.iter()
+                sorted(obj)
+                    .into_iter()
                     .map(|(f, val)| Ok(format!("{}: {}", ident(f), untyped(val)?)))
                     .collect::<Result<Vec<_>, String>>()?
                     .join(", ")
@@ -508,6 +510,15 @@ pub fn plan(
         });
     }
     Ok(out)
+}
+
+/// Object members in key order, whether or not `serde_json` preserves the
+/// input order (its `preserve_order` feature is unified across the
+/// workspace).
+fn sorted(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<(&String, &serde_json::Value)> {
+    let mut v: Vec<_> = obj.iter().collect();
+    v.sort_by(|a, b| a.0.cmp(b.0));
+    v
 }
 
 #[cfg(test)]

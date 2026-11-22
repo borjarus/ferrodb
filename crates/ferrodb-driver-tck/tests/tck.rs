@@ -8,6 +8,7 @@
 //! - `FERRODB_TCK_MYSQL=mysql://root:ferrodb@localhost:53306/tck`
 //! - `FERRODB_TCK_MARIADB=mariadb://root:ferrodb@localhost:53307/tck`
 //! - `FERRODB_TCK_MONGODB=mongodb://localhost:57017/tck?directConnection=true`
+//! - `FERRODB_TCK_CLICKHOUSE=clickhouse://default:ferrodb@localhost:56323/tck`
 //! - `FERRODB_TCK_DYNAMODB=http://localhost:56520` (DynamoDB Local)
 //! - `FERRODB_TCK_COUCHBASE=couchbase://Administrator:ferrodb@localhost:56503/tck?mgmt_port=56501&scope=app`
 //! - `FERRODB_TCK_SQLSERVER=sqlserver://sa:Ferrodb#2026@localhost:56233/master`
@@ -23,7 +24,7 @@
 //!
 //! Each report is also written to `target/tck/<driver>.md`.
 
-use ferrodb_driver_tck::{Profile, Report, profiles, run};
+use ferrodb_driver_tck::{Profile, Report, profiles, run, run_except};
 use ferrodb_drivers::{Registry, ResolvedConfig};
 
 fn check(driver: &str, cfg: ResolvedConfig, profile: Profile) {
@@ -358,4 +359,34 @@ fn oracle() {
     if let Some(cfg) = from_env("FERRODB_TCK_ORACLE", "oracle") {
         check_jdbc_with("oracle", cfg, profiles::oracle());
     }
+}
+
+/// ClickHouse (HTTP interface). Mutations report no rows affected and
+/// lightweight `UPDATE` needs a table setting: the DML scenario is covered
+/// by the driver's own live tests instead.
+#[test]
+fn clickhouse() {
+    let Some(cfg) = from_env("FERRODB_TCK_CLICKHOUSE", "clickhouse") else {
+        return;
+    };
+    let registry = Registry::builtin();
+    let d = registry
+        .get(&"clickhouse".into())
+        .expect("driver is built in");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let report = rt.block_on(run_except(
+        d.as_ref(),
+        &cfg,
+        &profiles::clickhouse(),
+        &[(
+            "dml-affected",
+            "ClickHouse mutations (ALTER UPDATE / DELETE) report no rows affected",
+        )],
+    ));
+    let md = report.markdown();
+    println!("{md}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tck");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join("clickhouse.md"), &md);
+    assert!(report.passed(), "TCK failed for clickhouse:\n{md}");
 }

@@ -15,8 +15,8 @@
 //! v3 (phase 8) adds the key-value model: [`run_key_value`].
 
 mod documents;
-mod key_value;
 mod documents_sql;
+mod key_value;
 
 use std::time::{Duration, Instant};
 
@@ -209,6 +209,29 @@ pub async fn run_adjusted(
     profile: &Profile,
     adj: &Adjustments,
 ) -> Report {
+    run_with(driver, cfg, profile, adj, &[]).await
+}
+
+/// [`run`] without the scenarios in `skip` (`(scenario, reason)`), for
+/// databases where a scenario does not apply (ClickHouse reports no rows
+/// affected by mutations). Skipped scenarios are listed as passed with the
+/// reason.
+pub async fn run_except(
+    driver: &dyn Driver,
+    cfg: &ResolvedConfig,
+    profile: &Profile,
+    skip: &[(&'static str, &str)],
+) -> Report {
+    run_with(driver, cfg, profile, &Adjustments::default(), skip).await
+}
+
+async fn run_with(
+    driver: &dyn Driver,
+    cfg: &ResolvedConfig,
+    profile: &Profile,
+    adj: &Adjustments,
+    skip: &[(&'static str, &str)],
+) -> Report {
     let mut report = Report {
         driver: driver.descriptor().name,
         ..Default::default()
@@ -257,22 +280,31 @@ pub async fn run_adjusted(
     }
     macro_rules! scenario {
         ($name:literal, $fut:expr) => {{
-            let t = Instant::now();
-            let r = tokio::time::timeout(Duration::from_secs(60), $fut).await;
-            let (passed, detail) = match r {
-                Ok(Ok(d)) => (true, d),
-                Ok(Err(e)) => (false, e),
-                Err(_) => (false, "timed out after 60 s".to_owned()),
-            };
-            report.outcomes.push(Outcome {
-                scenario: $name,
-                passed,
-                detail,
-                elapsed: t.elapsed(),
-            });
-            // A failed scenario may leave a transaction open.
-            if !passed {
-                let _ = ctx.conn.rollback().await;
+            if let Some((_, why)) = skip.iter().find(|(n, _)| *n == $name) {
+                report.outcomes.push(Outcome {
+                    scenario: $name,
+                    passed: true,
+                    detail: format!("skipped: {why}"),
+                    elapsed: Duration::ZERO,
+                });
+            } else {
+                let t = Instant::now();
+                let r = tokio::time::timeout(Duration::from_secs(60), $fut).await;
+                let (passed, detail) = match r {
+                    Ok(Ok(d)) => (true, d),
+                    Ok(Err(e)) => (false, e),
+                    Err(_) => (false, "timed out after 60 s".to_owned()),
+                };
+                report.outcomes.push(Outcome {
+                    scenario: $name,
+                    passed,
+                    detail,
+                    elapsed: t.elapsed(),
+                });
+                // A failed scenario may leave a transaction open.
+                if !passed {
+                    let _ = ctx.conn.rollback().await;
+                }
             }
         }};
     }
@@ -560,11 +592,16 @@ async fn errors(c: &mut Ctx<'_>) -> Result<String, String> {
 }
 
 async fn transactions(c: &mut Ctx<'_>) -> Result<String, String> {
+    // Databases without transactions (ClickHouse, BigQuery, Cassandra)
+    // must refuse BEGIN instead of pretending.
     if !c.driver.capabilities().supports_transactions() {
-        return Ok(format!(
-            "skipped: transactions are {:?}",
-            c.driver.capabilities().transactions
-        ));
+        return match c.conn.begin().await {
+            Err(e) => Ok(format!(
+                "no transactions ({:?}); BEGIN refused: {e}",
+                c.driver.capabilities().transactions
+            )),
+            Ok(()) => Err("a database without transactions accepted BEGIN".into()),
+        };
     }
     let t = table_name("tx");
     run_sql(c.conn.as_mut(), &(c.adj.int_table)(&t)).await?;
@@ -988,6 +1025,38 @@ pub mod profiles {
             DataType::Date32,
             DataType::Timestamp(TimeUnit::Microsecond, None),
         ]
+    }
+
+    /// ClickHouse: `MergeTree` tables (the server's default engine);
+    /// `DateTime` arrives as a timestamp in the server time zone.
+    pub fn clickhouse() -> Profile {
+        Profile {
+            series: |n| format!("select toInt64(number + 1) as i from numbers({n})"),
+            // `sleep` stops at 3 s per block: one-row blocks of 0.5 s each.
+            sleep: |s| {
+                format!(
+                    "select sleepEachRow(0.5) from numbers({}) settings max_block_size = 1",
+                    s * 2
+                )
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d decimal(10,2), s varchar(20), b boolean, dt date, ts timestamp) \
+                     engine = MergeTree order by tuple()"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: [
+                DataType::Int32,
+                DataType::Decimal128(10, 2),
+                DataType::Utf8,
+                DataType::Boolean,
+                DataType::Date32,
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
+            ],
+            error_positions: false,
+            container: ObjectKind::Database,
+        }
     }
 
     pub fn mysql() -> Profile {

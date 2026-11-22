@@ -406,7 +406,14 @@ impl Inner {
         if let Some(s) = r.schema.as_deref() {
             let _ = conn.set_schema(s).await;
         }
-        let res = run_in_transaction(conn.as_mut(), &planned).await;
+        // Sources without transactions (ClickHouse, BigQuery) apply the
+        // statements one by one.
+        let res =
+            if self.driver_for(&cfg)?.capabilities().transactions == ferrodb_api::TxSupport::None {
+                run_planned(conn.as_mut(), &planned).await
+            } else {
+                run_in_transaction(conn.as_mut(), &planned).await
+            };
         self.checkin(&r.data_source, conn);
         Ok(ApplyReport {
             applied: res?,
@@ -570,7 +577,8 @@ pub(crate) async fn run_planned(conn: &mut dyn Connection, planned: &[Planned]) 
     let mut applied = 0usize;
     for (i, p) in planned.iter().enumerate() {
         let out = collect(conn, p.sql.clone(), CancellationToken::new()).await?;
-        let n = out.summary.affected.unwrap_or(0);
+        // ClickHouse mutations report no count: nothing to check.
+        let n = out.summary.affected.unwrap_or(u64::from(p.expect_one));
         if p.expect_one && n != 1 {
             return Err(Error::Other(format!(
                 "statement {} would change {n} rows instead of 1; nothing was applied: {}",

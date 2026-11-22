@@ -22,6 +22,8 @@ pub mod sink;
 
 #[cfg(feature = "pgwire")]
 pub mod aws;
+#[cfg(feature = "clickhouse")]
+pub mod clickhouse;
 #[cfg(feature = "cql")]
 pub mod cql;
 #[cfg(feature = "couchbase")]

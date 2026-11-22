@@ -70,6 +70,14 @@ const CONTAINERS: &[Container] = &[
         &[],
         &[],
     ),
+    // ClickHouse over HTTP (phase 8).
+    (
+        "ferrodb-tck-clickhouse",
+        "clickhouse/clickhouse-server:26.10",
+        "56323:8123",
+        &["CLICKHOUSE_PASSWORD=ferrodb", "CLICKHOUSE_DB=tck"],
+        &[],
+    ),
     (
         "ferrodb-tck-ssh",
         "linuxserver/openssh-server:latest",
@@ -373,6 +381,10 @@ pub fn env_vars() -> Vec<(String, String)> {
         (
             "FERRODB_TCK_GREENPLUM".into(),
             format!("postgres://gpadmin@{h}:56254/postgres?ssl.mode=disable"),
+        ),
+        (
+            "FERRODB_TCK_CLICKHOUSE".into(),
+            format!("clickhouse://default:ferrodb@{h}:56323/tck"),
         ),
         (
             "FERRODB_TEST_SSH".into(),

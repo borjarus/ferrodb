@@ -20,6 +20,8 @@ dynamodb = ["dep:aws-config", "dep:aws-sdk-dynamodb", "dep:aws-smithy-http-clien
 couchbase = ["dep:reqwest", "dep:base64"]
 # SQL Server and Azure SQL (TDS, `tiberius`, rustls).
 tds = ["dep:tiberius", "dep:tokio-rustls", "dep:ring", "tokio-util/compat"]
+# ClickHouse over its HTTP interface, results as Arrow IPC streams (phase 8).
+clickhouse = ["dep:reqwest", "dep:arrow-ipc", "dep:arrow-buffer"]
 
 [dependencies]
 ferrodb-api.workspace = true
@@ -54,6 +56,8 @@ tiberius = { workspace = true, optional = true }
 # HTTPS calls for cloud authentication (Redshift IAM, Microsoft Entra ID).
 tokio-rustls = { workspace = true, optional = true }
 ring = { workspace = true, optional = true }
+arrow-ipc = { workspace = true, optional = true }
+arrow-buffer = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true
