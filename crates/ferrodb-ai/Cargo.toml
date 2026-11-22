@@ -18,6 +18,10 @@ serde_json.workspace = true
 toml.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+# assistant HTTP (phase 9.1): rustls + ring only, no aws-lc / OpenSSL
+reqwest.workspace = true
+rustls.workspace = true
+rustls-platform-verifier.workspace = true
 
 [dev-dependencies]
 ferrodb-mock.workspace = true
