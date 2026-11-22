@@ -38,4 +38,13 @@ category = "DeveloperTool"
 before-packaging-command = "cargo build --release -p ferrodb-app"
 out-dir = "../../target/packages"
 binaries = [{ path = "ferrodb", main = true }]
+# Generated from assets/icons/ferrodb.svg (see assets/icons/README.md)
+icons = [
+  "../../assets/icons/png/32x32.png",
+  "../../assets/icons/png/128x128.png",
+  "../../assets/icons/png/256x256.png",
+  "../../assets/icons/png/512x512.png",
+  "../../assets/icons/ferrodb.ico",
+  "../../assets/icons/ferrodb.icns",
+]
 formats = ["nsis", "dmg", "app", "deb", "appimage"]

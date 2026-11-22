@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>FerroDb</title>
+  <defs>
+    <linearGradient id="iron" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3d43"/>
+      <stop offset="1" stop-color="#1b1c1f"/>
+    </linearGradient>
+    <linearGradient id="rust" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f59a5b"/>
+      <stop offset="1" stop-color="#c2410c"/>
+    </linearGradient>
+  </defs>
+  <!-- shared Ferro frame: iron squircle, top highlight, hairline border -->
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#iron)"/>
+  <rect x="33" y="33" width="958" height="958" rx="215" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+  <!-- FerroDb glyph: database cylinder, rust lid -->
+  <g fill="none" stroke="#dfe1e5" stroke-width="64" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M262 300 V724 A250 90 0 0 0 762 724 V300"/>
+    <path d="M262 442 A250 90 0 0 0 762 442"/>
+    <path d="M262 584 A250 90 0 0 0 762 584"/>
+  </g>
+  <ellipse cx="512" cy="300" rx="250" ry="90" fill="url(#rust)" stroke="url(#rust)" stroke-width="64"/>
+</svg>
