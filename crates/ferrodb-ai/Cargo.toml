@@ -18,10 +18,28 @@ serde_json.workspace = true
 toml.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+ring.workspace = true
+rustls.workspace = true
+bson = { workspace = true, features = ["serde_json-1"] }
+arrow-cast.workspace = true
+bytes.workspace = true
+tokio-util.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["server", "http1"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+rmcp = { workspace = true, features = [
+  "server",
+  "client",
+  "transport-streamable-http-server",
+  "transport-streamable-http-client-reqwest",
+  "transport-io",
+] }
 
 [dev-dependencies]
 ferrodb-mock.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 [lints]
 workspace = true
