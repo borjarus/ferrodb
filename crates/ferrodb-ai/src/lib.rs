@@ -15,5 +15,7 @@ pub mod agents;
 pub mod assistant;
 mod backend;
 pub mod mcp;
+#[allow(dead_code)]
+mod runtime;
 
 pub use backend::{AiBackend, AiOptions};
