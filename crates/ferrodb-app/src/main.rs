@@ -6,6 +6,9 @@
 //! The backend is `ferrodb-core` (real databases). `--mock` or
 //! `FERRODB_BACKEND=mock` starts the mock backend with its developer
 //! scenarios instead (demos, UI work without databases).
+//!
+//! `ferrodb mcp` runs no GUI: it is the stdio bridge to the MCP server of a
+//! running FerroDb, for agents that launch a command (see [`run_mcp_bridge`]).
 
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
@@ -123,7 +126,33 @@ fn open_main_window(root: PathBuf, cx: &mut App) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// `ferrodb mcp`: an MCP server on stdin/stdout for clients that launch a
+/// command (Claude Code, Claude Desktop), forwarding to the MCP endpoint of
+/// the running IDE. Logs go to stderr: stdout carries the protocol.
+///
+/// Release builds on Windows use the `windows` subsystem (no console of
+/// their own); the pipes a client passes as stdin/stdout are inherited and
+/// work all the same.
+fn run_mcp_bridge() -> anyhow::Result<()> {
+    use tracing_subscriber::{EnvFilter, fmt};
+    let filter = EnvFilter::try_from_env("FERRODB_LOG").unwrap_or_else(|_| EnvFilter::new("warn"));
+    let _ = fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .with_writer(std::io::stderr)
+        .try_init();
+    let paths = app_paths()?;
+    if let Err(e) = ferrodb_ai::mcp::run_stdio_bridge(&paths.config_dir) {
+        eprintln!("ferrodb mcp: {e}");
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
+    if std::env::args_os().nth(1).is_some_and(|a| a == "mcp") {
+        return run_mcp_bridge();
+    }
     init_tracing();
     let paths = app_paths()?;
     let (backend, scenarios): (Arc<dyn Backend>, Option<Arc<dyn ScenarioControl>>) = if use_mock() {

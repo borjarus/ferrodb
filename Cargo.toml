@@ -116,6 +116,16 @@ aws-smithy-http-client = { version = "1.5.3", default-features = false, features
 # (`reqwest` above), rustls with the process-wide ring provider.
 base64 = "0.22.1"
 
+# MCP server (phase 9): rmcp over plain HTTP/1 on loopback (hyper), no TLS
+# stack of its own; the `ferrodb mcp` bridge uses rmcp's reqwest client.
+rmcp = { version = "3.11.0", default-features = false }
+hyper = "1.12.0"
+hyper-util = "0.1.21"
+http = "1.5.0"
+http-body-util = "0.1.5"
+# Display of Arrow values (agents get query results as JSON).
+arrow-cast = "60.1.0"
+
 # languages
 sqlparser = "0.63.0"
 
