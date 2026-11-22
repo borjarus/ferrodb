@@ -12,8 +12,9 @@ use std::{
 };
 
 use ferrodb_api::{
-    CancelHandle, DataSourceId, DataSourceInfo, Environment, ExecMode, ExecOptions, ExplainOptions,
-    ExplainSupport, NodeRef, QueryEvent, QueryLanguage, Risk, RiskKind, Script, SessionId, TxMode,
+    AssistantTask, CancelHandle, DataSourceId, DataSourceInfo, Environment, ExecMode, ExecOptions,
+    ExplainOptions, ExplainSupport, NodeRef, QueryEvent, QueryLanguage, Risk, RiskKind, Script,
+    SessionId, TxMode,
 };
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -25,10 +26,11 @@ use ferrodb_ui_kit::{
         dock::{BasePanel, Panel, PanelInfo, PanelState},
         h_flex,
         input::{
-            Editor, EditorState, Input, InputEvent, InputState, RangeDecoration,
+            self as kit_input, Editor, EditorState, Input, InputEvent, InputState, RangeDecoration,
             RangeDecorationCollection, RangeDecorationStyle,
         },
         menu::{DropdownMenu as _, PopupMenuItem},
+        native_menu::NativeMenu,
         notification::Notification,
         resizable::{resizable_panel, v_resizable},
         tab::{Tab, TabBar},
@@ -99,6 +101,17 @@ impl ConsoleTab {
     }
 }
 
+/// What a console asks the AI assistant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AiRequest {
+    /// Opens the assistant on the console's data source for a new question.
+    Ask,
+    Explain,
+    Optimize,
+    /// Fixes the statement that failed last.
+    Fix,
+}
+
 /// What to run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RunTarget {
@@ -136,10 +149,12 @@ pub struct ConsolePanel {
     saved_text: Option<String>,
     /// Pending Local History revision of unsaved edits.
     autosave: Option<Task<()>>,
+    /// The last failed statement and its error ("Fix with AI").
+    pub last_error: Option<(String, String)>,
     _subs: Vec<Subscription>,
 }
 
-fn risk_label(kind: RiskKind) -> String {
+pub(crate) fn risk_label(kind: RiskKind) -> String {
     t(match kind {
         RiskKind::DeleteAll => "risk-delete-all",
         RiskKind::UpdateAll => "risk-update-all",
@@ -235,6 +250,7 @@ impl ConsolePanel {
             file: None,
             saved_text: None,
             autosave: None,
+            last_error: None,
             _subs: subs,
         };
         this.set_data_source(data_source, cx);
@@ -373,6 +389,11 @@ impl ConsolePanel {
 
     pub fn data_source(&self) -> Option<&DataSourceId> {
         self.data_source.as_ref()
+    }
+
+    /// Schema / database used for unqualified names.
+    pub fn schema(&self) -> Option<&String> {
+        self.schema.as_ref()
     }
 
     pub fn is_running(&self) -> bool {
@@ -844,6 +865,7 @@ impl ConsolePanel {
             }
         }
         self.active_tab = 0;
+        self.last_error = None;
         self.push_message(
             MessageLevel::Info,
             format!("{}> {}", src.config.name, first_line(&text)),
@@ -996,6 +1018,7 @@ impl ConsolePanel {
                             this.show_error_at(r, e.message.clone(), cx);
                         }
                         this.push_message(MessageLevel::Error, e.to_string());
+                        this.last_error = Some((statement_text.clone(), e.to_string()));
                         this.active_tab = 0;
                         output::log(Level::Error, e.to_string(), cx);
                         window.push_notification(Notification::error(e.to_string()), cx);
@@ -1253,6 +1276,78 @@ impl ConsolePanel {
         }
     }
 
+    /// Hands the statement under the cursor (or the selection) to the AI
+    /// assistant: generate (Ask AI), explain, optimize or fix the last error.
+    pub fn ask_ai(&mut self, kind: AiRequest, window: &mut Window, cx: &mut Context<Self>) {
+        let statement = self
+            .script_for(&RunTarget::Statement, cx)
+            .map(|(text, _, _)| text.trim().to_owned())
+            .filter(|t| !t.is_empty());
+        let (task, prompt, context) = match kind {
+            AiRequest::Ask => (AssistantTask::Generate, None, None),
+            AiRequest::Explain => (
+                AssistantTask::Explain,
+                Some(t("ai-prompt-explain")),
+                statement,
+            ),
+            AiRequest::Optimize => (
+                AssistantTask::Optimize,
+                Some(t("ai-prompt-optimize")),
+                statement,
+            ),
+            AiRequest::Fix => match self.last_error.clone() {
+                Some((stmt, error)) => (
+                    AssistantTask::Fix { error },
+                    Some(t("ai-prompt-fix")),
+                    Some(stmt),
+                ),
+                None => {
+                    window.push_notification(Notification::info(t("ai-no-error")), cx);
+                    return;
+                }
+            },
+        };
+        if prompt.is_some() && context.is_none() {
+            window.push_notification(Notification::info(t("ai-no-statement")), cx);
+            return;
+        }
+        let (ds, schema) = (self.data_source.clone(), self.schema.clone());
+        let Some(panel) = crate::workspace::show_assistant(window, cx) else {
+            return;
+        };
+        panel.update(cx, |p, cx| {
+            p.set_target(ds, schema, cx);
+            match prompt {
+                Some(prompt) => p.ask(task, prompt, context, cx),
+                None => p.focus_prompt(window, cx),
+            }
+        });
+    }
+
+    /// Context menu of the editor: clipboard, execution and AI actions.
+    fn editor_menu(weak: &WeakEntity<Self>, menu: NativeMenu, cx: &App) -> NativeMenu {
+        let failed = weak
+            .upgrade()
+            .is_some_and(|c| c.read(cx).last_error.is_some());
+        let mut menu = menu
+            .menu(t("edit-cut"), Box::new(kit_input::Cut))
+            .menu(t("edit-copy"), Box::new(kit_input::Copy))
+            .menu(t("edit-paste"), Box::new(kit_input::Paste))
+            .menu(t("edit-select-all"), Box::new(kit_input::SelectAll))
+            .separator()
+            .menu(t("action-execute"), Box::new(actions::ExecuteStatement))
+            .menu(t("action-explain"), Box::new(actions::ExplainPlan));
+        if AppState::backend(cx).assistant().available() {
+            menu = menu
+                .separator()
+                .menu(t("action-ai-ask"), Box::new(actions::AskAi))
+                .menu(t("action-ai-explain"), Box::new(actions::AiExplainQuery))
+                .menu(t("action-ai-optimize"), Box::new(actions::AiOptimizeQuery))
+                .menu_with_disabled(t("action-ai-fix"), !failed, Box::new(actions::AiFixQuery));
+        }
+        menu
+    }
+
     fn not_yet(&mut self, phase: u8, window: &mut Window, cx: &mut Context<Self>) {
         window.push_notification(
             Notification::info(t_args("not-implemented-phase", &[("phase", phase.into())])),
@@ -1412,6 +1507,24 @@ impl ConsolePanel {
                     };
                     div().text_color(color).child(m.text.clone())
                 }))
+                .when(
+                    self.last_error.is_some()
+                        && crate::panels::assistant::state(cx)
+                            == crate::panels::assistant::AssistantState::Ready,
+                    |d| {
+                        d.child(
+                            div().pt_1().child(
+                                Button::new("console-fix-ai")
+                                    .xsmall()
+                                    .icon(icons::Lucide::Sparkles)
+                                    .label(t("action-ai-fix"))
+                                    .on_click(cx.listener(|this, _, w, cx| {
+                                        this.ask_ai(AiRequest::Fix, w, cx)
+                                    })),
+                            ),
+                        )
+                    },
+                )
                 .into_any_element(),
             n => match self.tabs.get(n - 1) {
                 Some(ConsoleTab::Result { view, .. }) => view.element(),
@@ -1521,11 +1634,28 @@ impl Render for ConsolePanel {
             .on_action(cx.listener(|this, _: &actions::QuickDocumentation, w, cx| {
                 this.declaration(true, w, cx)
             }))
+            .on_action(
+                cx.listener(|this, _: &actions::AskAi, w, cx| this.ask_ai(AiRequest::Ask, w, cx)),
+            )
+            .on_action(cx.listener(|this, _: &actions::AiExplainQuery, w, cx| {
+                this.ask_ai(AiRequest::Explain, w, cx)
+            }))
+            .on_action(cx.listener(|this, _: &actions::AiOptimizeQuery, w, cx| {
+                this.ask_ai(AiRequest::Optimize, w, cx)
+            }))
+            .on_action(cx.listener(|this, _: &actions::AiFixQuery, w, cx| {
+                this.ask_ai(AiRequest::Fix, w, cx)
+            }))
             .child(self.render_header(cx))
             .child(
                 div().flex_1().min_h_0().child(
                     v_resizable("console-split")
-                        .child(resizable_panel().child(Editor::new(&self.editor).size_full()))
+                        .child(resizable_panel().child({
+                            let weak = cx.entity().downgrade();
+                            Editor::new(&self.editor)
+                                .size_full()
+                                .context_menu(move |menu, _, cx| Self::editor_menu(&weak, menu, cx))
+                        }))
                         .when(has_results, |g| {
                             g.child(
                                 resizable_panel()

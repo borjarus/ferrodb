@@ -9,7 +9,8 @@ use std::{
 };
 
 use ferrodb_api::{
-    ConnectionState, DataSourceId, DdlOptions, NodeRef, ObjectKind, QueryLanguage, SearchTarget,
+    ConnectionState, DataSourceId, DdlOptions, ExtScriptKind, NodeRef, ObjectKind, QueryLanguage,
+    SearchTarget,
 };
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -19,7 +20,8 @@ use ferrodb_ui_kit::{
         button::{Button, ButtonVariants as _},
         dialog::DialogFooter,
         dock::{
-            DockArea, DockEvent, DockLayout, DockPlacement, DockSkin, PanelStyle, panel_handle,
+            DockArea, DockEvent, DockLayout, DockPlacement, DockSkin, PanelId, PanelStyle,
+            panel_handle,
         },
         h_flex,
         menu::AppMenuBar,
@@ -33,17 +35,19 @@ use ferrodb_ui_kit::{
 use crate::{
     AppState,
     actions::{self, WORKSPACE_CONTEXT},
-    dialogs,
+    agents, dialogs,
     i18n::{t, t_args},
     output,
     palette::{self, PaletteKind, PaletteModel, Target},
     panels::{
-        ConsolePanel, ExplorerPanel, FilesPanel, GalleryPanel, HistoryPanel, InspectorPanel,
-        LocalHistoryPanel, OutputPanel, ServicesPanel, WelcomePanel, console::RunTarget, explorer,
+        AssistantPanel, ConsolePanel, ExplorerPanel, FilesPanel, GalleryPanel, HistoryPanel,
+        InspectorPanel, LocalHistoryPanel, OutputPanel, ServicesPanel, WelcomePanel,
+        assistant::ActiveAssistant, console::RunTarget, explorer,
     },
     project::{LAYOUT_VERSION, Project},
+    scripts,
     settings::SettingsStore,
-    settings_view,
+    settings_view::{self, SettingsPageId},
     views::{self, er_diagram::ErDiagram, wizard::WizardKind},
 };
 
@@ -110,6 +114,8 @@ pub struct Workspace {
     pub last_palette: Option<Rc<RefCell<PaletteModel>>>,
     _subscriptions: Vec<Subscription>,
     _events: Task<()>,
+    /// Agent events (consent requests, MCP status) for this window.
+    _agents: Task<()>,
 }
 
 impl Workspace {
@@ -145,7 +151,10 @@ impl Workspace {
                 }
                 cx.notify();
             }),
+            // MCP status in the status bar.
+            cx.observe_global::<agents::AgentsHub>(|_, cx| cx.notify()),
         ];
+        let agents_task = agents::listen(window, cx);
 
         // Status bar reflects connection changes.
         let rx = AppState::backend(cx).data_sources().subscribe();
@@ -184,6 +193,7 @@ impl Workspace {
             last_palette: None,
             _subscriptions: subscriptions,
             _events: events,
+            _agents: agents_task,
         };
         // The initial layout was built before we subscribed: persist it once.
         this.schedule_save(cx);
@@ -334,6 +344,61 @@ impl Workspace {
             )
         });
         panel.downgrade()
+    }
+
+    /// Shows the AI Assistant tool window (right dock), creating it once.
+    pub fn show_assistant(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<AssistantPanel> {
+        if !self.dock.read(cx).is_dock_open(DockPlacement::Right) {
+            self.toggle_dock(DockPlacement::Right, window, cx);
+        }
+        let existing = cx
+            .try_global::<ActiveAssistant>()
+            .and_then(|a| a.0.upgrade())
+            .filter(|p| {
+                self.dock
+                    .read(cx)
+                    .panel(PanelId::from(p.entity_id()))
+                    .is_some()
+            });
+        if let Some(panel) = existing {
+            let id = PanelId::from(panel.entity_id());
+            self.dock.update(cx, |a, cx| a.select_panel(id, window, cx));
+            return panel;
+        }
+        let panel = cx.new(|cx| AssistantPanel::new(window, cx));
+        self.dock.update(cx, |a, cx| {
+            a.add_panel_view(
+                panel_handle(panel.clone()),
+                DockPlacement::Right,
+                Some(px(380.)),
+                window,
+                cx,
+            )
+        });
+        panel
+    }
+
+    fn toggle_assistant(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let shown = self.dock.read(cx).is_dock_open(DockPlacement::Right)
+            && cx
+                .try_global::<ActiveAssistant>()
+                .and_then(|a| a.0.upgrade())
+                .is_some_and(|p| {
+                    self.dock
+                        .read(cx)
+                        .panel(PanelId::from(p.entity_id()))
+                        .is_some()
+                });
+        if shown {
+            self.toggle_dock(DockPlacement::Right, window, cx);
+        } else {
+            let panel = self.show_assistant(window, cx);
+            panel.update(cx, |p, cx| p.focus_prompt(window, cx));
+        }
     }
 
     fn compare_schemas(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -734,6 +799,22 @@ impl Workspace {
                         .child(t(&format!("scenario-{s}"))),
                 )
             })
+            .when_some(
+                agents::hub(cx).and_then(|h| agents::status_text(&h.status)),
+                |bar, text| {
+                    bar.right(
+                        Button::new("status-mcp")
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::Plug)
+                            .label(text)
+                            .tooltip(t("action-agents-settings"))
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(actions::OpenAgentsSettings), cx)
+                            }),
+                    )
+                },
+            )
             .right(
                 div()
                     .text_color(muted)
@@ -751,6 +832,12 @@ impl Workspace {
 pub fn active(cx: &App) -> Option<Entity<Workspace>> {
     cx.try_global::<ActiveWorkspace>()
         .and_then(|w| w.0.upgrade())
+}
+
+/// Shows the AI Assistant of the active workspace.
+pub fn show_assistant(window: &mut Window, cx: &mut App) -> Option<Entity<AssistantPanel>> {
+    let ws = active(cx)?;
+    Some(ws.update(cx, |ws, cx| ws.show_assistant(window, cx)))
 }
 
 /// Opens a console in the active workspace (used by panels).
@@ -1140,6 +1227,41 @@ impl Render for Workspace {
                 w.push_notification(Notification::info(t("console-focus-required")), cx)
             }))
             .on_action(cx.listener(|_, _: &actions::StopQuery, _, _| {}))
+            // AI and agents (phase 9).
+            .on_action(
+                cx.listener(|this, _: &actions::ToggleAssistant, w, cx| {
+                    this.toggle_assistant(w, cx)
+                }),
+            )
+            .on_action(cx.listener(|this, _: &actions::AskAi, w, cx| {
+                let panel = this.show_assistant(w, cx);
+                panel.update(cx, |p, cx| p.focus_prompt(w, cx));
+            }))
+            .on_action(cx.listener(|_, _: &actions::AiExplainQuery, w, cx| {
+                w.push_notification(Notification::info(t("console-focus-required")), cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::AiOptimizeQuery, w, cx| {
+                w.push_notification(Notification::info(t("console-focus-required")), cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::AiFixQuery, w, cx| {
+                w.push_notification(Notification::info(t("console-focus-required")), cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::OpenAiSettings, w, cx| {
+                settings_view::open_page(SettingsPageId::Ai, w, cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::OpenAgentsSettings, w, cx| {
+                settings_view::open_page(SettingsPageId::Agents, w, cx)
+            }))
+            .on_action(
+                cx.listener(|_, _: &actions::OpenScriptsFolder, w, cx| scripts::open_folder(w, cx)),
+            )
+            .on_action(cx.listener(|_, _: &actions::NewExtractorScript, w, cx| {
+                scripts::new_script(ExtScriptKind::Extractor, w, cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::NewAggregatorScript, w, cx| {
+                scripts::new_script(ExtScriptKind::Aggregator, w, cx)
+            }))
+            .on_action(cx.listener(|_, _: &actions::ReloadScripts, w, cx| scripts::reload(w, cx)))
             .child(self.render_title_bar(cx))
             .child(self.render_toolbar(cx))
             .child(div().flex_1().min_h_0().child(self.dock.clone()))

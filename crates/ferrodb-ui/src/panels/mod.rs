@@ -1,6 +1,7 @@
 //! Dock panels. Every panel is registered by name so that a saved layout can
 //! be rebuilt (`DockArea::load`).
 
+pub mod assistant;
 pub mod console;
 pub mod explorer;
 pub mod files;
@@ -17,6 +18,7 @@ use ferrodb_ui_kit::{
     kit::dock::{panel_handle, register_panel},
 };
 
+pub use assistant::AssistantPanel;
 pub use console::ConsolePanel;
 pub use explorer::ExplorerPanel;
 pub use files::FilesPanel;
@@ -73,6 +75,9 @@ pub fn register(cx: &mut App) {
     });
     register_panel(cx, files::NAME, |_, window, cx| {
         panel_handle(cx.new(|cx| FilesPanel::new(window, cx)))
+    });
+    register_panel(cx, assistant::NAME, |_, window, cx| {
+        panel_handle(cx.new(|cx| AssistantPanel::new(window, cx)))
     });
     register_panel(cx, gallery::NAME, |_, window, cx| {
         panel_handle(cx.new(|cx| GalleryPanel::new(window, cx)))
