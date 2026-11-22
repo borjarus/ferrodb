@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 279343e56a1827eee204bce228d0a4388b29fcc099ca3af7f379ebc21c3cb3b6 # shrinks to parts = ["-", ">="], dialect = "postgresql"
 cc 217c44f52f134f0f46b39736b0e8631a7fc766d620af8d68be760cd817c5fca6 # shrinks to parts = ["-- note\n", ";", "select"], dialect = "postgresql"
+cc 34fef458fb5d326c8198f1af35b3efa82dfd97025be210c6a4f2c0baf87b6940 # shrinks to parts = ["select", "(", "with q as (select 1)", "/* c */", ")"], dialect = "postgresql"

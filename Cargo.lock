@@ -3025,7 +3025,9 @@ dependencies = [
  "bson",
  "ferrodb-api",
  "ferrodb-data",
+ "ferrodb-driver-manager",
  "ferrodb-drivers",
+ "ferrodb-jdbc",
  "ferrodb-lang",
  "ferrodb-meta",
  "ferrodb-net",
@@ -3063,6 +3065,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrodb-driver-manager"
+version = "0.1.0"
+dependencies = [
+ "ferrodb-api",
+ "flate2",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tar",
+ "tempfile",
+ "toml 1.2.0+spec-1.1.0",
+ "tracing",
+ "ureq",
+ "zip",
+]
+
+[[package]]
 name = "ferrodb-driver-tck"
 version = "0.1.0"
 dependencies = [
@@ -3071,6 +3090,7 @@ dependencies = [
  "bson",
  "ferrodb-api",
  "ferrodb-drivers",
+ "ferrodb-jdbc",
  "ferrodb-lang",
  "ferrodb-net",
  "futures",
@@ -3126,6 +3146,27 @@ dependencies = [
  "ferrodb-ui",
  "ferrodb-ui-kit",
  "gpui-kit",
+]
+
+[[package]]
+name = "ferrodb-jdbc"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-ipc",
+ "arrow-schema",
+ "ferrodb-api",
+ "ferrodb-driver-manager",
+ "ferrodb-drivers",
+ "ferrodb-lang",
+ "futures",
+ "memory-stats",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -11201,6 +11242,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+name = "ureq"
+version = "3.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ac5cecf619ca81f66a96482db09687c9f7465af65f4300a8c30cca05bd5a59d"
+dependencies = [
+ "base64 0.23.1",
+ "log",
+ "percent-encoding",
+ "rustls 0.23.46",
+ "rustls-pki-types",
+ "ureq-proto",
+ "utf8-zero",
+ "webpki-roots",
+]
+
+[[package]]
+name = "ureq-proto"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "622dce33c252115466d83f63e9744a18f12b4406aae51a01c15ad8fcf1185eb3"
+dependencies = [
+ "base64 0.23.1",
+ "http",
+ "httparse",
+ "log",
+]
+
+[[package]]
 name = "url"
 version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11277,6 +11346,12 @@ name = "utf-8"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
+
+[[package]]
+name = "utf8-zero"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 
 [[package]]
 name = "utf8_iter"

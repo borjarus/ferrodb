@@ -617,7 +617,8 @@ impl<'a> Body<'a> {
                         if self.frames.len() > 1 {
                             let f = self.frames.pop().expect("frame");
                             if f.kind != FrameKind::Inline {
-                                self.newline(f.outer);
+                                // A comment may already have ended the line.
+                                self.ensure_line(f.outer);
                             }
                         }
                         self.put(")", false);

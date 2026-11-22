@@ -640,8 +640,11 @@ async fn listing(c: &mut Ctx<'_>) -> Result<String, String> {
         for q in v.list_queries(&path) {
             let out = run_sql(c.conn.as_mut(), &q.sql).await?;
             let names = names(&out);
-            if q.kind == ObjectKind::Table && names.iter().any(|n| n.eq_ignore_ascii_case(&t)) {
-                found.push(t.clone());
+            // The name as listed (upper case where the database folds to it).
+            if q.kind == ObjectKind::Table
+                && let Some(n) = names.iter().find(|n| n.eq_ignore_ascii_case(&t))
+            {
+                found.push(n.clone());
             }
         }
         if found.is_empty() {
@@ -649,7 +652,7 @@ async fn listing(c: &mut Ctx<'_>) -> Result<String, String> {
         }
         let path = vec![
             (c.profile.container, cur.clone()),
-            (ObjectKind::Table, t.clone()),
+            (ObjectKind::Table, found[0].clone()),
         ];
         let cols: Vec<String> = {
             let mut v2 = Vec::new();
@@ -658,7 +661,8 @@ async fn listing(c: &mut Ctx<'_>) -> Result<String, String> {
             }
             v2
         };
-        if cols != ["col_a"] {
+        // Databases folding to upper case (Oracle, Db2, H2, Derby…) list `COL_A`.
+        if cols.len() != 1 || !cols[0].eq_ignore_ascii_case("col_a") {
             return Err(format!("columns {cols:?}"));
         }
         Ok(format!("{cur} → {t} → col_a"))
@@ -879,6 +883,111 @@ pub mod profiles {
             error_positions: false,
             container: ObjectKind::Schema,
         }
+    }
+
+    /// H2 through the JDBC bridge (embedded, in memory).
+    pub fn h2() -> Profile {
+        Profile {
+            series: |n| format!("select x as i from system_range(1, {n})"),
+            sleep: |_| {
+                "select count(*) from system_range(1, 1000000000) a, system_range(1, 1000) b".into()
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d decimal(10,2), s varchar(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: jdbc_types(),
+            error_positions: true,
+            container: ObjectKind::Schema,
+        }
+    }
+
+    /// Apache Derby through the JDBC bridge (embedded, in memory). Derby
+    /// has no row generator and no statement cancel: the series numbers a
+    /// cross join of a system table, and the long statement streams rows so
+    /// the bridge can stop between them.
+    pub fn derby() -> Profile {
+        Profile {
+            series: |n| {
+                format!(
+                    "select row_number() over () as i from sys.syscolumns a, sys.syscolumns b, sys.syscolumns c                      fetch first {n} rows only"
+                )
+            },
+            sleep: |_| {
+                "select a.columnname from sys.syscolumns a, sys.syscolumns b, sys.syscolumns c, sys.syscolumns d"
+                    .into()
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d decimal(10,2), s varchar(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: jdbc_types(),
+            error_positions: true,
+            container: ObjectKind::Schema,
+        }
+    }
+
+    /// HyperSQL through the JDBC bridge (embedded, in memory).
+    pub fn hsqldb() -> Profile {
+        Profile {
+            series: |n| format!("select c as i from unnest(sequence_array(1, {n}, 1)) as t(c)"),
+            sleep: |_| {
+                "select count(*) from unnest(sequence_array(1, 100000, 1)) as a(x),                  unnest(sequence_array(1, 100000, 1)) as b(y)"
+                    .into()
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d decimal(10,2), s varchar(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: jdbc_types(),
+            error_positions: true,
+            container: ObjectKind::Schema,
+        }
+    }
+
+    /// Oracle (23ai Free) through the JDBC bridge. `DATE` carries a time
+    /// in Oracle: the driver reports it as a timestamp.
+    pub fn oracle() -> Profile {
+        Profile {
+            series: |n| {
+                format!("select cast(level as number(10)) as i from dual connect by level <= {n}")
+            },
+            sleep: |s| format!("begin dbms_session.sleep({s}); end;"),
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d number(10,2), s varchar2(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, date '2026-11-09', timestamp '2026-11-09 10:11:12')",
+            types: [
+                DataType::Decimal128(38, 0),
+                DataType::Decimal128(10, 2),
+                DataType::Utf8,
+                DataType::Boolean,
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+            ],
+            error_positions: true,
+            container: ObjectKind::Schema,
+        }
+    }
+
+    /// What the JDBC bridge produces for the types table.
+    fn jdbc_types() -> [DataType; 6] {
+        [
+            DataType::Int32,
+            DataType::Decimal128(10, 2),
+            DataType::Utf8,
+            DataType::Boolean,
+            DataType::Date32,
+            DataType::Timestamp(TimeUnit::Microsecond, None),
+        ]
     }
 
     pub fn mysql() -> Profile {

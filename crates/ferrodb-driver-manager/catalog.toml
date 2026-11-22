@@ -1,0 +1,270 @@
+# JDBC artifacts offered by the driver manager (ADR-007). Every file comes from Maven
+# Central and is pinned by its SHA-256 (computed from the downloaded file). Versions are
+# listed newest first. Nothing here is bundled with FerroDb: files are downloaded on demand
+# after the user accepted the license.
+#
+# `kind`: jar | native-library | runtime. Native libraries (ADBC) may name the `extract`
+# member of an archive and restrict `os` / `arch`.
+
+[[artifact]]
+id = "h2"
+kind = "jar"
+name = "H2 Database Engine"
+coordinates = "com.h2database:h2"
+license = "MPL 2.0 or EPL 1.0"
+license_url = "https://h2database.com/html/license.html"
+driver_class = "org.h2.Driver"
+
+[[artifact.versions]]
+version = "2.5.252"
+min_java = 11
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/h2database/h2/2.5.252/h2-2.5.252.jar"
+sha256 = "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20"
+size = 2693360
+
+[[artifact.versions]]
+version = "2.3.232"
+min_java = 11
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/h2database/h2/2.3.232/h2-2.3.232.jar"
+sha256 = "8dae62d22db8982c3dcb3826edb9c727c5d302063a67eef7d63d82de401f07d3"
+size = 2651157
+
+[[artifact]]
+id = "derby"
+kind = "jar"
+name = "Apache Derby (embedded and network client)"
+coordinates = "org.apache.derby:derby"
+license = "Apache-2.0"
+license_url = "https://www.apache.org/licenses/LICENSE-2.0"
+
+[[artifact.versions]]
+version = "10.17.1.0"
+min_java = 21
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derby/10.17.1.0/derby-10.17.1.0.jar"
+sha256 = "764e4c133f860a8876e835ef2306efecad27a742d27f05bc4bce669432c6b397"
+size = 3544643
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derbyshared/10.17.1.0/derbyshared-10.17.1.0.jar"
+sha256 = "fb68bab30785375c1f8cb5e9583b349750f8904d6f7ee15ce8e1c30b6be30ef4"
+size = 88762
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derbytools/10.17.1.0/derbytools-10.17.1.0.jar"
+sha256 = "c1e24e47d944a7c4c6fa88ad1a0989d7cf37e4108dc2fbde8cb07e758087996e"
+size = 253605
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derbyclient/10.17.1.0/derbyclient-10.17.1.0.jar"
+sha256 = "8f3e7a1f2eec23faf8c1c0fb21767b37c4d60d32223362a1f82a740b39b3726a"
+size = 600922
+
+[[artifact.versions]]
+version = "10.16.1.1"
+min_java = 17
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derby/10.16.1.1/derby-10.16.1.1.jar"
+sha256 = "ede804cb04e871d7c52d2414e952ab939f9ef243abb7bd0ce7dbeb6e1e28bd0b"
+size = 3538107
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derbyshared/10.16.1.1/derbyshared-10.16.1.1.jar"
+sha256 = "27d4be683a45f6c15940167277ce39bb7e26b9f6dc0bc05efbcf813cac5d2b8f"
+size = 88705
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derbytools/10.16.1.1/derbytools-10.16.1.1.jar"
+sha256 = "db052f92508e966ee8b0c5c9eca84cb11cbf0b0d78e608dc89340d4bb6c07314"
+size = 252754
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/derby/derbyclient/10.16.1.1/derbyclient-10.16.1.1.jar"
+sha256 = "b7243184b1df01b946eaf89eb904ed724d1f7493eb7467e85f4c6ffb4a09142b"
+size = 603730
+
+[[artifact]]
+id = "hsqldb"
+kind = "jar"
+name = "HyperSQL"
+coordinates = "org.hsqldb:hsqldb"
+license = "HSQLDB License (BSD)"
+license_url = "https://hsqldb.org/web/hsqlLicense.html"
+driver_class = "org.hsqldb.jdbc.JDBCDriver"
+
+[[artifact.versions]]
+version = "2.7.4"
+min_java = 11
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/hsqldb/hsqldb/2.7.4/hsqldb-2.7.4.jar"
+sha256 = "5fab2bb4384ac06b762638c8fa2740c944b8d080e4796c0c6c2af8b90dd4e5ad"
+size = 1662185
+
+[[artifact.versions]]
+version = "2.7.3"
+min_java = 11
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/hsqldb/hsqldb/2.7.3/hsqldb-2.7.3.jar"
+sha256 = "6f2f77eedbe75cfbe26bf30d73b13de0cc57fb7cdb27a92ed8c1a012f0e2363a"
+size = 1657682
+
+[[artifact]]
+id = "oracle"
+kind = "jar"
+name = "Oracle JDBC (ojdbc11)"
+coordinates = "com.oracle.database.jdbc:ojdbc11"
+license = "Oracle Free Use Terms and Conditions (FUTC)"
+license_url = "https://www.oracle.com/downloads/licenses/oracle-free-license.html"
+driver_class = "oracle.jdbc.OracleDriver"
+
+[[artifact.versions]]
+version = "23.26.4.0.0"
+min_java = 11
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc11/23.26.4.0.0/ojdbc11-23.26.4.0.0.jar"
+sha256 = "df977e9291499cd4ceee7d577462c285987dd2ad0216637c0865eb98956a9e6e"
+size = 8828929
+
+[[artifact.versions]]
+version = "23.9.0.25.07"
+min_java = 11
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc11/23.9.0.25.07/ojdbc11-23.9.0.25.07.jar"
+sha256 = "f52e9335276cd3999c23bb5a364fa01a628f3468945444d03cb7f92271bca1da"
+size = 7493107
+
+[[artifact]]
+id = "db2"
+kind = "jar"
+name = "IBM Data Server Driver for JDBC (jcc)"
+coordinates = "com.ibm.db2:jcc"
+license = "International Program License Agreement (IPLA)"
+license_url = "https://www.ibm.com/support/customer/csol/terms/?ref=L-HJHH-A2W6TH-01-06-2026-zz-en"
+driver_class = "com.ibm.db2.jcc.DB2Driver"
+
+[[artifact.versions]]
+version = "12.1.5.0"
+min_java = 8
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/ibm/db2/jcc/12.1.5.0/jcc-12.1.5.0.jar"
+sha256 = "04150111a29370247d162c3f05b8e938bf1314f19a63ad9a5302d88dd478e8e8"
+size = 6630167
+
+[[artifact.versions]]
+version = "12.1.4.0"
+min_java = 8
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/ibm/db2/jcc/12.1.4.0/jcc-12.1.4.0.jar"
+sha256 = "9864979950be6550d63d4ceb6e3defa159e850f5f70d35c3dc44b4403606c0b3"
+size = 6629661
+
+[[artifact]]
+id = "sybase"
+kind = "jar"
+name = "jTDS (Sybase ASE)"
+coordinates = "net.sourceforge.jtds:jtds"
+license = "LGPL-2.1"
+license_url = "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html"
+driver_class = "net.sourceforge.jtds.jdbc.Driver"
+
+[[artifact.versions]]
+version = "1.3.1"
+min_java = 8
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/net/sourceforge/jtds/jtds/1.3.1/jtds-1.3.1.jar"
+sha256 = "aac05ebf5504c91b29420129b02dd878a86c52f8fa6eccf9235e0bfd7a60bef1"
+size = 317816
+
+[[artifact]]
+id = "vertica"
+kind = "jar"
+name = "Vertica JDBC"
+coordinates = "com.vertica.jdbc:vertica-jdbc"
+license = "Vertica Client License Agreement"
+license_url = "https://www.vertica.com/wp-content/uploads/2024/02/Vertica-Client-License-Agreement_Feb2023.pdf"
+driver_class = "com.vertica.jdbc.Driver"
+
+[[artifact.versions]]
+version = "25.3.0-0"
+min_java = 8
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/vertica/jdbc/vertica-jdbc/25.3.0-0/vertica-jdbc-25.3.0-0.jar"
+sha256 = "f43c4ed61a9639d95214e00c888fd21c4ea283d60ca2ce06c6855a774ff5e583"
+size = 1850793
+
+[[artifact.versions]]
+version = "25.2.0-0"
+min_java = 8
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/vertica/jdbc/vertica-jdbc/25.2.0-0/vertica-jdbc-25.2.0-0.jar"
+sha256 = "f2c95585468b3783c2eba8056796f8a2a975cdeb0ee598f378d5022cf6e078a7"
+size = 1850793
+
+[[artifact]]
+id = "exasol"
+kind = "jar"
+name = "Exasol JDBC"
+coordinates = "com.exasol:exasol-jdbc"
+license = "EXAClient License"
+license_url = "https://repo1.maven.org/maven2/com/exasol/exasol-jdbc/26.2.10/exasol-jdbc-26.2.10-license.txt"
+driver_class = "com.exasol.jdbc.EXADriver"
+
+[[artifact.versions]]
+version = "26.2.10"
+min_java = 11
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/exasol/exasol-jdbc/26.2.10/exasol-jdbc-26.2.10.jar"
+sha256 = "91b11bd846b0c447a1e9fed86541bc2c1b4c9272f9a2d0f169e9ff0bca222d19"
+size = 9525280
+
+[[artifact.versions]]
+version = "25.2.6"
+min_java = 8
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/com/exasol/exasol-jdbc/25.2.6/exasol-jdbc-25.2.6.jar"
+sha256 = "5fa530718a7765ab8bd4ed4c238a489e987cd67e99589f78b8f1d3623b848faf"
+size = 10485814
+
+[[artifact]]
+id = "hive"
+kind = "jar"
+name = "Apache Hive JDBC (standalone)"
+coordinates = "org.apache.hive:hive-jdbc:standalone"
+license = "Apache-2.0"
+license_url = "https://www.apache.org/licenses/LICENSE-2.0"
+driver_class = "org.apache.hive.jdbc.HiveDriver"
+
+[[artifact.versions]]
+version = "4.2.1"
+min_java = 17
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/hive/hive-jdbc/4.2.1/hive-jdbc-4.2.1-standalone.jar"
+sha256 = "8a6633722aff9865b94a67f3af4d42c22f425e45203721fdf5bbf54fb8c7ec3e"
+size = 48513880
+
+[[artifact.versions]]
+version = "4.0.1"
+min_java = 8
+
+[[artifact.versions.files]]
+url = "https://repo1.maven.org/maven2/org/apache/hive/hive-jdbc/4.0.1/hive-jdbc-4.0.1-standalone.jar"
+sha256 = "5d74bb0130aae6a8a2fad9cf5ffa1608974a55f1013464334490f7e06311959e"
+size = 43636739

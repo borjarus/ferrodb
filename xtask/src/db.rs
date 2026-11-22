@@ -111,6 +111,19 @@ const CONTAINERS: &[Container] = &[
         &[],
         &[],
     ),
+    // Oracle Database Free (JDBC bridge, phase 8): needs ~3 GB and a few
+    // minutes before the PDB FREEPDB1 opens; user `tck` / `ferrodb`.
+    (
+        "ferrodb-tck-oracle",
+        "gvenzl/oracle-free:slim",
+        "56121:1521",
+        &[
+            "ORACLE_PASSWORD=ferrodb",
+            "APP_USER=tck",
+            "APP_USER_PASSWORD=ferrodb",
+        ],
+        &[],
+    ),
 ];
 
 /// Memory limits (`docker run -m`) of the heavier containers.
@@ -118,6 +131,7 @@ const MEMORY: &[(&str, &str)] = &[
     ("ferrodb-tck-dynamodb", "1g"),
     ("ferrodb-tck-couchbase", "3g"),
     ("ferrodb-tck-cassandra", "3g"),
+    ("ferrodb-tck-oracle", "3g"),
 ];
 
 /// Ports published besides the main one.
@@ -374,6 +388,13 @@ pub fn env_vars() -> Vec<(String, String)> {
             // The node advertises its container address: route through the
             // published port.
             format!("cassandra://{h}:56442/tck?address_translation=contact_point"),
+        ),
+        // JDBC: H2 / Derby / HyperSQL run embedded (jars downloaded into
+        // target/ferrodb-drivers-test); Oracle runs in its container.
+        ("FERRODB_TCK_JDBC".into(), "1".into()),
+        (
+            "FERRODB_TCK_ORACLE".into(),
+            format!("oracle://tck:ferrodb@{h}:56121/FREEPDB1"),
         ),
     ]
 }

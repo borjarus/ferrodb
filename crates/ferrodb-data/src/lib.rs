@@ -15,7 +15,8 @@
 //!   (DynamoDB) statements;
 //! - [`compare`] — comparing two results;
 //! - [`chart`] — chart series and selection aggregates;
-//! - [`plan`] — execution plans of each database → the shared plan model.
+//! - [`plan`] — execution plans of each database → the shared plan model
+//!   ([`plan_jdbc`]: Oracle `PLAN_TABLE` and text plans of the JDBC databases).
 //!
 //! No I/O besides the files being exported or imported; nothing here
 //! talks to a database.
@@ -31,6 +32,7 @@ pub mod import;
 pub mod plan;
 pub mod plan_mssql;
 pub mod plan_text;
+pub mod plan_jdbc;
 pub mod sql;
 pub mod value;
 

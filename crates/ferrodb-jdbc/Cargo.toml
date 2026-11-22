@@ -1,0 +1,30 @@
+[package]
+name = "ferrodb-jdbc"
+description = "JDBC bridge client: supervises the Java host (ferrodb-jdbc-host), JSON-RPC + Arrow IPC over its stdin/stdout, drivers of the JDBC databases"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+ferrodb-api.workspace = true
+ferrodb-drivers.workspace = true
+ferrodb-lang.workspace = true
+ferrodb-driver-manager.workspace = true
+tokio = { workspace = true, features = ["process"] }
+tokio-util.workspace = true
+futures.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+arrow-ipc.workspace = true
+arrow-buffer.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+memory-stats = "1.2.0"
+
+[lints]
+workspace = true

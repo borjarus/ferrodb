@@ -1,5 +1,5 @@
-//! Driver catalog (built-in native drivers only in phase 3), history and
-//! search.
+//! Driver catalog (built-in native drivers, JDBC drivers whose files come
+//! from the driver manager), history and search.
 
 use std::path::PathBuf;
 
@@ -10,6 +10,15 @@ use ferrodb_api::{
 };
 
 use crate::Inner;
+
+impl Inner {
+    /// Drivers whose files come from the driver manager (JDBC).
+    fn managed(&self, id: &DriverId) -> bool {
+        self.registry
+            .get(id)
+            .is_some_and(|d| d.family().as_str() == "jdbc")
+    }
+}
 
 impl DriverCatalogService for Inner {
     fn list(&self) -> Vec<DriverDescriptor> {
@@ -25,45 +34,81 @@ impl DriverCatalogService for Inner {
     }
 
     fn status(&self, id: &DriverId) -> DriverStatus {
-        if self.registry.get(id).is_some() {
+        if self.managed(id) {
+            self.driver_manager.status(id.as_str())
+        } else if self.registry.get(id).is_some() {
             DriverStatus::BuiltIn
         } else {
             DriverStatus::NotDownloaded
         }
     }
 
-    fn versions(&self, _id: &DriverId) -> Vec<String> {
-        Vec::new()
+    fn versions(&self, id: &DriverId) -> Vec<String> {
+        if self.managed(id) {
+            self.driver_manager.versions(id.as_str())
+        } else {
+            Vec::new()
+        }
     }
 
-    fn download(&self, id: &DriverId, _version: Option<String>) -> BoxFuture<'_, Result<()>> {
+    fn download(&self, id: &DriverId, version: Option<String>) -> BoxFuture<'_, Result<()>> {
+        let managed = self.managed(id);
         let built_in = self.registry.get(id).is_some();
+        let manager = self.driver_manager.clone();
         let id = id.clone();
-        Box::pin(async move {
-            if built_in {
-                Ok(())
-            } else {
-                Err(Error::Unsupported(format!(
-                    "downloading drivers (`{id}`) arrives with the driver manager"
-                )))
+        let me = self.arc();
+        self.spawn(async move {
+            if !managed {
+                return if built_in {
+                    Ok(())
+                } else {
+                    Err(Error::NotFound(format!("driver `{id}`")))
+                };
             }
+            me.blocking(move || {
+                manager.download(id.as_str(), version.as_deref())?;
+                // The bridge needs Java: fetch a runtime when none is installed.
+                if manager.java().is_none() {
+                    manager.download_java()?;
+                }
+                Ok(())
+            })
+            .await
         })
     }
 
+    /// Local files: verified against the catalog when they are one of its
+    /// versions (offline installation), otherwise used as custom files
+    /// (level C, unverified).
     fn use_custom_artifacts(
         &self,
-        _id: &DriverId,
-        _paths: Vec<PathBuf>,
+        id: &DriverId,
+        paths: Vec<PathBuf>,
     ) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            Err(Error::Unsupported(
-                "custom driver files (JDBC bridge)".into(),
-            ))
+        let managed = self.managed(id);
+        let manager = self.driver_manager.clone();
+        let id = id.clone();
+        let me = self.arc();
+        self.spawn(async move {
+            if !managed {
+                return Err(Error::Unsupported(format!(
+                    "driver `{id}` is built in: it takes no driver files"
+                )));
+            }
+            me.blocking(move || {
+                let in_catalog = manager.catalog().get(id.as_str()).is_some();
+                if in_catalog && manager.install_offline(id.as_str(), None, &paths).is_ok() {
+                    return Ok(());
+                }
+                manager.use_custom(id.as_str(), &paths, None)?;
+                Ok(())
+            })
+            .await
         })
     }
 
     fn jdbc_bridge(&self) -> BridgeState {
-        BridgeState::NotStarted
+        self.bridge.state()
     }
 
     fn subscribe(&self) -> async_channel::Receiver<DriverEvent> {
