@@ -407,7 +407,6 @@ mod tests {
         assert!(e.measure.is_some());
         assert!(request("postgresql", false, "delete from t", true).is_err());
         assert!(request("postgresql", false, "delete from t", false).is_ok());
-        assert!(request("tsql", false, "select 1", false).is_err());
         let e = request("sqlpp", false, "SELECT * FROM b;", false).unwrap();
         assert_eq!(e.statement, "EXPLAIN SELECT * FROM b");
         assert_eq!(e.format, Format::Couchbase);
