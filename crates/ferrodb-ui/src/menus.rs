@@ -57,6 +57,7 @@ pub fn build(cx: &App) -> Vec<Menu> {
         item("action-toggle-bottom-panel", ToggleBottomPanel),
         item("action-toggle-right-panel", ToggleRightPanel),
         item("action-reset-layout", ResetLayout),
+        item("action-ai-assistant", ToggleAssistant),
         MenuItem::separator(),
         item("action-query-history", ShowQueryHistory),
         item("action-local-history", ShowLocalHistory),
@@ -75,11 +76,24 @@ pub fn build(cx: &App) -> Vec<Menu> {
         item("action-goto-declaration", GoToDeclaration),
         item("action-live-templates", LiveTemplates),
         item("action-quick-doc", QuickDocumentation),
+        MenuItem::separator(),
+        item("action-ai-ask", AskAi),
+        item("action-ai-explain", AiExplainQuery),
+        item("action-ai-optimize", AiOptimizeQuery),
+        item("action-ai-fix", AiFixQuery),
     ]));
     menus.push(Menu::new(t("menu-tools")).items([
         item("action-new-table", NewTable),
         item("action-er-diagram", ShowErDiagram),
         item("action-compare", CompareSchemas),
+        MenuItem::separator(),
+        item("action-ai-settings", OpenAiSettings),
+        item("action-agents-settings", OpenAgentsSettings),
+        MenuItem::separator(),
+        item("action-scripts-folder", OpenScriptsFolder),
+        item("action-new-extractor", NewExtractorScript),
+        item("action-new-aggregator", NewAggregatorScript),
+        item("action-reload-scripts", ReloadScripts),
     ]));
     if SettingsStore::get(cx).developer_mode {
         menus.push(Menu::new(t("menu-developer")).items([

@@ -11,8 +11,8 @@
 use std::path::PathBuf;
 
 use ferrodb_api::{
-    DataFormat, DataSourceId, FilePreview, FormatOptions, NodeRef, ObjectKind, TransferEvent,
-    TransferRequest, TransferSource, TransferTarget,
+    DataFormat, DataSourceId, ExtScriptInfo, ExtScriptKind, FilePreview, FormatOptions, NodeRef,
+    ObjectKind, TransferEvent, TransferRequest, TransferSource, TransferTarget,
 };
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -144,9 +144,18 @@ pub struct Wizard {
     pub preview: Option<Result<FilePreview, String>>,
     /// Import: columns of the existing target table.
     pub target_columns: Vec<String>,
+    /// Export: extractor scripts offered after the built-in formats.
+    pub scripts: Vec<ExtScriptInfo>,
+    /// Export: the chosen extractor (`format == DataFormat::Script`).
+    pub script: Option<String>,
     path: Entity<InputState>,
     target: Entity<InputState>,
 }
+
+/// The most recently opened wizard (UI tests).
+#[derive(Default)]
+pub struct LastWizard(pub Option<Entity<Wizard>>);
+impl Global for LastWizard {}
 
 impl Wizard {
     pub fn new(
@@ -186,6 +195,10 @@ impl Wizard {
             .and_then(|t| t.table.clone())
             .unwrap_or_default();
         let target = cx.new(|cx| InputState::new(window, cx).default_value(table));
+        let scripts = match kind {
+            WizardKind::Export => crate::scripts::list(ExtScriptKind::Extractor, cx),
+            WizardKind::Import => Vec::new(),
+        };
         Self {
             kind,
             step: 0,
@@ -197,6 +210,8 @@ impl Wizard {
             target_to,
             preview: None,
             target_columns: Vec::new(),
+            scripts,
+            script: None,
             path,
             target,
         }
@@ -220,7 +235,44 @@ impl Wizard {
     fn options(&self) -> FormatOptions {
         FormatOptions {
             header: self.header,
+            script: self
+                .script
+                .clone()
+                .filter(|_| self.format == DataFormat::Script),
             ..Default::default()
+        }
+    }
+
+    /// Chooses an extractor script as the export format; the path takes the
+    /// script's extension.
+    pub fn set_script(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(info) = self.scripts.iter().find(|s| s.id == id).cloned() else {
+            return;
+        };
+        self.format = DataFormat::Script;
+        self.script = Some(info.id);
+        let ext = if info.extension.trim().is_empty() {
+            DataFormat::Script.extension().to_owned()
+        } else {
+            info.extension.trim().trim_start_matches('.').to_owned()
+        };
+        let p = self.path(cx).with_extension(ext);
+        self.path.update(cx, |i, cx| {
+            i.set_value(p.to_string_lossy().into_owned(), window, cx)
+        });
+        cx.notify();
+    }
+
+    /// Label of the chosen format (the script's name for an extractor).
+    pub fn format_label(&self) -> String {
+        match (&self.script, self.format) {
+            (Some(id), DataFormat::Script) => self
+                .scripts
+                .iter()
+                .find(|s| &s.id == id)
+                .map(|s| s.name.clone())
+                .unwrap_or_else(|| id.clone()),
+            _ => self.format.label().to_owned(),
         }
     }
 
@@ -228,6 +280,7 @@ impl Wizard {
     /// format follows the file name.
     pub fn set_format(&mut self, f: DataFormat, window: &mut Window, cx: &mut Context<Self>) {
         self.format = f;
+        self.script = None;
         if self.kind == WizardKind::Export {
             let p = self.path(cx).with_extension(f.extension());
             self.path.update(cx, |i, cx| {
@@ -312,7 +365,7 @@ impl Wizard {
                     t("wizard-source"),
                     t("wizard-file"),
                     self.path(cx).display(),
-                    self.format.label()
+                    self.format_label()
                 )
             }
             WizardKind::Import => match &self.preview {
@@ -513,6 +566,7 @@ impl Render for Wizard {
                     )
             }));
         let fmts = formats(self.kind);
+        let builtin = fmts.len();
         let format_buttons = ButtonGroup::new("wizard-format")
             .small()
             .children(fmts.iter().enumerate().map(|(i, f)| {
@@ -520,14 +574,25 @@ impl Render for Wizard {
                     .label(f.label())
                     .selected(*f == self.format)
             }))
+            .children(self.scripts.iter().enumerate().map(|(i, s)| {
+                Button::new(("wizard-f", builtin + i))
+                    .label(s.name.clone())
+                    .tooltip(match &s.error {
+                        Some(e) => e.clone(),
+                        None => s.description.clone(),
+                    })
+                    .disabled(s.error.is_some())
+                    .selected(self.script.as_deref() == Some(s.id.as_str()))
+            }))
             .on_click(cx.listener(move |this, sel: &Vec<usize>, window, cx| {
-                if let Some(f) = sel
-                    .first()
-                    .and_then(|i| formats(this.kind).get(*i).copied())
-                {
+                let Some(&i) = sel.first() else { return };
+                if let Some(f) = formats(this.kind).get(i).copied() {
                     this.set_format(f, window, cx);
+                } else if let Some(id) = this.scripts.get(i - builtin).map(|s| s.id.clone()) {
+                    this.set_script(&id, window, cx);
                 }
             }));
+        let format_buttons = h_flex().flex_wrap().child(format_buttons);
         let file_and_header = v_flex()
             .gap_2()
             .child(
@@ -620,6 +685,7 @@ pub fn open_with(
     cx: &mut App,
 ) {
     let wizard = cx.new(|cx| Wizard::new(kind, source, target, window, cx));
+    cx.set_global(LastWizard(Some(wizard.clone())));
     let title = match kind {
         WizardKind::Export => t("action-export-data"),
         WizardKind::Import => t("action-import-data"),

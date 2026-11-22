@@ -1,4 +1,5 @@
-//! Settings dialog (skeleton: appearance, language, editor, developer).
+//! Settings dialog: appearance, language, editor, AI assistant, agents and
+//! MCP (phase 9), developer.
 
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -6,16 +7,40 @@ use ferrodb_ui_kit::{
     kit::{
         WindowExt as _,
         setting::{
-            NumberFieldOptions, SettingField, SettingGroup, SettingItem, SettingPage, Settings,
+            NumberFieldOptions, SelectIndex, SettingField, SettingGroup, SettingItem, SettingPage,
+            Settings,
         },
     },
 };
 
 use crate::{
+    ai_settings::{AgentsSettingsView, AiSettingsView, LastSettingsViews},
     apply_look,
     i18n::{self, Locale, t},
     settings::{AppSettings, SettingsStore},
 };
+
+/// Pages of the settings dialog, in order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettingsPageId {
+    General,
+    Editor,
+    Ai,
+    Agents,
+    Developer,
+}
+
+impl SettingsPageId {
+    fn index(self) -> usize {
+        match self {
+            Self::General => 0,
+            Self::Editor => 1,
+            Self::Ai => 2,
+            Self::Agents => 3,
+            Self::Developer => 4,
+        }
+    }
+}
 
 /// Updates settings and applies their visible effects in every window.
 pub fn change(cx: &mut App, f: impl FnOnce(&mut AppSettings)) {
@@ -52,10 +77,14 @@ fn locale_options() -> Vec<(SharedString, SharedString)> {
     v
 }
 
-pub fn settings_element() -> Settings {
+pub fn settings_element(
+    ai: Entity<AiSettingsView>,
+    agents: Entity<AgentsSettingsView>,
+    page: SettingsPageId,
+) -> Settings {
     let general = SettingPage::new(t("settings-general"))
         .icon(icons::Lucide::Settings)
-        .default_open(true)
+        .default_open(page == SettingsPageId::General)
         .group(
             SettingGroup::new()
                 .title(t("settings-appearance"))
@@ -124,6 +153,29 @@ pub fn settings_element() -> Settings {
                     ),
                 )),
         );
+    let ai_page = SettingPage::new(t("settings-ai"))
+        .icon(icons::Lucide::Sparkles)
+        .default_open(page == SettingsPageId::Ai)
+        .group(
+            SettingGroup::new().item(SettingItem::render(move |_, _, _| ai.clone()).keywords([
+                "ai",
+                "llm",
+                "anthropic",
+                "openai",
+                "ollama",
+                "model",
+                "api key",
+            ])),
+        );
+    let agents_page = SettingPage::new(t("settings-agents"))
+        .icon(icons::Lucide::Bot)
+        .default_open(page == SettingsPageId::Agents)
+        .group(
+            SettingGroup::new().item(
+                SettingItem::render(move |_, _, _| agents.clone())
+                    .keywords(["mcp", "agents", "consent", "audit", "token", "policy"]),
+            ),
+        );
     let developer = SettingPage::new(t("settings-developer"))
         .icon(icons::Lucide::Bug)
         .group(
@@ -138,15 +190,36 @@ pub fn settings_element() -> Settings {
                 .description(t("settings-developer-mode-description")),
             ),
         );
-    Settings::new("settings").pages([general, editor, developer])
+    // A new element id per opened page: the selection is element state.
+    Settings::new(("settings", page.index()))
+        .default_selected_index(SelectIndex {
+            page_ix: page.index(),
+            group_ix: None,
+        })
+        .pages([general, editor, ai_page, agents_page, developer])
 }
 
 pub fn open(window: &mut Window, cx: &mut App) {
-    window.open_dialog(cx, |dialog, _, _| {
+    open_page(SettingsPageId::General, window, cx)
+}
+
+/// Opens the settings dialog on `page`.
+pub fn open_page(page: SettingsPageId, window: &mut Window, cx: &mut App) {
+    let ai = cx.new(|cx| AiSettingsView::new(window, cx));
+    let agents = cx.new(|cx| AgentsSettingsView::new(window, cx));
+    cx.set_global(LastSettingsViews {
+        ai: Some(ai.clone()),
+        agents: Some(agents.clone()),
+    });
+    window.open_dialog(cx, move |dialog, _, _| {
         dialog
             .title(t("action-open-settings"))
-            .w(px(780.))
-            .h(px(540.))
-            .child(div().size_full().child(settings_element()))
+            .w(px(860.))
+            .h(px(600.))
+            .child(
+                div()
+                    .size_full()
+                    .child(settings_element(ai.clone(), agents.clone(), page)),
+            )
     });
 }

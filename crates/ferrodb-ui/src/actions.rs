@@ -55,6 +55,19 @@ actions!(
         NewTable,
         ShowErDiagram,
         CompareSchemas,
+        // AI and agents (phase 9)
+        ToggleAssistant,
+        AskAi,
+        AiExplainQuery,
+        AiOptimizeQuery,
+        AiFixQuery,
+        OpenAiSettings,
+        OpenAgentsSettings,
+        // extension scripts (phase 9)
+        OpenScriptsFolder,
+        NewExtractorScript,
+        NewAggregatorScript,
+        ReloadScripts,
         // developer
         DeveloperScenarios,
         OpenGallery,
@@ -71,6 +84,7 @@ pub enum Category {
     Console,
     Results,
     Tools,
+    Ai,
     Developer,
 }
 
@@ -84,6 +98,7 @@ impl Category {
             Self::Console => "category-console",
             Self::Results => "category-results",
             Self::Tools => "category-tools",
+            Self::Ai => "category-ai",
             Self::Developer => "category-developer",
         }
     }
@@ -513,6 +528,113 @@ pub static ACTIONS: &[ActionSpec] = &[
         None,
         None,
         ["diff", "compare"]
+    ),
+    spec!(
+        ToggleAssistant,
+        "action-ai-assistant",
+        Ai,
+        None,
+        None,
+        None,
+        ["ai", "chat", "llm", "copilot", "assistant"]
+    ),
+    spec!(
+        AskAi,
+        "action-ai-ask",
+        Ai,
+        None,
+        None,
+        None,
+        ["ai", "generate", "natural language", "prompt"]
+    ),
+    spec!(
+        AiExplainQuery,
+        "action-ai-explain",
+        Ai,
+        None,
+        None,
+        C,
+        ["ai", "explain"]
+    ),
+    spec!(
+        AiOptimizeQuery,
+        "action-ai-optimize",
+        Ai,
+        None,
+        None,
+        C,
+        ["ai", "optimize", "performance", "index"]
+    ),
+    spec!(
+        AiFixQuery,
+        "action-ai-fix",
+        Ai,
+        None,
+        None,
+        C,
+        ["ai", "fix", "error"]
+    ),
+    spec!(
+        OpenAiSettings,
+        "action-ai-settings",
+        Ai,
+        None,
+        None,
+        None,
+        [
+            "ai",
+            "provider",
+            "api key",
+            "model",
+            "anthropic",
+            "openai",
+            "ollama"
+        ]
+    ),
+    spec!(
+        OpenAgentsSettings,
+        "action-agents-settings",
+        Ai,
+        None,
+        None,
+        None,
+        ["mcp", "agents", "consent", "audit", "token"]
+    ),
+    spec!(
+        OpenScriptsFolder,
+        "action-scripts-folder",
+        Tools,
+        None,
+        None,
+        None,
+        ["rhai", "extractor", "aggregator", "scripts"]
+    ),
+    spec!(
+        NewExtractorScript,
+        "action-new-extractor",
+        Tools,
+        None,
+        None,
+        None,
+        ["rhai", "export format", "copy as"]
+    ),
+    spec!(
+        NewAggregatorScript,
+        "action-new-aggregator",
+        Tools,
+        None,
+        None,
+        None,
+        ["rhai", "aggregate", "sum"]
+    ),
+    spec!(
+        ReloadScripts,
+        "action-reload-scripts",
+        Tools,
+        None,
+        None,
+        None,
+        ["rhai", "refresh"]
     ),
     spec!(
         DeveloperScenarios,

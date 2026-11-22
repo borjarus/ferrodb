@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ferrodb_api::{Change, ChangeSet, Navigation, QueryLanguage};
+use ferrodb_api::{Change, ChangeSet, ExtScriptKind, Navigation, QueryLanguage, ScriptTable};
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
     icons,
@@ -16,7 +16,7 @@ use ferrodb_ui_kit::{
         button::{Button, ButtonVariants as _},
         h_flex,
         input::{Input, InputEvent, InputState},
-        menu::PopupMenuItem,
+        menu::{DropdownMenu as _, PopupMenu, PopupMenuItem},
         notification::Notification,
         table::{Column, ColumnSort, DataTable, TableDelegate, TableEvent, TableState},
         v_flex,
@@ -31,6 +31,7 @@ use crate::{
     AppState, actions,
     i18n::{t, t_args},
     inspector::{self, Inspection},
+    output, scripts,
 };
 
 pub use crate::actions::GRID_CONTEXT;
@@ -309,7 +310,7 @@ impl TableDelegate for GridDelegate {
         &mut self,
         row_ix: usize,
         menu: ferrodb_ui_kit::kit::menu::PopupMenu,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> ferrodb_ui_kit::kit::menu::PopupMenu {
         let row = self.model_row(row_ix);
@@ -332,7 +333,28 @@ impl TableDelegate for GridDelegate {
             }))
             .item(item("grid-copy-insert", |v, r, _, cx| {
                 v.copy_rows(&[r], CopyFormat::Insert, cx)
-            }))
+            }));
+        // Copy As ▸ <extractor script>
+        let extractors = scripts::list(ExtScriptKind::Extractor, cx);
+        if !extractors.is_empty() {
+            let view = view.clone();
+            let sub = PopupMenu::build(window, cx, move |m, _, _| {
+                extractors.iter().fold(m, |m, s| {
+                    let (id, view) = (s.id.clone(), view.clone());
+                    m.item(
+                        PopupMenuItem::new(s.name.clone())
+                            .disabled(s.error.is_some())
+                            .on_click(move |_, window, cx| {
+                                let id = id.clone();
+                                let _ =
+                                    view.update(cx, |v, cx| v.copy_as(id, vec![row], window, cx));
+                            }),
+                    )
+                })
+            });
+            menu = menu.item(PopupMenuItem::submenu(t("grid-copy-as"), sub));
+        }
+        let mut menu = menu
             .separator()
             .item(item("grid-edit-cell", |v, _, w, cx| v.edit_selected(w, cx)).disabled(!editable))
             .item(
@@ -382,6 +404,9 @@ pub enum CopyFormat {
     Insert,
 }
 
+/// An aggregator script and the (model row, column) it ran for.
+pub type AggregateKey = (String, (usize, usize));
+
 pub struct GridView {
     model: Entity<ResultModel>,
     table: Entity<TableState<GridDelegate>>,
@@ -392,6 +417,10 @@ pub struct GridView {
     /// Selected (model row, col).
     selected: Option<(usize, usize)>,
     pub record_view: bool,
+    /// Result of the chosen aggregator script: (script, cell) it is for,
+    /// and its text or error.
+    pub script_aggregate: Option<(AggregateKey, Result<String, String>)>,
+    aggregate_task: Option<Task<()>>,
     focus: FocusHandle,
     _subs: Vec<Subscription>,
 }
@@ -461,6 +490,8 @@ impl GridView {
             sort: None,
             selected: None,
             record_view: false,
+            script_aggregate: None,
+            aggregate_task: None,
             focus: cx.focus_handle(),
             _subs: subs,
         }
@@ -613,7 +644,167 @@ impl GridView {
             },
             cx,
         );
+        self.refresh_aggregate(cx);
         cx.notify();
+    }
+
+    /// Model rows and columns as a script table (`cols = None`: all).
+    pub fn script_table(&self, rows: &[usize], cols: Option<&[usize]>, cx: &App) -> ScriptTable {
+        let d = self.delegate(cx);
+        let Some(t) = table(&self.model, cx) else {
+            return ScriptTable::default();
+        };
+        let fields = t.schema.fields();
+        let cols: Vec<usize> = match cols {
+            Some(c) => c.iter().copied().filter(|c| *c < fields.len()).collect(),
+            None => (0..fields.len()).collect(),
+        };
+        ScriptTable {
+            columns: cols.iter().map(|&c| fields[c].name().clone()).collect(),
+            types: cols
+                .iter()
+                .map(|&c| format::field_type_label(&fields[c]))
+                .collect(),
+            rows: rows
+                .iter()
+                .map(|&r| {
+                    cols.iter()
+                        .map(|&c| {
+                            let kind = d.kinds.get(c).copied().unwrap_or(ValueKind::Other);
+                            scripts::cell_value(kind, d.cell_text(r, c, cx))
+                        })
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+
+    /// Copies model rows in the format of an extractor script.
+    pub fn copy_as(
+        &mut self,
+        script: String,
+        rows: Vec<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let table = self.script_table(&rows, None, cx);
+        let backend = AppState::backend(cx);
+        let id = script.clone();
+        let task = cx
+            .background_executor()
+            .spawn(async move { backend.scripts().extract(&id, table).await });
+        cx.spawn_in(window, async move |_, cx| {
+            let r = task.await;
+            let _ = cx.update(|window, cx| match r {
+                Ok(text) => {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                    window.push_notification(Notification::info(t("grid-copied-as")), cx);
+                }
+                Err(e) => {
+                    let msg = t_args(
+                        "grid-script-failed",
+                        &[("script", script.into()), ("error", e.to_string().into())],
+                    );
+                    output::log(output::Level::Error, msg.clone(), cx);
+                    window.push_notification(Notification::error(msg), cx);
+                }
+            });
+        })
+        .detach();
+    }
+
+    /// Chooses the aggregator of the footer (`None` = built-in summary).
+    pub fn set_aggregator(&mut self, id: Option<String>, cx: &mut Context<Self>) {
+        scripts::select_aggregator(id, cx);
+        self.refresh_aggregate(cx);
+        cx.notify();
+    }
+
+    /// Runs the chosen aggregator script over the selected column (loaded
+    /// rows); the built-in summary needs nothing.
+    fn refresh_aggregate(&mut self, cx: &mut Context<Self>) {
+        let (Some(id), Some(cell)) = (scripts::selected_aggregator(cx), self.selected) else {
+            self.aggregate_task = None;
+            return;
+        };
+        let key = (id.clone(), cell);
+        if self
+            .script_aggregate
+            .as_ref()
+            .is_some_and(|(k, _)| *k == key)
+        {
+            return;
+        }
+        let rows: Vec<usize> = (0..table(&self.model, cx).map_or(0, |t| t.rows)).collect();
+        let cells = self.script_table(&rows, Some(&[cell.1]), cx);
+        let backend = AppState::backend(cx);
+        let task = cx
+            .background_executor()
+            .spawn(async move { backend.scripts().aggregate(&id, cells).await });
+        self.script_aggregate = None;
+        self.aggregate_task = Some(cx.spawn(async move |this, cx| {
+            let r = task.await.map_err(|e| e.to_string());
+            let _ = this.update(cx, |this, cx| {
+                this.script_aggregate = Some((key, r));
+                this.aggregate_task = None;
+                cx.notify();
+            });
+        }));
+    }
+
+    /// Text of the selection summary in the footer.
+    pub fn aggregate_text(&self, cx: &App) -> Option<String> {
+        match scripts::selected_aggregator(cx) {
+            None => self.aggregates(cx).map(|a| a.to_string()),
+            Some(id) => {
+                let cell = self.selected?;
+                match &self.script_aggregate {
+                    Some(((sid, c), r)) if *sid == id && *c == cell => Some(match r {
+                        Ok(text) => text.clone(),
+                        Err(e) => t_args("grid-aggregate-failed", &[("error", e.clone().into())]),
+                    }),
+                    _ => Some("…".into()),
+                }
+            }
+        }
+    }
+
+    fn render_aggregator_picker(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        let aggregators = scripts::list(ExtScriptKind::Aggregator, cx);
+        if aggregators.is_empty() {
+            return None;
+        }
+        let chosen = scripts::selected_aggregator(cx);
+        let label = chosen
+            .as_ref()
+            .and_then(|id| aggregators.iter().find(|a| &a.id == id))
+            .map(|a| a.name.clone())
+            .unwrap_or_else(|| t("grid-aggregate-builtin"));
+        let weak = cx.entity().downgrade();
+        Some(
+            scripts::picker_button("grid-aggregator", label)
+                .icon(icons::Lucide::Sigma)
+                .tooltip(t("grid-aggregator"))
+                .dropdown_menu(move |menu, _, _| {
+                    let w = weak.clone();
+                    let menu = menu.item(PopupMenuItem::new(t("grid-aggregate-builtin")).on_click(
+                        move |_, _, cx| {
+                            let _ = w.update(cx, |v, cx| v.set_aggregator(None, cx));
+                        },
+                    ));
+                    aggregators.iter().fold(menu.separator(), |menu, a| {
+                        let (id, w) = (a.id.clone(), weak.clone());
+                        menu.item(
+                            PopupMenuItem::new(a.name.clone())
+                                .disabled(a.error.is_some())
+                                .on_click(move |_, _, cx| {
+                                    let _ = w
+                                        .update(cx, |v, cx| v.set_aggregator(Some(id.clone()), cx));
+                                }),
+                        )
+                    })
+                }),
+        )
     }
 
     pub fn selected(&self) -> Option<(usize, usize)> {
@@ -1016,7 +1207,10 @@ impl GridView {
             .when_some(shown, |d, n| {
                 d.child(t_args("grid-shown", &[("count", n.into())]))
             })
-            .when_some(self.aggregates(cx), |d, a| d.child(a.to_string()))
+            .children(self.render_aggregator_picker(cx))
+            .when_some(self.aggregate_text(cx), |d, a| {
+                d.child(div().id("grid-aggregate").test_support().child(a))
+            })
             .when(pending > 0, |d| {
                 d.child(
                     div()

@@ -603,3 +603,150 @@ local-history-delete = Usuń rewizję
 local-history-clear = Wyczyść historię dokumentu
 local-history-restored = Przywrócono rewizję
 local-history-not-open = Najpierw otwórz dokument w konsoli
+
+## Faza 9: asystent AI, agenci i MCP, skrypty rozszerzeń
+category-ai = AI i agenci
+action-ai-assistant = Asystent AI
+action-ai-ask = Zapytaj AI…
+action-ai-explain = AI: wyjaśnij zapytanie
+action-ai-optimize = AI: zoptymalizuj zapytanie
+action-ai-fix = Napraw z AI
+action-ai-settings = Ustawienia asystenta AI…
+action-agents-settings = Ustawienia agentów i MCP…
+action-scripts-folder = Otwórz folder skryptów
+action-new-extractor = Nowy skrypt eksportu…
+action-new-aggregator = Nowy skrypt agregatu…
+action-reload-scripts = Wczytaj skrypty ponownie
+
+edit-cut = Wytnij
+edit-copy = Kopiuj
+edit-paste = Wklej
+edit-select-all = Zaznacz wszystko
+
+panel-ai-assistant = Asystent AI
+ai-unavailable = Asystent AI nie jest dostępny w tej wersji.
+ai-disabled = Asystent AI jest wyłączony. Wybierz dostawcę i włącz go w ustawieniach.
+ai-hint = Zapytaj o źródło danych albo opisz potrzebne zapytanie. Zapytania nigdy nie są uruchamiane za Ciebie: wstaw je do konsoli i uruchom tam.
+ai-prompt-placeholder = Zapytaj AI… (Enter wysyła, Shift+Enter dodaje wiersz)
+ai-send = Wyślij
+ai-stop = Zatrzymaj
+ai-new-chat = Nowa rozmowa
+ai-no-source = Bez źródła danych
+ai-follow-console = Jak w aktywnej konsoli
+ai-thinking = Myślę…
+ai-stopped = Zatrzymano
+ai-context-sent = Wysłano schemat { $objects ->
+        [one] 1 obiektu
+       *[other] { $objects } obiektów
+    }, { $chars } znaków
+ai-modifies = Zmienia dane
+ai-problem = Problem: { $message }
+ai-insert = Wstaw do konsoli
+ai-open-console = Otwórz w nowej konsoli
+ai-copy = Kopiuj
+ai-copied = Skopiowano zapytanie
+ai-task-explain = Wyjaśnij
+ai-task-optimize = Zoptymalizuj
+ai-task-fix = Napraw
+ai-prompt-explain = Wyjaśnij to zapytanie.
+ai-prompt-optimize = Przyspiesz to zapytanie.
+ai-prompt-fix = Napraw to zapytanie.
+ai-no-error = W tej konsoli nie ma nieudanej instrukcji
+ai-no-statement = Ustaw kursor na instrukcji albo ją zaznacz
+
+settings-ai = Asystent AI
+settings-agents = Agenci i MCP
+settings-save = Zapisz
+settings-saved = Zapisano ustawienia
+ai-enabled = Włącz asystenta AI
+ai-enabled-description = Pytania, nazwy ze schematu (jeśli udostępniane) i zaznaczone zapytania są wysyłane do poniższego dostawcy.
+ai-provider-section = Dostawca
+ai-provider = Dostawca
+ai-endpoint = Adres
+ai-model = Model
+ai-load-models = Wczytaj modele
+ai-models-choose = Wybierz model
+ai-models-none = Dostawca nie podał żadnych modeli
+ai-api-key = Klucz API
+ai-key-placeholder = Zostaw puste, aby zachować zapisany klucz
+ai-key-stored = zapisany
+ai-key-missing = brak
+ai-key-optional = niepotrzebny
+ai-key-cleared = zostanie usunięty przy zapisie
+ai-clear-key = Usuń
+ai-privacy-section = Co jest udostępniane
+ai-share-schema = Udostępniaj schemat (nazwy i typy)
+ai-share-samples = Udostępniaj przykładowe wartości
+ai-max-tokens = Maks. tokenów odpowiedzi
+ai-schema-budget = Limit schematu (znaki)
+ai-test = Testuj
+ai-test-ok = Połączono: { $model }
+
+agents-unavailable = Agenci i serwer MCP nie są dostępni w tej wersji.
+mcp-section = Serwer MCP
+mcp-enabled = Uruchamiaj serwer MCP
+mcp-port = Port (127.0.0.1)
+mcp-running = Działa
+mcp-stopped = Nie działa
+mcp-no-clients = Brak połączonych klientów
+mcp-clients = Klienci: { $names }
+mcp-copy-url = Kopiuj adres
+mcp-copy-token = Kopiuj token
+mcp-copy-config = Kopiuj konfigurację klienta
+mcp-regenerate = Wygeneruj nowy token
+mcp-not-running = Serwer MCP nie działa
+mcp-copied = Skopiowano do schowka
+mcp-token-regenerated = Wygenerowano nowy token; klienci muszą połączyć się ponownie
+agent-policy-section = Uprawnienia
+agent-default-access = Domyślny dostęp
+agent-consent = Pytaj o zgodę
+agent-max-rows = Maks. wierszy zapytania
+agent-timeout = Czas na zgodę (sekundy)
+agent-sources = Dostęp do źródeł danych
+agent-access-hidden = Ukryte
+agent-access-metadata = Tylko metadane
+agent-access-read-only = Tylko odczyt
+agent-access-read-write = Odczyt i zapis
+agent-access-default = Domyślnie ({ $access })
+agent-consent-every-call = Przy każdym wywołaniu
+agent-consent-queries = Tylko przy zapytaniach
+agent-consent-writes = Tylko przy zapisach
+audit-section = Dziennik audytu
+audit-refresh = Odśwież
+audit-empty = Agenci jeszcze nic nie wywołali
+audit-allowed-policy = dozwolone przez reguły
+audit-allowed-user = dozwolone
+audit-denied-policy = zabronione przez reguły
+audit-denied-user = odrzucone
+audit-timed-out = upłynął czas
+status-mcp = MCP · { $clients ->
+        [one] 1 klient
+        [few] { $clients } klientów
+       *[other] { $clients } klientów
+    }
+
+consent-title = Agent chce użyć źródła danych
+consent-client = Klient
+consent-tool = Narzędzie
+consent-source = Źródło danych
+consent-modifies = To wywołanie zmienia dane lub schemat.
+consent-allow-once = Zezwól raz
+consent-allow-session = Zezwól w tej sesji
+consent-deny = Odmów
+consent-allowed = Zezwolono na { $tool } dla { $client }
+consent-denied = Odmówiono { $tool } dla { $client }
+consent-closed = Prośba o zgodę została zamknięta (upłynął czas albo klient zrezygnował)
+
+scripts-unavailable = Skrypty rozszerzeń nie są dostępne w tej wersji.
+scripts-no-folder = W tej konfiguracji skrypty nie są przechowywane na dysku
+scripts-name = Nazwa
+scripts-name-description = Nazwa pliku nowego skryptu (bez .rhai).
+scripts-create = Utwórz
+scripts-created = Utworzono skrypt: { $path }
+scripts-reloaded = Wczytano skrypty ({ $count })
+grid-copy-as = Kopiuj jako
+grid-copied-as = Skopiowano do schowka
+grid-script-failed = Skrypt { $script } nie powiódł się: { $error }
+grid-aggregator = Podsumowanie zaznaczonej kolumny
+grid-aggregate-builtin = Podsumowanie
+grid-aggregate-failed = Agregat nie powiódł się: { $error }

@@ -6,6 +6,8 @@
 
 pub mod actions;
 pub mod activity;
+pub mod agents;
+pub mod ai_settings;
 pub mod completion;
 pub mod dialogs;
 pub mod i18n;
@@ -18,6 +20,7 @@ pub mod palette;
 pub mod panels;
 pub mod project;
 pub mod results;
+pub mod scripts;
 pub mod settings;
 pub mod settings_view;
 pub mod views;
@@ -101,6 +104,7 @@ pub fn init(state: AppState, cx: &mut App) {
     output::init(cx);
     inspector::init(cx);
     activity::init(cx);
+    agents::init(cx);
     panels::register(cx);
     menus::install(cx);
 }
