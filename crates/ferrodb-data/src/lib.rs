@@ -7,7 +7,8 @@
 //! - [`sql`] — literals, DML, `CREATE TABLE` and `COPY` / `LOAD DATA` text
 //!   per SQL dialect;
 //! - [`edit`] — tabular change sets → `UPDATE` / `INSERT` / `DELETE`;
-//! - [`export`] — streaming writers for ten file formats;
+//! - [`export`] — streaming writers for ten file formats and extractor
+//!   scripts;
 //! - [`import`] — readers for CSV/TSV, XLSX, Parquet and JSON, and the
 //!   source → target column [`import::Mapping`];
 //! - [`docs`] — rows ↔ documents (copying between data models);

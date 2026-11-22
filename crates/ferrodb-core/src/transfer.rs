@@ -386,10 +386,28 @@ impl Inner {
         if options.table.is_none() {
             options.table = default_table;
         }
+        let scripts = self.scripts.clone();
         self.handle()
             .spawn_blocking(move || {
                 let mut progress = progress;
-                let mut ex = Exporter::create(&path, format, &options, &dialect)?;
+                let (mut ex, method) = if format == DataFormat::Script {
+                    // An extractor script (phase 9), stopped by cancellation
+                    // even in the middle of a row.
+                    let id = options.script.as_deref().ok_or_else(|| {
+                        Error::Other("export through a script: no script chosen".into())
+                    })?;
+                    let cancel = token.clone();
+                    let script = scripts
+                        .extractor(id)?
+                        .with_cancel(move || cancel.is_cancelled());
+                    let method = format!("{} (script)", script.info.name);
+                    (Exporter::create_script(&path, script, &options)?, method)
+                } else {
+                    (
+                        Exporter::create(&path, format, &options, &dialect)?,
+                        format!("{} file", format.label()),
+                    )
+                };
                 let mut ended = false;
                 let r: Result<()> = (|| {
                     while let Some(c) = rx.blocking_recv() {
@@ -441,7 +459,7 @@ impl Inner {
                 Ok(TransferReport {
                     items: stats.items,
                     bytes: stats.bytes,
-                    method: format!("{} file", format.label()),
+                    method,
                     warnings: stats.warnings,
                     ..Default::default()
                 })

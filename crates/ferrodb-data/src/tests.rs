@@ -265,3 +265,95 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn export_through_extractor_scripts() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = ferrodb_script::ScriptLibrary::in_memory();
+
+    // Arrow rows through a built-in: decimals, dates and timestamps as text.
+    let p = dir.path().join("rows.sql");
+    let opts = FormatOptions::default();
+    let batch = sample();
+    let mut ex =
+        Exporter::create_script(&p, lib.extractor("builtin:sql-values").unwrap(), &opts).unwrap();
+    ex.begin_table(&batch.schema()).unwrap();
+    ex.write_batch(&batch.slice(0, 2)).unwrap();
+    ex.write_batch(&batch.slice(2, 1)).unwrap();
+    let stats = ex.finish().unwrap();
+    assert_eq!(stats.items, 3);
+    assert_eq!(
+        std::fs::read_to_string(&p).unwrap(),
+        "(1, 'Kowalski, \"Jan\"', '19.99', 0.25, TRUE, '2024-01-01', '2024-01-02 03:04:05.123000+00:00'),\n\
+         (2, 'zażółć\ngęślą | <b>', NULL, 10000000000, FALSE, NULL, NULL),\n\
+         (3, NULL, '-0.05', NULL, NULL, '1970-01-01', '1970-01-01 00:00:00+00:00')\n"
+    );
+
+    // Column types and options reach the script.
+    let (_, s) = ferrodb_script::compile(
+        ferrodb_api::ExtScriptKind::Extractor,
+        "types",
+        "fn header(columns) { join(columns.map(|c| c.type), \",\") + \"/\" + options().table + \"\\n\" }\n\
+         fn row(values) { text(values[0], options().null_text) + \"\\n\" }",
+        None,
+    );
+    let p = dir.path().join("types.txt");
+    let opts = FormatOptions {
+        table: Some("t".into()),
+        null_text: "-".into(),
+        ..Default::default()
+    };
+    let mut ex = Exporter::create_script(&p, s.unwrap(), &opts).unwrap();
+    ex.begin_table(&batch.schema()).unwrap();
+    ex.write_batch(&batch).unwrap();
+    ex.finish().unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&p).unwrap(),
+        "integer,text,decimal,float,boolean,date,timestamptz/t\n1\n2\n3\n"
+    );
+
+    // BSON documents: top-level fields become columns, nested values JSON text.
+    let docs = vec![
+        doc! { "_id": 1, "name": "a", "tags": ["x", "y"] },
+        doc! { "_id": 2, "name": "b" },
+    ];
+    let p = dir.path().join("docs.json");
+    let mut ex = Exporter::create_script(
+        &p,
+        lib.extractor("builtin:json-keyed").unwrap(),
+        &FormatOptions::default(),
+    )
+    .unwrap();
+    ex.write_decoded(&docs).unwrap();
+    assert_eq!(ex.finish().unwrap().items, 2);
+    assert_eq!(
+        std::fs::read_to_string(&p).unwrap(),
+        "{\n  \"1\": {\"name\": \"a\", \"tags\": \"[\\\"x\\\",\\\"y\\\"]\"},\n  \
+         \"2\": {\"name\": \"b\", \"tags\": null}\n}\n"
+    );
+
+    // An empty result still gets the script's header and footer.
+    let p = dir.path().join("empty.sql");
+    let ex = Exporter::create_script(
+        &p,
+        lib.extractor("builtin:sql-in-list").unwrap(),
+        &FormatOptions::default(),
+    )
+    .unwrap();
+    ex.finish().unwrap();
+    assert_eq!(std::fs::read_to_string(&p).unwrap(), "()");
+
+    // A failing script fails the export with its message.
+    let (_, s) = ferrodb_script::compile(
+        ferrodb_api::ExtScriptKind::Extractor,
+        "bad",
+        "fn row(values) { values[99] }",
+        None,
+    );
+    let p = dir.path().join("bad.txt");
+    let mut ex = Exporter::create_script(&p, s.unwrap(), &FormatOptions::default()).unwrap();
+    ex.begin_table(&batch.schema()).unwrap();
+    let e = ex.write_batch(&batch).unwrap_err();
+    assert!(e.to_string().contains("script `bad`"), "{e}");
+    assert!(Exporter::create(&p, DataFormat::Script, &FormatOptions::default(), "sql").is_err());
+}

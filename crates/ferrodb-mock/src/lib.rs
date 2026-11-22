@@ -408,6 +408,12 @@ impl Backend for MockBackend {
     fn transfers(&self) -> &dyn TransferService {
         self
     }
+    /// Built-in extension scripts, nothing on disk.
+    fn scripts(&self) -> &dyn ferrodb_api::ScriptService {
+        static SCRIPTS: std::sync::LazyLock<ferrodb_script::ScriptLibrary> =
+            std::sync::LazyLock::new(ferrodb_script::ScriptLibrary::in_memory);
+        &*SCRIPTS
+    }
 }
 
 // ---------------------------------------------------------------- data sources
@@ -1393,8 +1399,17 @@ impl MockBackend {
                     options,
                 },
             ) => {
-                let mut ex =
-                    ferrodb_data::export::Exporter::create(path, *format, options, "postgresql")?;
+                let mut ex = if *format == DataFormat::Script {
+                    let id = options.script.as_deref().unwrap_or_default();
+                    let lib = ferrodb_script::ScriptLibrary::in_memory();
+                    ferrodb_data::export::Exporter::create_script(
+                        path,
+                        lib.extractor(id)?,
+                        options,
+                    )?
+                } else {
+                    ferrodb_data::export::Exporter::create(path, *format, options, "postgresql")?
+                };
                 if docs {
                     let d: Vec<bson::RawDocumentBuf> =
                         (0..MOCK_EXPORT_ROWS).map(data::document).collect();
@@ -2042,6 +2057,20 @@ mod tests {
             }
         }
         v
+    }
+
+    #[test]
+    fn scripts_are_listed_and_run() {
+        let b = MockBackend::new();
+        let s = b.scripts();
+        assert!(!s.list(ExtScriptKind::Extractor).is_empty());
+        assert!(!s.list(ExtScriptKind::Aggregator).is_empty());
+        let cells = ScriptTable {
+            columns: vec!["n".into()],
+            types: vec!["integer".into()],
+            rows: vec![vec![ScriptValue::Int(1)], vec![ScriptValue::Int(3)]],
+        };
+        assert_eq!(block_on(s.aggregate("builtin:median", cells)).unwrap(), "2");
     }
 
     #[test]

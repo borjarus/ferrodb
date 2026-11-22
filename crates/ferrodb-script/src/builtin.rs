@@ -1,0 +1,72 @@
+//! Scripts compiled into the binary (ids `builtin:<stem>`).
+
+use ferrodb_api::ExtScriptKind;
+
+/// (kind, stem, source), in display order.
+pub(crate) const BUILTINS: &[(ExtScriptKind, &str, &str)] = &[
+    (
+        ExtScriptKind::Extractor,
+        "sql-in-list",
+        include_str!("../builtin/extractors/sql-in-list.rhai"),
+    ),
+    (
+        ExtScriptKind::Extractor,
+        "sql-values",
+        include_str!("../builtin/extractors/sql-values.rhai"),
+    ),
+    (
+        ExtScriptKind::Extractor,
+        "json-keyed",
+        include_str!("../builtin/extractors/json-keyed.rhai"),
+    ),
+    (
+        ExtScriptKind::Extractor,
+        "markdown-aligned",
+        include_str!("../builtin/extractors/markdown-aligned.rhai"),
+    ),
+    (
+        ExtScriptKind::Extractor,
+        "php-array",
+        include_str!("../builtin/extractors/php-array.rhai"),
+    ),
+    (
+        ExtScriptKind::Extractor,
+        "pipe-separated",
+        include_str!("../builtin/extractors/pipe-separated.rhai"),
+    ),
+    (
+        ExtScriptKind::Aggregator,
+        "count",
+        include_str!("../builtin/aggregators/count.rhai"),
+    ),
+    (
+        ExtScriptKind::Aggregator,
+        "distinct",
+        include_str!("../builtin/aggregators/distinct.rhai"),
+    ),
+    (
+        ExtScriptKind::Aggregator,
+        "min-max",
+        include_str!("../builtin/aggregators/min-max.rhai"),
+    ),
+    (
+        ExtScriptKind::Aggregator,
+        "median",
+        include_str!("../builtin/aggregators/median.rhai"),
+    ),
+    (
+        ExtScriptKind::Aggregator,
+        "p90",
+        include_str!("../builtin/aggregators/p90.rhai"),
+    ),
+    (
+        ExtScriptKind::Aggregator,
+        "stddev",
+        include_str!("../builtin/aggregators/stddev.rhai"),
+    ),
+    (
+        ExtScriptKind::Aggregator,
+        "concat",
+        include_str!("../builtin/aggregators/concat.rhai"),
+    ),
+];
