@@ -147,6 +147,10 @@ impl Exporter {
                 rows: Vec::new(),
                 per: opts.rows_per_statement.max(1),
             }),
+            DataFormat::Script => {
+                // Wired to ferrodb-script in phase 9.
+                return Err(Error::Unsupported("export through a script".into()));
+            }
             DataFormat::Parquet => Box::new(ParquetWriter {
                 file: Some(File::create(path).map_err(io_err)?),
                 writer: None,

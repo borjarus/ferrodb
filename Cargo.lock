@@ -3011,6 +3011,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrodb-ai"
+version = "0.1.0"
+dependencies = [
+ "async-channel",
+ "ferrodb-api",
+ "ferrodb-mock",
+ "ferrodb-secrets",
+ "futures",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml 1.2.0+spec-1.1.0",
+ "tracing",
+]
+
+[[package]]
 name = "ferrodb-api"
 version = "0.1.0"
 dependencies = [
@@ -3030,9 +3047,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "directories",
+ "ferrodb-ai",
  "ferrodb-api",
  "ferrodb-core",
  "ferrodb-mock",
+ "ferrodb-secrets",
  "ferrodb-ui",
  "ferrodb-ui-kit",
  "gpui-kit",

@@ -30,6 +30,10 @@ pub enum DataFormat {
     /// `INSERT` statements in the source's dialect.
     SqlInsert,
     Parquet,
+    /// A user extractor script (phase 9): `FormatOptions::script` names it.
+    /// Export only; not part of [`DataFormat::ALL`] (scripts are listed by
+    /// `ScriptService::list`).
+    Script,
 }
 
 impl DataFormat {
@@ -58,6 +62,7 @@ impl DataFormat {
             Self::Xlsx => "Excel (xlsx)",
             Self::SqlInsert => "SQL INSERT",
             Self::Parquet => "Parquet",
+            Self::Script => "Script",
         }
     }
 
@@ -73,6 +78,8 @@ impl DataFormat {
             Self::Xlsx => "xlsx",
             Self::SqlInsert => "sql",
             Self::Parquet => "parquet",
+            // The real one comes from the script (`ExtScriptInfo::extension`).
+            Self::Script => "txt",
         }
     }
 
@@ -126,6 +133,9 @@ pub struct FormatOptions {
     pub pretty: bool,
     /// XLSX import: sheet name (default: the first sheet).
     pub sheet: Option<String>,
+    /// [`DataFormat::Script`]: id of the extractor (`ExtScriptInfo::id`).
+    #[serde(default)]
+    pub script: Option<String>,
 }
 
 impl Default for FormatOptions {
@@ -138,6 +148,7 @@ impl Default for FormatOptions {
             rows_per_statement: 100,
             pretty: false,
             sheet: None,
+            script: None,
         }
     }
 }

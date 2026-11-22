@@ -29,6 +29,18 @@ pub trait Backend: Send + Sync + 'static {
             std::sync::LazyLock::new(crate::MemoryLocalHistory::new);
         &*MEMORY
     }
+    /// Natural-language assistant (phase 9, optional).
+    fn assistant(&self) -> &dyn crate::AssistantService {
+        &crate::NoAssistant
+    }
+    /// Permission layer for agents and the MCP server (phase 9, optional).
+    fn agents(&self) -> &dyn crate::AgentService {
+        &crate::NoAgents
+    }
+    /// Extension scripts: export formats and aggregates (phase 9).
+    fn scripts(&self) -> &dyn crate::ScriptService {
+        &crate::NoScripts
+    }
 }
 
 #[cfg(test)]

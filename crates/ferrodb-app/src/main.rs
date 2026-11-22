@@ -138,6 +138,19 @@ fn main() -> anyhow::Result<()> {
         .context("start the core")?;
         (Arc::new(core), None)
     };
+    // Phase 9: the assistant and the agents (MCP server) on top of either backend.
+    let backend: Arc<dyn Backend> = ferrodb_ai::AiBackend::new(
+        backend,
+        if use_mock() {
+            ferrodb_ai::AiOptions::in_memory()
+        } else {
+            ferrodb_ai::AiOptions {
+                config_dir: Some(paths.config_dir.clone()),
+                data_dir: Some(paths.data_dir.clone()),
+                secrets: Arc::from(ferrodb_secrets::system_store("FerroDb")),
+            }
+        },
+    );
     tracing::info!(
         backend = backend.name(),
         config = %paths.config_dir.display(),

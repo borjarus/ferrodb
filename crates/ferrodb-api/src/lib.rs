@@ -1,4 +1,4 @@
-//! # ferrodb-api v6
+//! # ferrodb-api v7
 //!
 //! Contracts between the GUI and the logic. The GUI talks to the rest of the
 //! application **exclusively** through [`Backend`]; in phases 1–2 it is
@@ -11,6 +11,7 @@
 //! - every trait is dyn-compatible (futures are boxed);
 //! - nothing here depends on the GUI library or on an async runtime.
 
+mod ai;
 mod backend;
 mod capabilities;
 mod datasource;
@@ -23,9 +24,11 @@ mod local_history;
 mod metadata;
 mod query;
 mod schema;
+mod scripts;
 mod search;
 mod transfer;
 
+pub use ai::*;
 pub use backend::*;
 pub use capabilities::*;
 pub use datasource::*;
@@ -38,6 +41,7 @@ pub use local_history::*;
 pub use metadata::*;
 pub use query::*;
 pub use schema::*;
+pub use scripts::*;
 pub use search::*;
 pub use transfer::*;
 
@@ -48,4 +52,4 @@ pub use bson;
 pub use futures::future::BoxFuture;
 
 /// Version of the contract. Bumped on every breaking change of this crate.
-pub const API_VERSION: u32 = 6;
+pub const API_VERSION: u32 = 7;
