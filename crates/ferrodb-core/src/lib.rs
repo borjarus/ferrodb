@@ -158,6 +158,11 @@ impl CoreBackend {
             };
             ferrodb_adbc::register(&mut registry, Arc::new(locator));
         }
+        // Extension scripts (phase 9): built-ins plus `<config>/scripts`.
+        let scripts = match &opts.config_dir {
+            Some(d) => ferrodb_script::ScriptLibrary::new(d.join("scripts")),
+            None => ferrodb_script::ScriptLibrary::in_memory(),
+        };
         let config_path = opts.config_dir.map(|d| d.join("data-sources.toml"));
         let sources = match &config_path {
             Some(p) => config::load(p)?,
@@ -183,6 +188,7 @@ impl CoreBackend {
             config_path,
             language: BasicLanguageService,
             templates,
+            scripts,
             sql_models: Mutex::default(),
             catalogs: catalogs.clone(),
             fields: Mutex::default(),
@@ -261,6 +267,9 @@ impl Backend for CoreBackend {
     fn local_history(&self) -> &dyn ferrodb_api::LocalHistoryService {
         &*self.inner
     }
+    fn scripts(&self) -> &dyn ferrodb_api::ScriptService {
+        &self.inner.scripts
+    }
 }
 
 pub(crate) struct SourceEntry {
@@ -301,6 +310,8 @@ pub(crate) struct Inner {
     pub language: BasicLanguageService,
     /// User live templates (`templates.toml` in the configuration directory).
     pub templates: Vec<(String, ferrodb_api::LiveTemplate)>,
+    /// Extension scripts: export formats and aggregates (phase 9).
+    pub scripts: ferrodb_script::ScriptLibrary,
     /// SQL schema models built from catalogs, rebuilt when the catalog changes.
     pub sql_models: Mutex<language::ModelCache>,
     /// Metadata catalogs (memory + disk cache).
@@ -427,3 +438,5 @@ mod tests_phase6;
 mod tests_phase7;
 #[cfg(test)]
 mod tests_phase8;
+#[cfg(test)]
+mod tests_phase9;

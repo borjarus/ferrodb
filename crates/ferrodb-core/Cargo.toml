@@ -19,6 +19,7 @@ ferrodb-drivers = { workspace = true, features = ["sqlite", "pgwire", "mysql", "
 ferrodb-adbc.workspace = true
 ferrodb-meta.workspace = true
 ferrodb-data.workspace = true
+ferrodb-script.workspace = true
 ferrodb-jdbc.workspace = true
 ferrodb-driver-manager.workspace = true
 bson = { workspace = true, features = ["serde", "serde_json-1"] }

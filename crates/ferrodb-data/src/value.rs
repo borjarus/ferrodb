@@ -629,6 +629,19 @@ impl Value {
         format!("`{s}`")
     }
 
+    /// The value handed to extension scripts: numbers and booleans as they
+    /// are, everything else (decimals, dates, JSON, binary…) as its text.
+    pub fn to_script_value(&self) -> ferrodb_api::ScriptValue {
+        use ferrodb_api::ScriptValue as S;
+        match self {
+            Self::Null => S::Null,
+            Self::Bool(b) => S::Bool(*b),
+            Self::Int(i) => S::Int(*i),
+            Self::Float(f) => S::Float(*f),
+            other => other.to_text().map_or(S::Null, S::Text),
+        }
+    }
+
     /// Numeric value for aggregates and charts.
     pub fn as_f64(&self) -> Option<f64> {
         match self {

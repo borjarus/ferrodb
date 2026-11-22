@@ -1,8 +1,8 @@
 //! Streaming export: rows (Arrow batches) or documents go in batch by
 //! batch and are written immediately, so memory stays constant whatever
 //! the size of the result. Formats: CSV, TSV, JSON, JSON Lines, Extended
-//! JSON, Markdown, HTML, XLSX (constant-memory worksheets), SQL `INSERT`
-//! and Parquet.
+//! JSON, Markdown, HTML, XLSX (constant-memory worksheets), SQL `INSERT`,
+//! Parquet, and extractor scripts ([`Exporter::create_script`]).
 //!
 //! Documents written to a tabular format get the columns of the first
 //! batch (top-level fields); fields first seen later are dropped and
@@ -24,7 +24,8 @@ use arrow_array::{
 };
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use bson::{Bson, Document, RawDocumentBuf};
-use ferrodb_api::{DataFormat, Error, FormatOptions, Result};
+use ferrodb_api::{DataFormat, Error, FormatOptions, Result, ScriptValue};
+use ferrodb_script::{CompiledScript, ExtractorWriter, ScriptColumn};
 
 use crate::{
     docs::{DocColumn, decode, document_to_row, infer_columns},
@@ -148,8 +149,10 @@ impl Exporter {
                 per: opts.rows_per_statement.max(1),
             }),
             DataFormat::Script => {
-                // Wired to ferrodb-script in phase 9.
-                return Err(Error::Unsupported("export through a script".into()));
+                // The extractor is resolved by the caller: `create_script`.
+                return Err(Error::Unsupported(
+                    "export through a script without its extractor".into(),
+                ));
             }
             DataFormat::Parquet => Box::new(ParquetWriter {
                 file: Some(File::create(path).map_err(io_err)?),
@@ -158,7 +161,34 @@ impl Exporter {
                 rows: Vec::new(),
             }),
         };
-        Ok(Self {
+        Ok(Self::with_writer(path, writer))
+    }
+
+    /// Export through an extractor script ([`DataFormat::Script`]); the
+    /// caller resolves `FormatOptions::script` to the compiled extractor.
+    pub fn create_script(
+        path: &Path,
+        extractor: CompiledScript,
+        opts: &FormatOptions,
+    ) -> Result<Self> {
+        if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir).map_err(io_err)?;
+        }
+        let out = BufWriter::with_capacity(256 * 1024, File::create(path).map_err(io_err)?);
+        Ok(Self::with_writer(
+            path,
+            Box::new(ScriptWriter {
+                out,
+                extractor,
+                opts: opts.clone(),
+                w: None,
+                row: Vec::new(),
+            }),
+        ))
+    }
+
+    fn with_writer(path: &Path, writer: Box<dyn Writer>) -> Self {
+        Self {
             path: path.to_owned(),
             writer,
             started: false,
@@ -166,7 +196,7 @@ impl Exporter {
             items: 0,
             dropped_fields: 0,
             extra_results: 0,
-        })
+        }
     }
 
     /// A tabular result starts. Only the first result of a source is
@@ -530,6 +560,54 @@ td.null{color:#999;font-style:italic}</style>\n</head>\n<body>\n<table>\n",
         self.out
             .write_all(b"</tbody>\n</table>\n</body>\n</html>\n")
             .map_err(io_err)?;
+        self.out.flush().map_err(io_err)
+    }
+}
+
+// ------------------------------------------------------------------ Script
+
+/// A user extractor (phase 9): each row goes through the script and its
+/// text is written at once.
+struct ScriptWriter {
+    out: BufWriter<File>,
+    extractor: CompiledScript,
+    opts: FormatOptions,
+    w: Option<ExtractorWriter>,
+    row: Vec<ScriptValue>,
+}
+
+impl ScriptWriter {
+    fn writer(&mut self) -> Result<&mut ExtractorWriter> {
+        self.w
+            .as_mut()
+            .ok_or_else(|| io_err("script writer not started"))
+    }
+}
+
+impl Writer for ScriptWriter {
+    fn begin(&mut self, cols: &[Col], _: Option<&SchemaRef>) -> Result<()> {
+        let cols = cols
+            .iter()
+            .map(|c| ScriptColumn::new(&c.name, c.ty.label()))
+            .collect();
+        self.w = Some(ExtractorWriter::new(&self.extractor, cols, &self.opts)?);
+        Ok(())
+    }
+
+    fn row(&mut self, row: &[Value]) -> Result<()> {
+        let mut vals = std::mem::take(&mut self.row);
+        vals.clear();
+        vals.extend(row.iter().map(Value::to_script_value));
+        let chunk = self.writer()?.write_row(&vals)?;
+        self.row = vals;
+        self.out.write_all(chunk.as_bytes()).map_err(io_err)
+    }
+
+    fn finish(mut self: Box<Self>) -> Result<()> {
+        if let Some(w) = self.w.take() {
+            let tail = w.finish()?;
+            self.out.write_all(tail.as_bytes()).map_err(io_err)?;
+        }
         self.out.flush().map_err(io_err)
     }
 }

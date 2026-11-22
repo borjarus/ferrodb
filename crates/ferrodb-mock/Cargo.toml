@@ -9,6 +9,7 @@ license.workspace = true
 ferrodb-api.workspace = true
 ferrodb-lang.workspace = true
 ferrodb-data.workspace = true
+ferrodb-script.workspace = true
 ferrodb-meta.workspace = true
 futures.workspace = true
 async-channel.workspace = true
