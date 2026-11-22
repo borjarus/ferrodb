@@ -24,10 +24,10 @@ pub mod sink;
 pub mod aws;
 #[cfg(feature = "clickhouse")]
 pub mod clickhouse;
-#[cfg(feature = "cql")]
-pub mod cql;
 #[cfg(feature = "couchbase")]
 pub mod couchbase;
+#[cfg(feature = "cql")]
+pub mod cql;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "dynamodb")]

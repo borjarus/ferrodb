@@ -2,7 +2,7 @@
 
 A native, cross-platform database IDE for SQL and NoSQL, written in Rust on GPUI + GPUI Kit. The plan is in [`docs/plan-ferrodb.en.md`](docs/plan-ferrodb.en.md).
 
-**Status: phases 0–7.** Advanced tools: execution plans (tree, table, diagram), ER diagrams with foreign keys and layout persistence, schema comparison and migration scripts, visual table editor generating `ALTER`, project files panel, DuckDB file data sources, and full Local History in `app.db`. See [`docs/phase-7.md`](docs/phase-7.md). For earlier phases, see [`docs/phase-6.md`](docs/phase-6.md) and [`docs/phase-3.md`](docs/phase-3.md).
+**Status: phases 0–8.** Coverage of the 26 databases of version 1.0: native drivers for the PostgreSQL variants (Greenplum, CockroachDB, Redshift), SQL Server / Azure SQL, ClickHouse, Redis, Cassandra, DynamoDB and Couchbase; Oracle, Db2, Sybase, H2, Derby, HyperSQL, Exasol, Vertica and Hive through the JDBC bridge; Snowflake and BigQuery through ADBC; a driver manager downloading verified JDBC jars, ADBC libraries and a Java runtime; dialect files and level B languages (CQL, SQL++, PartiQL, Redis commands). See [`docs/phase-8.md`](docs/phase-8.md). For earlier phases, see [`docs/phase-7.md`](docs/phase-7.md), [`docs/phase-6.md`](docs/phase-6.md) and [`docs/phase-3.md`](docs/phase-3.md).
 
 ## Quick start
 
@@ -29,9 +29,12 @@ Environment variables:
 | `crates/ferrodb-api` | Contracts (v2): `Backend` and its services; the three data models; `Capabilities`; the driver catalog; query events |
 | `crates/ferrodb-mock` | `MockBackend`: the 26-database catalog, 5 profiles (PostgreSQL-, BigQuery-, Cassandra-, MongoDB- and Redis-like) and 10 load or failure scenarios |
 | `crates/ferrodb-core` | The real `Backend`: data sources (`data-sources.toml`), sessions, script execution with paging, transactions, read-only mode, timeouts, history |
-| `crates/ferrodb-drivers` | `Driver` / `Connection` / `FamilyVariant`, Arrow mapping; families `pgwire` (PostgreSQL), `mysql` (MySQL, MariaDB), `sqlite`, `mongodb`, `duckdb` (file data sources, phase 7) |
+| `crates/ferrodb-drivers` | `Driver` / `Connection` / `FamilyVariant`, Arrow mapping; families `pgwire` (PostgreSQL, Greenplum, CockroachDB, Redshift), `mysql` (MySQL, MariaDB), `sqlite`, `mongodb`, `duckdb` (file data sources, phase 7), `tds` (SQL Server, Azure SQL), `clickhouse`, `redis`, `cql` (Cassandra), `dynamodb`, `couchbase` (phase 8) |
+| `crates/ferrodb-jdbc` | JDBC bridge client: starts and watches the Java host (`java/jdbc-host`), JDBC flavors (Oracle, Db2, Sybase, H2, Derby, HyperSQL, Exasol, Vertica, Hive) (phase 8) |
+| `crates/ferrodb-driver-manager` | Catalog of downloadable drivers (JDBC jars, ADBC libraries) with SHA-256 and licenses, downloads, offline / custom files, Java runtime (phase 8) |
+| `crates/ferrodb-adbc` | ADBC drivers loaded at run time: Snowflake, BigQuery (dry-run cost estimate, jobs) (phase 8) |
 | `crates/ferrodb-driver-tck` | Driver compatibility suite run against every database (ADR-012) |
-| `crates/ferrodb-lang` | SQL statement splitting, parameters, statement analysis (read-only, warnings) |
+| `crates/ferrodb-lang` | SQL statement splitting, parameters, statement analysis (read-only, warnings); dialects as data; CQL, SQL++, PartiQL and Redis command languages (phase 8) |
 | `crates/ferrodb-data` | Result data (phase 6): typed values, edit generators, export / import formats, row ↔ document conversion, result comparison, charts; execution plan parsers (phase 7). See [`docs/phase-6.md`](docs/phase-6.md), [`docs/phase-7.md`](docs/phase-7.md) |
 | `crates/ferrodb-net` | TLS (rustls) and SSH tunnels (russh) |
 | `crates/ferrodb-secrets` | System keyring (ADR-013) |
