@@ -309,6 +309,66 @@ mod tests {
     use super::*;
 
     #[test]
+    fn checked_in_budgets_parse() {
+        let text = std::fs::read_to_string(root().join("benches/budgets.toml")).unwrap();
+        let b = Budgets::parse(&text).unwrap();
+        assert!(b.tolerance >= 1.0);
+        assert!(!b.entries.is_empty());
+        for key in b.entries.keys() {
+            assert!(
+                BENCHES
+                    .iter()
+                    .any(|(pkg, name)| key.starts_with(&format!("{pkg}/{name}/"))),
+                "{key} names no benchmark target"
+            );
+        }
+    }
+
+    #[test]
+    fn parses_real_divan_output() {
+        // Verbatim divan 0.1.21 output (`--color never`).
+        let out = "\
+Timer precision: 100 ns
+jdbc                       fastest       │ slowest       │ median        │ mean          │ samples │ iters
+├─ arrow_result_100k_rows  3.464 ms      │ 4.849 ms      │ 3.714 ms      │ 3.891 ms      │ 30      │ 30
+│                          1.014 GB/s    │ 724.5 MB/s    │ 945.9 MB/s    │ 902.9 MB/s    │         │
+╰─ read_frames_64mib       5.598 ms      │ 8.731 ms      │ 6.288 ms      │ 6.471 ms      │ 30      │ 30
+                           11.98 GB/s    │ 7.687 GB/s    │ 10.67 GB/s    │ 10.37 GB/s    │         │
+";
+        assert_eq!(
+            parse_divan(out),
+            vec![
+                ("arrow_result_100k_rows".to_owned(), 3.714e6),
+                ("read_frames_64mib".to_owned(), 6.288e6),
+            ]
+        );
+        let out = "\
+lang                             fastest       │ slowest       │ median        │ mean          │ samples │ iters
+├─ statements_service_50k_lines  35.73 ms      │ 126.1 ms      │ 75.78 ms      │ 75.11 ms      │ 100     │ 100
+├─ format                                      │               │               │               │         │
+│  ╰─ postgresql_2k_lines        22.81 ms      │ 29.93 ms      │ 24.11 ms      │ 24.46 ms      │ 100     │ 100
+│                                3.9 MB/s      │ 2.972 MB/s    │ 3.69 MB/s     │ 3.636 MB/s    │         │
+├─ split                                       │               │               │               │         │
+│  ├─ mql_50k_lines              162.7 ms      │ 211.9 ms      │ 176.7 ms      │ 178.4 ms      │ 100     │ 100
+│  │                             13.07 MB/s    │ 10.04 MB/s    │ 12.04 MB/s    │ 11.93 MB/s    │         │
+│  ╰─ tsql_50k_lines             37.31 ms      │ 47.67 ms      │ 39.84 ms      │ 40.08 ms      │ 100     │ 100
+╰─ tokenize                                    │               │               │               │         │
+   ╰─ postgresql_50k_lines       42.76 ms      │ 57.02 ms      │ 47.75 ms      │ 48.27 ms      │ 100     │ 100
+";
+        let rows: Vec<String> = parse_divan(out).into_iter().map(|r| r.0).collect();
+        assert_eq!(
+            rows,
+            [
+                "statements_service_50k_lines",
+                "format/postgresql_2k_lines",
+                "split/mql_50k_lines",
+                "split/tsql_50k_lines",
+                "tokenize/postgresql_50k_lines"
+            ]
+        );
+    }
+
+    #[test]
     fn parses_divan_tree() {
         let out = "\
 Timer precision: 100 ns
