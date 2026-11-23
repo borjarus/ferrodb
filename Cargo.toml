@@ -20,6 +20,7 @@ members = [
   "crates/ferrodb-adbc",
   "crates/ferrodb-ai",
   "crates/ferrodb-script",
+  "crates/ferrodb-release",
   "apps/ferrodb-gallery",
   "xtask",
   "spikes/gui",
@@ -57,6 +58,7 @@ ferrodb-driver-manager = { path = "crates/ferrodb-driver-manager" }
 ferrodb-adbc = { path = "crates/ferrodb-adbc" }
 ferrodb-ai = { path = "crates/ferrodb-ai" }
 ferrodb-script = { path = "crates/ferrodb-script" }
+ferrodb-release = { path = "crates/ferrodb-release" }
 
 # GUI — exactly pinned (pins the gpui-pre 0.3.10 snapshot); see ADR-001
 gpui-kit = { version = "=0.8.1" }
