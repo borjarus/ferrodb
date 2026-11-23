@@ -62,14 +62,26 @@ fn edit(range: Range<usize>, text: impl Into<String>) -> TextEdit {
 pub fn diagnostics(doc: &Document<'_>) -> Vec<Diag> {
     let mut out = Vec::new();
     lexical(doc, &mut out);
+    // Sorted lexical errors, searched per statement (scanning every
+    // diagnostic for every statement was quadratic in large consoles).
+    let mut lexical_errors: Vec<Range<usize>> = out
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .map(|d| d.range.clone())
+        .collect();
+    lexical_errors.sort_by_key(|r| (r.start, r.end));
+    let mut similar = HashMap::new();
     for (si, s) in doc.stmts.iter().enumerate() {
-        let lexical_error = out
+        let body = &s.span.body;
+        let from = lexical_errors.partition_point(|r| r.end < body.start);
+        let lexical_error = lexical_errors[from..]
             .iter()
-            .any(|d| d.severity == Severity::Error && overlaps(&d.range, &s.span.body));
+            .take_while(|r| r.start <= body.end)
+            .any(|r| overlaps(r, body));
         if !lexical_error {
             syntax(doc, s, &mut out);
         }
-        semantic(doc, si, &mut out);
+        semantic(doc, si, &mut similar, &mut out);
     }
     out.sort_by_key(|d| (d.range.start, d.range.end));
     out
@@ -440,7 +452,11 @@ fn offset_of(text: &str, line: usize, col: usize) -> Option<usize> {
 
 // ----------------------------------------------------------------- semantic
 
-fn semantic(doc: &Document<'_>, si: usize, out: &mut Vec<Diag>) {
+/// Suggested names for unknown tables, by (lower-case name, local tables
+/// declared before the reference).
+type SimilarTables = HashMap<(String, usize), Vec<String>>;
+
+fn semantic(doc: &Document<'_>, si: usize, similar: &mut SimilarTables, out: &mut Vec<Diag>) {
     let s = &doc.stmts[si];
     let p = &s.parsed;
     let d = doc.dialect();
@@ -455,6 +471,26 @@ fn semantic(doc: &Document<'_>, si: usize, out: &mut Vec<Diag>) {
                 if id.range.is_empty() {
                     continue;
                 }
+                // Table suggestions scan the catalog: computed here, once
+                // per distinct name, not by the resolver.
+                let table_suggestions;
+                let suggestions = if *what == What::Table && suggestions.is_empty() {
+                    let name = id.name(d);
+                    let key = (name.to_lowercase(), doc.env.locals_before(id.range.start));
+                    table_suggestions = similar
+                        .entry(key)
+                        .or_insert_with(|| {
+                            doc.env
+                                .similar_tables(&name, id.range.start)
+                                .into_iter()
+                                .map(|t| d.quote_if_needed(&t))
+                                .collect()
+                        })
+                        .clone();
+                    &table_suggestions
+                } else {
+                    suggestions
+                };
                 let (kind, sev) = match what {
                     What::Schema => ("schema", Severity::Error),
                     What::Table => ("table", Severity::Error),
