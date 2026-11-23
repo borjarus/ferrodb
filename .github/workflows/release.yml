@@ -1,0 +1,171 @@
+# Release (phase 10): on a version tag, build and package on the three
+# systems, sign (Authenticode, Apple codesign + notarization, GPG), write the
+# signed update manifest and publish everything as GitHub release assets.
+#
+# Secrets (by name only; a missing one skips its signing step with a warning):
+#   FERRODB_UPDATE_PUBKEY          base64 Ed25519 public key baked into the app
+#   FERRODB_RELEASE_KEY            base64 Ed25519 PKCS#8 private key (manifest)
+#   FERRODB_CRASH_ENDPOINT         HTTPS endpoint for crash reports
+#   WINDOWS_CERT_PFX_BASE64, WINDOWS_CERT_PASSWORD
+#   MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+#   GPG_PRIVATE_KEY, GPG_KEY_ID
+#
+# Variables: FERRODB_UPDATE_URL (the manifest URL users' builds check).
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Baked in at build time (option_env!).
+  FERRODB_UPDATE_URL: ${{ vars.FERRODB_UPDATE_URL }}
+  FERRODB_UPDATE_PUBKEY: ${{ secrets.FERRODB_UPDATE_PUBKEY }}
+  FERRODB_CRASH_ENDPOINT: ${{ secrets.FERRODB_CRASH_ENDPOINT }}
+
+jobs:
+  package:
+    name: package (${{ matrix.os }})
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - name: Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: ./xtask/linux-deps.sh
+      - uses: Swatinem/rust-cache@v2
+      - name: Channel of this build
+        shell: bash
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            *-*) echo "FERRODB_RELEASE_CHANNEL=beta" >> "$GITHUB_ENV" ;;
+            *)   echo "FERRODB_RELEASE_CHANNEL=stable" >> "$GITHUB_ENV" ;;
+          esac
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-packager
+
+      - name: Windows certificate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PFX: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if ($env:PFX) {
+            $path = Join-Path $env:RUNNER_TEMP "cert.pfx"
+            [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:PFX))
+            "FERRODB_SIGN_CERT=$path" >> $env:GITHUB_ENV
+            "FERRODB_SIGN_CERT_PASSWORD=$env:PFX_PASSWORD" >> $env:GITHUB_ENV
+            # signtool from the Windows SDK
+            $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+            $signtool.DirectoryName >> $env:GITHUB_PATH
+          }
+
+      - name: macOS certificate
+        if: runner.os == 'macOS'
+        env:
+          P12: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ -n "$P12" ]; then
+            KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+            KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+            echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security list-keychains -d user -s "$KEYCHAIN"
+            rm "$RUNNER_TEMP/cert.p12"
+            echo "FERRODB_MACOS_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$APPLE_ID" ]; then
+            echo "FERRODB_NOTARY_APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            echo "FERRODB_NOTARY_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+            echo "FERRODB_NOTARY_PASSWORD=$APPLE_APP_PASSWORD" >> "$GITHUB_ENV"
+          fi
+
+      - name: GPG key
+        if: runner.os == 'Linux'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+            echo "FERRODB_GPG_KEY=$GPG_KEY_ID" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build, package and sign
+        run: cargo xtask package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: |
+            target/packages/*-setup.exe
+            target/packages/*.dmg
+            target/packages/*.AppImage
+            target/packages/*.deb
+            target/packages/*.asc
+          if-no-files-found: error
+
+  publish:
+    name: manifest + GitHub release
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Signed update manifest
+        env:
+          FERRODB_RELEASE_KEY: ${{ secrets.FERRODB_RELEASE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          case "$VERSION" in *-*) CHANNEL=beta ;; *) CHANNEL=stable ;; esac
+          KEY_FILE="$RUNNER_TEMP/release-key.b64"
+          printf '%s' "$FERRODB_RELEASE_KEY" > "$KEY_FILE"
+          # Keep the newest release of the other channel: start from the
+          # manifest of the latest published release, if any.
+          gh release download --pattern manifest.json --dir "$RUNNER_TEMP/prev" || true
+          [ -f "$RUNNER_TEMP/prev/manifest.json" ] && cp "$RUNNER_TEMP/prev/manifest.json" dist/manifest.json
+          FERRODB_RELEASE_KEY_FILE="$KEY_FILE" cargo xtask release-manifest \
+            --version "$VERSION" --channel "$CHANNEL" \
+            --notes "See https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}" \
+            --dir dist \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" \
+            --out dist/manifest.json
+          rm -f "$KEY_FILE"
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE=""
+          case "$GITHUB_REF_NAME" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --title "FerroDb ${GITHUB_REF_NAME#v}" --generate-notes $PRERELEASE
