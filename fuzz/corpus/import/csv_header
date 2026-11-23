@@ -1,0 +1,4 @@
+id,name,born,score,active
+1,Ann,2001-02-03,1.5,true
+2,"Bob ""B""",,NULL,false
+3,Zoë,1999-12-31T23:59:59,-0.25,

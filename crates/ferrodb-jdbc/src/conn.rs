@@ -9,8 +9,6 @@ use std::{
 };
 
 use arrow_array::{ArrayRef, RecordBatch, StringArray};
-use arrow_buffer::Buffer;
-use arrow_ipc::reader::StreamDecoder;
 use arrow_schema::{DataType, Field, Schema};
 use ferrodb_api::{Error, NoticeLevel, Result};
 use ferrodb_drivers::{
@@ -24,6 +22,7 @@ use tokio::time::Instant;
 use crate::{
     bridge::{Incoming, Process},
     flavor::Flavor,
+    protocol::ArrowStream,
 };
 
 /// Record batches the host may send ahead of the consumer.
@@ -202,7 +201,7 @@ impl JdbcConnection {
         params["credits"] = json!(CREDITS);
         let mut p = proc.request(method, params)?;
         self.current.store(p.id, Ordering::Release);
-        let mut decoder: Option<StreamDecoder> = None;
+        let mut decoder: Option<ArrowStream> = None;
         let mut began = false;
         let mut sink_closed = false;
         let mut cancel_sent = false;
@@ -229,7 +228,7 @@ impl JdbcConnection {
                 None => break Err(proc.lost()),
                 Some(Incoming::Event(ev)) => match ev["event"].as_str() {
                     Some("begin") => {
-                        decoder = Some(StreamDecoder::new());
+                        decoder = Some(ArrowStream::new());
                         began = false;
                     }
                     Some("end") => {
@@ -254,21 +253,12 @@ impl JdbcConnection {
                     let Some(dec) = decoder.as_mut() else {
                         continue;
                     };
-                    // The first frame of a result set is its schema. The
-                    // decoder only finishes a message when more bytes follow,
-                    // so the schema is read on its own (an empty result has
-                    // no further frames).
+                    // The first frame of a result set is its schema.
                     if !began {
                         began = true;
-                        let mut with_eos = bytes.clone();
-                        with_eos.extend_from_slice(&[0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0]);
-                        match arrow_ipc::reader::StreamReader::try_new(&with_eos[..], None) {
-                            Ok(r) => {
-                                if sink
-                                    .send(SinkEvent::Begin { schema: r.schema() })
-                                    .await
-                                    .is_err()
-                                {
+                        match crate::protocol::stream_schema(&bytes) {
+                            Ok(schema) => {
+                                if sink.send(SinkEvent::Begin { schema }).await.is_err() {
                                     sink_closed = true;
                                     proc.cancel(p.id, true);
                                     continue;
@@ -281,10 +271,17 @@ impl JdbcConnection {
                             }
                         }
                     }
-                    let mut buf = Buffer::from(bytes);
+                    let mut buf = match dec.feed(bytes) {
+                        Ok(buf) => buf,
+                        Err(e) => {
+                            tracing::warn!(error = %e, "bad Arrow stream from the JDBC host");
+                            proc.cancel(p.id, false);
+                            continue;
+                        }
+                    };
                     while !buf.is_empty() {
                         let before = buf.len();
-                        match dec.decode(&mut buf) {
+                        match dec.next_batch(&mut buf) {
                             Ok(Some(batch)) => {
                                 match forward(&sink, batch, batch_rows, &cancel).await {
                                     Forward::Sent => proc.credit(p.id, 1),

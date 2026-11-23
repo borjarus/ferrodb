@@ -19,9 +19,16 @@
 //!   `db-up` also `--image key=image` and `--no-wait`, `tck` `--skip-meta`.
 //! - `matrix`   — print the integration test matrix (`--check` / `--write`
 //!   `docs/test-matrix.md`, `--gha` for the nightly workflow)
+//! - `fuzz <target|all> [secs]` — cargo-fuzz on a target of `fuzz/`
+//!   (nightly + libFuzzer; explains what is missing otherwise)
+//! - `fuzz-smoke [cases]` — the fuzz harness as stable proptest tests
+//! - `bench [divan args]` — the divan regression benchmarks
+//! - `bench-check [divan args]` — the benchmarks against
+//!   `benches/budgets.toml` (fails over budget × tolerance)
 
 mod db;
 mod matrix;
+mod quality;
 mod release;
 
 use std::{
@@ -51,6 +58,10 @@ fn main() -> ExitCode {
         "tck" => db::Selection::parse(rest).and_then(|s| db::tck(&s)),
         "env" => db::Selection::parse(rest).and_then(|s| db::print_env(&s)),
         "matrix" => matrix::run(rest),
+        "fuzz" => quality::fuzz(rest),
+        "fuzz-smoke" => quality::fuzz_smoke(rest),
+        "bench" => quality::bench(rest),
+        "bench-check" => quality::bench_check(rest),
         "help" | "-h" | "--help" => {
             print_help();
             Ok(())
@@ -68,9 +79,16 @@ fn main() -> ExitCode {
 
 fn print_help() {
     eprintln!(
-        "usage: cargo xtask <ci|fmt|lint|test|package|release-keygen|release-manifest|matrix|spike <gui|adbc|jdbc-reader> [args]>
-                cargo xtask <db-up|db-down|tck|env> [--only key,key | --group native|nosql|jdbc|all]
-                            [--image key=image] [--no-wait] [--skip-meta]"
+        "usage: cargo xtask <command>
+           ci | fmt | lint | test | package | matrix
+           db-up | db-down | tck | env  [--only key,key | --group native|nosql|jdbc|all]
+                                        [--image key=image] [--no-wait] [--skip-meta]
+           release-keygen | release-manifest
+           spike <gui|adbc|jdbc-reader> [args]
+           fuzz <target|all> [seconds]   cargo-fuzz (nightly) on a target of fuzz/
+           fuzz-smoke [cases]            the fuzz harness as stable proptest tests
+           bench [divan args]            regression benchmarks (divan)
+           bench-check [divan args]      benchmarks against benches/budgets.toml"
     );
 }
 

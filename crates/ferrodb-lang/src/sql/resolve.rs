@@ -222,47 +222,93 @@ impl<'a> Env<'a> {
         }
     }
 
-    /// Table names close to `name` (typos, other case).
-    pub fn similar_tables(&self, name: &str) -> Vec<String> {
-        let mut v: Vec<(usize, String)> = self
+    /// Table names close to `name` (typos, other case): the catalog's along
+    /// the search order and the local tables declared before `before`.
+    ///
+    /// Scans the whole catalog (10k tables in large databases), so the
+    /// resolver does not call it for every unknown name on every keystroke:
+    /// the inspections do, once per distinct name.
+    pub fn similar_tables(&self, name: &str, before: usize) -> Vec<String> {
+        let mut typo = Typo::new(name);
+        let mut v: Vec<(usize, &str)> = self
             .model
             .all_tables(&self.order)
-            .map(|id| self.model.table(id).name.clone())
-            .chain(self.locals.iter().map(|l| l.name.clone()))
-            .filter_map(|t| close(name, &t).map(|d| (d, t)))
+            .map(|id| self.model.table(id).name.as_str())
+            .chain(
+                self.locals
+                    .iter()
+                    .filter(|l| l.decl.start < before)
+                    .map(|l| l.name.as_str()),
+            )
+            .filter_map(|t| typo.distance(t).map(|d| (d, t)))
             .collect();
-        v.sort();
+        v.sort_unstable();
         v.dedup_by(|a, b| a.1 == b.1);
-        v.into_iter().take(3).map(|(_, t)| t).collect()
+        v.into_iter().take(3).map(|(_, t)| t.to_owned()).collect()
+    }
+
+    /// Local tables declared before `offset` (part of the key of cached
+    /// [`Self::similar_tables`] results).
+    pub fn locals_before(&self, offset: usize) -> usize {
+        self.locals.iter().filter(|l| l.decl.start < offset).count()
     }
 }
 
 /// Edit distance when small enough to be a typo (case differences count 0).
 pub fn close(a: &str, b: &str) -> Option<usize> {
-    let a = a.to_lowercase();
-    let b = b.to_lowercase();
-    if a == b {
-        return Some(0);
-    }
-    let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
-    let max = match a.len().max(b.len()) {
-        0..=3 => 1,
-        4..=8 => 2,
-        _ => 3,
-    };
-    if a.len().abs_diff(b.len()) > max {
-        return None;
-    }
-    let mut prev: Vec<usize> = (0..=b.len()).collect();
-    for i in 1..=a.len() {
-        let mut cur = vec![i; b.len() + 1];
-        for j in 1..=b.len() {
-            let cost = usize::from(a[i - 1] != b[j - 1]);
-            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+    Typo::new(a).distance(b)
+}
+
+/// [`close`] of one name against many, without allocating per candidate.
+struct Typo {
+    a: Vec<char>,
+    b: Vec<char>,
+    prev: Vec<usize>,
+    cur: Vec<usize>,
+}
+
+impl Typo {
+    fn new(a: &str) -> Self {
+        Self {
+            a: a.chars().flat_map(char::to_lowercase).collect(),
+            b: Vec::new(),
+            prev: Vec::new(),
+            cur: Vec::new(),
         }
-        prev = cur;
     }
-    (prev[b.len()] <= max).then_some(prev[b.len()])
+
+    fn distance(&mut self, b: &str) -> Option<usize> {
+        self.b.clear();
+        self.b.extend(b.chars().flat_map(char::to_lowercase));
+        let (a, b) = (&self.a, &self.b);
+        if a == b {
+            return Some(0);
+        }
+        let max = match a.len().max(b.len()) {
+            0..=3 => 1,
+            4..=8 => 2,
+            _ => 3,
+        };
+        if a.len().abs_diff(b.len()) > max {
+            return None;
+        }
+        self.prev.clear();
+        self.prev.extend(0..=b.len());
+        self.cur.clear();
+        self.cur.resize(b.len() + 1, 0);
+        for i in 1..=a.len() {
+            self.cur[0] = i;
+            for j in 1..=b.len() {
+                let cost = usize::from(a[i - 1] != b[j - 1]);
+                self.cur[j] = (self.prev[j] + 1)
+                    .min(self.cur[j - 1] + 1)
+                    .min(self.prev[j - 1] + cost);
+            }
+            std::mem::swap(&mut self.prev, &mut self.cur);
+        }
+        let d = self.prev[b.len()];
+        (d <= max).then_some(d)
+    }
 }
 
 /// Resolution of every reference of a statement.
@@ -405,18 +451,16 @@ impl Resolver<'_, '_> {
                         data_type: None,
                     };
                 }
-                let name = r.parts[n - 1].name(self.d());
                 Resolution {
                     parts,
                     status: Status::Unresolved {
                         part: n - 1,
                         what: What::Table,
-                        suggestions: self
-                            .env
-                            .similar_tables(&name)
-                            .into_iter()
-                            .map(|t| self.d().quote_if_needed(&t))
-                            .collect(),
+                        // Filled by the inspections (`Env::similar_tables`):
+                        // scanning the catalog for every unknown table of a
+                        // console made each analysis take seconds with 10k
+                        // tables (phase 10.2 benchmarks).
+                        suggestions: Vec::new(),
                     },
                     data_type: None,
                 }

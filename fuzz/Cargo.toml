@@ -1,0 +1,75 @@
+# cargo-fuzz targets (plan, phase 10.2): `cargo +nightly fuzz run <target>`
+# or `cargo xtask fuzz <target> [seconds]`. Not a workspace member (needs
+# nightly and libFuzzer); every target calls a `fuzzing` module of the
+# crate under test, which the stable proptest smoke tests call too
+# (`cargo xtask fuzz-smoke`).
+[package]
+name = "ferrodb-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4.13"
+ferrodb-lang = { path = "../crates/ferrodb-lang" }
+ferrodb-data = { path = "../crates/ferrodb-data" }
+ferrodb-jdbc = { path = "../crates/ferrodb-jdbc" }
+
+# Its own workspace: not part of the main one.
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "lang"
+path = "fuzz_targets/lang.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mql_value"
+path = "fuzz_targets/mql_value.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ext_json"
+path = "fuzz_targets/ext_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cell_value"
+path = "fuzz_targets/cell_value.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import"
+path = "fuzz_targets/import.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jdbc_protocol"
+path = "fuzz_targets/jdbc_protocol.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jdbc_errors"
+path = "fuzz_targets/jdbc_errors.rs"
+test = false
+doc = false
+bench = false

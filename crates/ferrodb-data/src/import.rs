@@ -55,11 +55,13 @@ pub trait RowReader: Send {
 
 pub fn open(path: &Path, format: DataFormat, opts: &FormatOptions) -> Result<Box<dyn RowReader>> {
     Ok(match format {
-        DataFormat::Csv | DataFormat::Tsv => Box::new(CsvReader::open(path, format, opts)?),
+        DataFormat::Csv | DataFormat::Tsv => {
+            Box::new(CsvReader::new(open_file(path)?, format, opts)?)
+        }
         DataFormat::Xlsx => Box::new(XlsxReader::open(path, opts)?),
         DataFormat::Parquet => Box::new(ParquetReader::open(path)?),
         DataFormat::Json | DataFormat::JsonLines | DataFormat::ExtendedJson => {
-            Box::new(JsonReader::open(path)?)
+            Box::new(JsonReader::new(open_file(path)?)?)
         }
         other => {
             return Err(Error::Unsupported(format!(
@@ -68,6 +70,35 @@ pub fn open(path: &Path, format: DataFormat, opts: &FormatOptions) -> Result<Box
             )));
         }
     })
+}
+
+/// A reader over bytes in memory (pasted text, tests, fuzzing): CSV / TSV
+/// and the JSON formats.
+pub fn from_bytes(
+    data: Vec<u8>,
+    format: DataFormat,
+    opts: &FormatOptions,
+) -> Result<Box<dyn RowReader>> {
+    let input: Input = Box::new(std::io::Cursor::new(data));
+    Ok(match format {
+        DataFormat::Csv | DataFormat::Tsv => Box::new(CsvReader::new(input, format, opts)?),
+        DataFormat::Json | DataFormat::JsonLines | DataFormat::ExtendedJson => {
+            Box::new(JsonReader::new(input)?)
+        }
+        other => {
+            return Err(Error::Unsupported(format!(
+                "importing {} from memory",
+                other.label()
+            )));
+        }
+    })
+}
+
+/// The byte source of the streaming readers.
+type Input = Box<dyn Read + Send>;
+
+fn open_file(path: &Path) -> Result<Input> {
+    Ok(Box::new(File::open(path).map_err(err)?))
 }
 
 /// The first `rows` rows of a file with guessed column types.
@@ -96,7 +127,7 @@ pub fn preview(
 // ------------------------------------------------------------------ CSV
 
 struct CsvReader {
-    rd: csv::Reader<BufReader<File>>,
+    rd: csv::Reader<BufReader<Input>>,
     cols: Vec<SourceColumn>,
     ahead: VecDeque<csv::StringRecord>,
     null: String,
@@ -104,20 +135,13 @@ struct CsvReader {
 }
 
 impl CsvReader {
-    fn open(path: &Path, format: DataFormat, opts: &FormatOptions) -> Result<Self> {
-        let delim = if format == DataFormat::Tsv {
-            b'\t'
-        } else {
-            opts.delimiter.map_or(b',', |c| c as u8)
-        };
+    fn new(input: Input, format: DataFormat, opts: &FormatOptions) -> Result<Self> {
+        let delim = crate::export::csv_delimiter(format, opts)?;
         let mut rd = csv::ReaderBuilder::new()
             .delimiter(delim)
             .has_headers(opts.header)
             .flexible(true)
-            .from_reader(BufReader::with_capacity(
-                256 * 1024,
-                File::open(path).map_err(err)?,
-            ));
+            .from_reader(BufReader::with_capacity(256 * 1024, input));
         let headers: Vec<String> = if opts.header {
             rd.headers()
                 .map_err(err)?
@@ -403,7 +427,7 @@ impl RowReader for ParquetReader {
 
 struct JsonReader {
     /// JSON Lines input (streamed); `None` for a JSON array.
-    lines: Option<std::io::Lines<BufReader<File>>>,
+    lines: Option<std::io::Lines<BufReader<Input>>>,
     ahead: VecDeque<Document>,
     cols: Vec<SourceColumn>,
     doc_cols: Vec<DocColumn>,
@@ -422,8 +446,8 @@ fn to_document(v: serde_json::Value, at: &str) -> Result<Document> {
 }
 
 impl JsonReader {
-    fn open(path: &Path) -> Result<Self> {
-        let mut file = BufReader::new(File::open(path).map_err(err)?);
+    fn new(input: Input) -> Result<Self> {
+        let mut file = BufReader::new(input);
         // First significant byte decides: `[` = array, else lines.
         let first = loop {
             let buf = file.fill_buf().map_err(err)?;

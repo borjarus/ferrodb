@@ -29,6 +29,8 @@ pub mod doc_edit;
 pub mod docs;
 pub mod edit;
 pub mod export;
+#[doc(hidden)]
+pub mod fuzzing;
 pub mod import;
 pub mod plan;
 pub mod plan_jdbc;
