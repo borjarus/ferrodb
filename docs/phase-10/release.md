@@ -78,7 +78,8 @@ Environment: `CARGO_TARGET_DIR=target-p8`, `CARGO_INCREMENTAL=0`, `-j 1` (low-me
 - `cargo clippy -p ferrodb-release -p ferrodb-driver-manager -p xtask --all-targets -- -D warnings`: clean.
 - `cargo test -p ferrodb-ui --test phase10`: 10 passed; `--test phase9`: 8 passed; `--lib`: 36 passed (incl. English / Polish message parity and action labels). Built with `--config 'profile.dev.package.ferrodb-ui.debug=0'`: with full debug info the 280 MB `ferrodb-ui` rlib could not be memory-mapped ("paging file is too small").
 - `cargo fmt --check` on every touched crate: clean.
-- **Not run here**: `cargo clippy -p ferrodb-ui` (needs a check-mode rebuild of GPUI and `windows`, which ran out of memory) and `cargo build -p ferrodb-app` (the DuckDB C++ build did not finish within 50 minutes); `ferrodb-app/src/main.rs` is therefore not compiled on this machine — run `cargo check -p ferrodb-app` and `cargo clippy -p ferrodb-ui -p ferrodb-app --all-targets -- -D warnings` on a machine with more memory.
+- `cargo clippy -p ferrodb-ui --lib --tests -- -D warnings`: clean.
+- **Not run here**: `cargo build` / `check -p ferrodb-app` (the DuckDB C++ build did not finish within 50 minutes); `ferrodb-app/src/main.rs` is therefore not compiled on this machine — run `cargo check -p ferrodb-app` and `cargo clippy -p ferrodb-app -- -D warnings` on a machine with more memory.
 
 ## Not done / deviations
 
