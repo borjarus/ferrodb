@@ -66,7 +66,10 @@ pub struct UpdateInfo {
 /// Events of a running download / install.
 #[derive(Clone, Debug, PartialEq)]
 pub enum UpdateEvent {
-    Progress { done: u64, total: u64 },
+    Progress {
+        done: u64,
+        total: u64,
+    },
     /// The package is downloaded and verified; [`UpdateService::install`]
     /// may be called with this path.
     Ready(PathBuf),
