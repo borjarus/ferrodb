@@ -15,7 +15,12 @@
 //! - `FERRODB_TCK_COCKROACH=postgres://root@localhost:56257/defaultdb?ssl.mode=disable`
 //! - `FERRODB_TCK_GREENPLUM=postgres://gpadmin@localhost:56254/postgres?ssl.mode=disable`
 //! - cloud only (nightly CI with secrets): `FERRODB_TCK_AZURESQL=sqlserver://user:pw@srv.database.windows.net:1433/db`,
-//!   `FERRODB_TCK_REDSHIFT=redshift://user:pw@cluster.xxx.region.redshift.amazonaws.com:5439/dev`
+//!   `FERRODB_TCK_REDSHIFT=redshift://user:pw@cluster.xxx.region.redshift.amazonaws.com:5439/dev`,
+//!   `FERRODB_TCK_DYNAMODB_AWS=eu-central-1` (real DynamoDB, credentials
+//!   from the AWS environment)
+//! - JDBC servers: `FERRODB_TCK_ORACLE`, `FERRODB_TCK_DB2`,
+//!   `FERRODB_TCK_SYBASE`, `FERRODB_TCK_EXASOL`, `FERRODB_TCK_VERTICA`,
+//!   `FERRODB_TCK_HIVE` (see `cargo xtask matrix`)
 //!
 //! JDBC databases embedded in the bridge (H2, Derby, HyperSQL) run when
 //! Java ≥ 17 and `ferrodb-jdbc-host.jar` are present and their jars are
@@ -359,6 +364,117 @@ fn oracle() {
     if let Some(cfg) = from_env("FERRODB_TCK_ORACLE", "oracle") {
         check_jdbc_with("oracle", cfg, profiles::oracle());
     }
+}
+
+/// IBM Db2: `FERRODB_TCK_DB2=db2://db2inst1:ferrodb@localhost:55000/tck`.
+#[test]
+fn db2() {
+    if let Some(cfg) = from_env("FERRODB_TCK_DB2", "db2") {
+        check_jdbc_with("db2", cfg, profiles::db2());
+    }
+}
+
+/// Sybase ASE (jTDS): `FERRODB_TCK_SYBASE=sybase://sa:myPassword@localhost:55001/testdb`.
+#[test]
+fn sybase() {
+    if let Some(cfg) = from_env("FERRODB_TCK_SYBASE", "sybase") {
+        check_jdbc_with("sybase", cfg, profiles::sybase());
+    }
+}
+
+/// Exasol: `FERRODB_TCK_EXASOL=exasol://sys:exasol@host:58563/?url=jdbc:exa:host:58563;validateservercertificate=0`.
+/// The scenarios run in the schema `TCK` (created when missing; the URL
+/// opens it for every connection).
+#[test]
+fn exasol() {
+    let Some(mut cfg) = from_env("FERRODB_TCK_EXASOL", "exasol") else {
+        return;
+    };
+    let Ok(bridge) = ferrodb_jdbc::testing::bridge(&["exasol"]) else {
+        eprintln!("exasol: skipped: no JDBC bridge");
+        return;
+    };
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let d = ferrodb_jdbc::JdbcDriver::new(ferrodb_jdbc::flavor("exasol").unwrap(), bridge.clone());
+    rt.block_on(async {
+        use ferrodb_drivers::Driver;
+        let mut c = d.connect(&cfg).await.expect("connect to Exasol");
+        ferrodb_drivers::sink::collect(
+            c.as_mut(),
+            "create schema if not exists tck",
+            ferrodb_drivers::CancellationToken::new(),
+        )
+        .await
+        .expect("create the TCK schema");
+    });
+    rt.block_on(bridge.shutdown());
+    if let Some(url) = cfg.prop("url").map(str::to_owned)
+        && !url.contains("schema=")
+    {
+        cfg = cfg.with("url", format!("{url};schema=tck"));
+    }
+    check_jdbc_with("exasol", cfg, profiles::exasol());
+}
+
+/// Vertica (dedicated environment): `FERRODB_TCK_VERTICA=vertica://dbadmin:pw@host:5433/VMart`.
+#[test]
+fn vertica() {
+    if let Some(cfg) = from_env("FERRODB_TCK_VERTICA", "vertica") {
+        check_jdbc_with("vertica", cfg, profiles::vertica());
+    }
+}
+
+/// Apache Hive (HiveServer2): `FERRODB_TCK_HIVE=hive://hive@localhost:56100/default`.
+/// Plain (non-ACID) tables report no affected rows and refuse UPDATE /
+/// DELETE: the DML scenario does not apply.
+#[test]
+fn hive() {
+    let Some(cfg) = from_env("FERRODB_TCK_HIVE", "hive") else {
+        return;
+    };
+    let bridge = match ferrodb_jdbc::testing::bridge(&["hive"]) {
+        Ok(b) => b,
+        Err(why) => {
+            eprintln!("hive: skipped: {why}");
+            return;
+        }
+    };
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let d = ferrodb_jdbc::JdbcDriver::new(ferrodb_jdbc::flavor("hive").unwrap(), bridge.clone());
+    let report = rt.block_on(run_except(
+        &d,
+        &cfg,
+        &profiles::hive(),
+        &[(
+            "dml-affected",
+            "Hive tables without ACID refuse UPDATE / DELETE and report no counts",
+        )],
+    ));
+    rt.block_on(bridge.shutdown());
+    let md = report.markdown();
+    println!("{md}");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tck");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join("hive.md"), &md);
+    assert!(
+        report.passed(),
+        "TCK failed for hive:
+{md}"
+    );
+}
+
+/// Real Amazon DynamoDB (nightly, test account):
+/// `FERRODB_TCK_DYNAMODB_AWS=<region>`; credentials come from the AWS
+/// environment (variables, profile, OIDC role).
+#[test]
+fn dynamodb_aws() {
+    let Ok(region) = std::env::var("FERRODB_TCK_DYNAMODB_AWS") else {
+        return;
+    };
+    documents(
+        "dynamodb",
+        ResolvedConfig::new("dynamodb").with("region", region),
+    );
 }
 
 /// ClickHouse (HTTP interface). Mutations report no rows affected and

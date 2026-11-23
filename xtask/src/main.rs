@@ -9,8 +9,15 @@
 //! - `spike <name> [args]` — run a phase 0 spike (`gui`, `adbc`, `jdbc-reader`)
 //! - `db-up` / `db-down` — start / remove the TCK database containers
 //! - `tck`      — run the driver TCK against those containers
+//! - `env`      — print the TCK variables (`KEY=value`, for `$GITHUB_ENV`)
+//!
+//!   These four take `--only key,key` or `--group native|nosql|jdbc|all`;
+//!   `db-up` also `--image key=image` and `--no-wait`, `tck` `--skip-meta`.
+//! - `matrix`   — print the integration test matrix (`--check` / `--write`
+//!   `docs/test-matrix.md`, `--gha` for the nightly workflow)
 
 mod db;
+mod matrix;
 
 use std::{
     env,
@@ -32,9 +39,11 @@ fn main() -> ExitCode {
         "test" => test(),
         "package" => package(),
         "spike" => spike(rest),
-        "db-up" => db::up(),
-        "db-down" => db::down(),
-        "tck" => db::tck(),
+        "db-up" => db::Selection::parse(rest).and_then(|s| db::up(&s)),
+        "db-down" => db::Selection::parse(rest).and_then(|s| db::down(&s)),
+        "tck" => db::Selection::parse(rest).and_then(|s| db::tck(&s)),
+        "env" => db::Selection::parse(rest).and_then(|s| db::print_env(&s)),
+        "matrix" => matrix::run(rest),
         "help" | "-h" | "--help" => {
             print_help();
             Ok(())
@@ -52,7 +61,9 @@ fn main() -> ExitCode {
 
 fn print_help() {
     eprintln!(
-        "usage: cargo xtask <ci|fmt|lint|test|package|db-up|db-down|tck|spike <gui|adbc|jdbc-reader> [args]>"
+        "usage: cargo xtask <ci|fmt|lint|test|package|matrix|spike <gui|adbc|jdbc-reader> [args]>
+                cargo xtask <db-up|db-down|tck|env> [--only key,key | --group native|nosql|jdbc|all]
+                            [--image key=image] [--no-wait] [--skip-meta]"
     );
 }
 

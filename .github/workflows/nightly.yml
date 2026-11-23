@@ -1,0 +1,373 @@
+# Nightly integration matrix (plan, section 9 and Appendix D; docs/test-matrix.md).
+#
+# - plan:      builds xtask, checks docs/test-matrix.md and emits the server matrix
+#              (`cargo xtask matrix --gha`: one entry per container and version).
+# - servers:   one runner per database container and server version:
+#              `cargo xtask db-up --only <key> --image <key>=<image>` + `cargo xtask tck --only <key>`.
+# - cloud:     Redshift, Azure SQL, Snowflake, BigQuery, real DynamoDB on test
+#              accounts; each target runs only when its secrets are configured.
+# - dedicated: Vertica and Sybase ASE on the dedicated environment (secrets).
+# - os:        full unit / UI suite on Windows, macOS and Linux plus the embedded
+#              databases (SQLite, DuckDB, H2 / Derby / HyperSQL, ADBC SQLite).
+# - report:    TCK reports of every job in the run summary.
+#
+# The per-PR fast subset stays in ci.yml.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Container keys for the servers job (comma separated, empty = all; see `cargo xtask matrix`)"
+        required: false
+        default: ""
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
+  RUST_TOOLCHAIN: "1.99.0"
+
+jobs:
+  plan:
+    name: matrix
+    runs-on: ubuntu-latest
+    outputs:
+      servers: ${{ steps.matrix.outputs.servers }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: xtask
+      - name: docs/test-matrix.md is up to date
+        run: cargo xtask matrix --check
+      - name: Server matrix
+        id: matrix
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          line="$(cargo xtask matrix --gha)"
+          if [ -n "$ONLY" ]; then
+            json="${line#servers=}"
+            keys="$(printf '%s' "$ONLY" | jq -R 'split(",") | map(gsub("^ +| +$"; ""))')"
+            line="servers=$(printf '%s' "$json" | jq -c --argjson k "$keys" '.include |= map(select(.key as $x | $k | index($x)))')"
+          fi
+          echo "$line" | tee -a "$GITHUB_OUTPUT"
+
+  servers:
+    name: ${{ matrix.name }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.plan.outputs.servers) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space (large database images)
+        if: matrix.group == 'jdbc'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af
+          df -h /
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: tck
+      - uses: actions/setup-java@v4
+        if: matrix.java
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: JDBC host
+        if: matrix.java
+        run: mvn -B -q -f java/jdbc-host package -DskipTests
+      - name: Build the TCK
+        run: cargo test -p ferrodb-driver-tck -p ferrodb-meta --locked --no-run
+      - name: Start ${{ matrix.name }}
+        run: cargo xtask db-up --only ${{ matrix.key }} --image ${{ matrix.key }}=${{ matrix.image }}
+      - name: Variables
+        run: cargo xtask env --only ${{ matrix.key }} | tee -a "$GITHUB_ENV"
+      - name: TCK and metadata round trips
+        run: cargo xtask tck --only ${{ matrix.key }}
+      - name: Driver integration tests (FERRODB_TEST_*)
+        if: contains(fromJSON('["pg","mysql","mariadb","ssh"]'), matrix.key)
+        run: cargo test -p ferrodb-drivers --locked -- --test-threads=1
+      - name: Container log
+        if: failure()
+        run: docker logs --tail 300 ferrodb-tck-${{ matrix.key }} || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tck-${{ matrix.key }}-${{ strategy.job-index }}
+          path: target/tck/*.md
+          if-no-files-found: ignore
+      - name: Stop
+        if: always()
+        run: cargo xtask db-down --only ${{ matrix.key }}
+
+  cloud:
+    name: cloud (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    # Budget guard: every target is a short TCK run on the smallest tier.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # OIDC role for the AWS test account
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [redshift, azuresql, snowflake, bigquery, dynamodb-aws]
+    env:
+      FERRODB_TCK_REDSHIFT: ${{ secrets.FERRODB_TCK_REDSHIFT }}
+      FERRODB_TCK_AZURESQL: ${{ secrets.FERRODB_TCK_AZURESQL }}
+      FERRODB_TCK_SNOWFLAKE_ACCOUNT: ${{ secrets.FERRODB_TCK_SNOWFLAKE_ACCOUNT }}
+      FERRODB_TCK_SNOWFLAKE_USER: ${{ secrets.FERRODB_TCK_SNOWFLAKE_USER }}
+      FERRODB_TCK_SNOWFLAKE_PASSWORD: ${{ secrets.FERRODB_TCK_SNOWFLAKE_PASSWORD }}
+      FERRODB_TCK_SNOWFLAKE_WAREHOUSE: ${{ secrets.FERRODB_TCK_SNOWFLAKE_WAREHOUSE }}
+      FERRODB_TCK_SNOWFLAKE_DATABASE: ${{ secrets.FERRODB_TCK_SNOWFLAKE_DATABASE }}
+      FERRODB_TCK_SNOWFLAKE_SCHEMA: ${{ secrets.FERRODB_TCK_SNOWFLAKE_SCHEMA }}
+      FERRODB_TCK_SNOWFLAKE_ROLE: ${{ secrets.FERRODB_TCK_SNOWFLAKE_ROLE }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.FERRODB_TCK_SNOWFLAKE_PRIVATE_KEY }}
+      FERRODB_TCK_BIGQUERY_PROJECT: ${{ secrets.FERRODB_TCK_BIGQUERY_PROJECT }}
+      FERRODB_TCK_BIGQUERY_DATASET: ${{ secrets.FERRODB_TCK_BIGQUERY_DATASET }}
+      FERRODB_TCK_BIGQUERY_LOCATION: ${{ secrets.FERRODB_TCK_BIGQUERY_LOCATION }}
+      BIGQUERY_CREDENTIALS_JSON: ${{ secrets.FERRODB_TCK_BIGQUERY_CREDENTIALS }}
+      AWS_ROLE_ARN: ${{ secrets.FERRODB_AWS_ROLE_ARN }}
+      AWS_TEST_REGION: ${{ secrets.FERRODB_AWS_REGION }}
+    steps:
+      # Secrets cannot be used in `if:`; this step turns "configured" into an output.
+      - name: Configured?
+        id: gate
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          case "$TARGET" in
+            redshift) need="$FERRODB_TCK_REDSHIFT" ;;
+            azuresql) need="$FERRODB_TCK_AZURESQL" ;;
+            snowflake) need="$FERRODB_TCK_SNOWFLAKE_ACCOUNT" ;;
+            bigquery) need="$FERRODB_TCK_BIGQUERY_PROJECT" ;;
+            dynamodb-aws) need="$AWS_ROLE_ARN" ;;
+          esac
+          if [ -n "$need" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$TARGET skipped: secrets not configured (docs/test-matrix.md)"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - uses: dtolnay/rust-toolchain@master
+        if: steps.gate.outputs.run == 'true'
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        if: steps.gate.outputs.run == 'true'
+        with:
+          shared-key: cloud
+      - name: AWS credentials (OIDC)
+        if: steps.gate.outputs.run == 'true' && env.AWS_ROLE_ARN != '' && (matrix.target == 'dynamodb-aws' || matrix.target == 'redshift')
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_TEST_REGION || 'eu-central-1' }}
+          role-duration-seconds: 1800
+      - name: Redshift / Azure SQL / DynamoDB TCK
+        if: steps.gate.outputs.run == 'true' && (matrix.target == 'redshift' || matrix.target == 'azuresql' || matrix.target == 'dynamodb-aws')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          case "$TARGET" in
+            redshift) test=redshift ;;
+            azuresql) test=azuresql ;;
+            dynamodb-aws) test=dynamodb_aws; export FERRODB_TCK_DYNAMODB_AWS="${AWS_TEST_REGION:-eu-central-1}" ;;
+          esac
+          cargo test -p ferrodb-driver-tck --test tck --locked -- --nocapture --test-threads=1 --exact "$test"
+      # ADBC drivers: the Apache Arrow ADBC wheels from PyPI, the version pinned in
+      # crates/ferrodb-adbc/src/artifacts.rs (pip checks PyPI's hashes).
+      - name: ADBC driver library
+        if: steps.gate.outputs.run == 'true' && (matrix.target == 'snowflake' || matrix.target == 'bigquery')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          dir="$RUNNER_TEMP/adbc"
+          mkdir -p "$dir"
+          pip download --no-deps --only-binary=:all: -d "$dir" "adbc-driver-$TARGET==1.11.0"
+          unzip -j -o "$dir"/adbc_driver_"$TARGET"-*.whl "adbc_driver_$TARGET/libadbc_driver_$TARGET.so" -d "$dir"
+          var="FERRODB_ADBC_$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
+          echo "$var=$dir/libadbc_driver_$TARGET.so" >> "$GITHUB_ENV"
+          if [ -n "$SNOWFLAKE_PRIVATE_KEY" ] && [ "$TARGET" = snowflake ]; then
+            printf '%s\n' "$SNOWFLAKE_PRIVATE_KEY" > "$RUNNER_TEMP/snowflake.p8"
+            echo "FERRODB_TCK_SNOWFLAKE_PRIVATE_KEY_FILE=$RUNNER_TEMP/snowflake.p8" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$BIGQUERY_CREDENTIALS_JSON" ] && [ "$TARGET" = bigquery ]; then
+            printf '%s' "$BIGQUERY_CREDENTIALS_JSON" > "$RUNNER_TEMP/bigquery.json"
+            echo "FERRODB_TCK_BIGQUERY_CREDENTIALS=$RUNNER_TEMP/bigquery.json" >> "$GITHUB_ENV"
+          fi
+      - name: Snowflake / BigQuery TCK
+        if: steps.gate.outputs.run == 'true' && (matrix.target == 'snowflake' || matrix.target == 'bigquery')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          # Only this target's account variables are kept: the other cloud tests skip.
+          if [ "$TARGET" = snowflake ]; then unset FERRODB_TCK_BIGQUERY_PROJECT; else unset FERRODB_TCK_SNOWFLAKE_ACCOUNT; fi
+          cargo test -p ferrodb-adbc --test cloud --locked -- --nocapture --test-threads=1
+      - name: Remove key files
+        if: always()
+        run: rm -f "$RUNNER_TEMP/snowflake.p8" "$RUNNER_TEMP/bigquery.json"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.gate.outputs.run == 'true'
+        with:
+          name: tck-cloud-${{ matrix.target }}
+          path: target/tck/*.md
+          if-no-files-found: ignore
+
+  dedicated:
+    name: dedicated (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [vertica, sybase]
+    env:
+      FERRODB_TCK_VERTICA: ${{ secrets.FERRODB_TCK_VERTICA }}
+      SYBASE_DEDICATED: ${{ secrets.FERRODB_TCK_SYBASE_DEDICATED }}
+      FERRODB_TCK_JDBC: "1"
+    steps:
+      - name: Configured?
+        id: gate
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          case "$TARGET" in
+            vertica) need="$FERRODB_TCK_VERTICA" ;;
+            sybase) need="$SYBASE_DEDICATED" ;;
+          esac
+          if [ -n "$need" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$TARGET skipped: dedicated environment not configured (docs/test-matrix.md)"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - uses: dtolnay/rust-toolchain@master
+        if: steps.gate.outputs.run == 'true'
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        if: steps.gate.outputs.run == 'true'
+        with:
+          shared-key: tck
+      - uses: actions/setup-java@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: JDBC host
+        if: steps.gate.outputs.run == 'true'
+        run: mvn -B -q -f java/jdbc-host package -DskipTests
+      - name: TCK
+        if: steps.gate.outputs.run == 'true'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [ "$TARGET" = sybase ]; then export FERRODB_TCK_SYBASE="$SYBASE_DEDICATED"; fi
+          cargo test -p ferrodb-driver-tck --test tck --locked -- --nocapture --test-threads=1 --exact "$TARGET"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.gate.outputs.run == 'true'
+        with:
+          name: tck-dedicated-${{ matrix.target }}
+          path: target/tck/*.md
+          if-no-files-found: ignore
+
+  os:
+    name: suite + embedded (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    env:
+      # H2, Derby and HyperSQL jars downloaded into target/ferrodb-drivers-test.
+      FERRODB_TCK_JDBC: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: ./xtask/linux-deps.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: os
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: JDBC host
+        run: mvn -B -q -f java/jdbc-host package -DskipTests
+      - name: Unit, snapshot, UI and embedded database tests
+        run: cargo nextest run --workspace --locked --no-fail-fast
+      - name: Doc tests
+        run: cargo test --workspace --doc --locked
+      - name: DuckDB
+        run: cargo test -p ferrodb-drivers --features duckdb --lib --locked duckdb
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tck-os-${{ matrix.os }}
+          path: target/tck/*.md
+          if-no-files-found: ignore
+
+  report:
+    name: report
+    needs: [servers, cloud, dedicated, os]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tck-*
+          path: tck
+      - name: Summary
+        run: |
+          {
+            echo "# Nightly TCK reports"
+            echo
+            echo "| Job | Report | Result |"
+            echo "|---|---|---|"
+            for f in tck/*/*.md; do
+              [ -e "$f" ] || continue
+              job="$(basename "$(dirname "$f")")"
+              if grep -qiE '\bFAIL' "$f"; then r="failed"; else r="passed"; fi
+              echo "| $job | $(basename "$f" .md) | $r |"
+            done
+            echo
+            echo "Job results: servers ${{ needs.servers.result }}, cloud ${{ needs.cloud.result }}, dedicated ${{ needs.dedicated.result }}, os ${{ needs.os.result }}."
+          } >> "$GITHUB_STEP_SUMMARY"
