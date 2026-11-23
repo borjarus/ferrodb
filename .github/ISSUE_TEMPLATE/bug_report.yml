@@ -1,0 +1,137 @@
+name: Bug report
+description: Something in FerroDb does not work or works wrongly.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not paste passwords, API keys or data you may not share.
+        If FerroDb crashed, the crash report id is in Settings ▸ Updates and Privacy ▸ View Reports.
+  - type: input
+    id: version
+    attributes:
+      label: FerroDb version
+      description: Help ▸ About FerroDb (FerroDb ▸ About FerroDb on macOS).
+      placeholder: 1.0.0-beta.3
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11 x64
+        - Windows 10 x64
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux x64 (Wayland)
+        - Linux x64 (X11)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os-details
+    attributes:
+      label: OS details
+      description: OS version; on Linux also the distribution and desktop environment.
+      placeholder: Ubuntu 26.04, GNOME, Wayland
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      description: The database involved, if any.
+      options:
+        - Not database-specific
+        - PostgreSQL
+        - Greenplum
+        - CockroachDB
+        - Amazon Redshift
+        - MySQL
+        - MariaDB
+        - SQLite
+        - Microsoft SQL Server
+        - Azure SQL
+        - Oracle
+        - IBM Db2
+        - Sybase ASE
+        - H2
+        - Apache Derby
+        - HyperSQL
+        - Exasol
+        - Vertica
+        - Apache Hive
+        - Snowflake
+        - Google BigQuery
+        - ClickHouse
+        - Apache Cassandra
+        - MongoDB
+        - Couchbase
+        - Amazon DynamoDB
+        - Redis
+        - DuckDB
+        - Custom JDBC driver
+    validations:
+      required: true
+  - type: input
+    id: database-version
+    attributes:
+      label: Database version
+      description: Shown by Test Connection in the data source dialog.
+      placeholder: PostgreSQL 18.6
+  - type: dropdown
+    id: driver-layer
+    attributes:
+      label: Driver layer
+      description: Shown as "Access layer" in the data source dialog.
+      options:
+        - Not applicable
+        - Native
+        - ADBC
+        - JDBC bridge
+        - Not sure
+  - type: checkboxes
+    id: connection
+    attributes:
+      label: Connection
+      options:
+        - label: SSH tunnel
+        - label: TLS (SSL mode require or verify-full)
+        - label: Data source is read-only
+        - label: Manual commit
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the query or a minimal schema if they matter.
+      placeholder: |
+        1. Open a console on …
+        2. Run …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Error messages from the notification or the Output panel.
+    validations:
+      required: true
+  - type: input
+    id: crash-id
+    attributes:
+      label: Crash report id
+      description: If FerroDb crashed and you sent the report.
+      placeholder: 20271108-101500-1a2b
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: Optional. Start FerroDb with FERRODB_LOG=debug and paste the relevant part. Check it for host names or query text you may not share.
+      render: text
