@@ -288,8 +288,11 @@ impl DynamoConnection {
                     "ferrodb",
                 ));
             }
-            // DynamoDB Local accepts any signature.
-            _ if endpoint.is_some_and(local) && cfg.prop("aws.profile").is_none() => {
+            // DynamoDB Local accepts any signature. The form pre-fills the
+            // profile with `default`, which counts as "no profile chosen".
+            _ if endpoint.is_some_and(local)
+                && cfg.prop("aws.profile").is_none_or(|p| p == "default") =>
+            {
                 loader = loader.credentials_provider(Credentials::new(
                     "local", "local", None, None, "ferrodb",
                 ));
