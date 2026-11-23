@@ -3087,6 +3087,7 @@ dependencies = [
  "ferrodb-api",
  "ferrodb-core",
  "ferrodb-mock",
+ "ferrodb-release",
  "ferrodb-secrets",
  "ferrodb-ui",
  "ferrodb-ui-kit",

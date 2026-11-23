@@ -20,6 +20,7 @@ pub fn build(cx: &App) -> Vec<Menu> {
     if mac {
         menus.push(Menu::new(t("menu-app")).items([
             item("action-about", About),
+            item("action-check-updates", CheckForUpdates),
             MenuItem::separator(),
             item("action-open-settings", OpenSettings),
             MenuItem::separator(),
@@ -102,7 +103,14 @@ pub fn build(cx: &App) -> Vec<Menu> {
             item("action-dev-notification", ShowNotificationDemo),
         ]));
     }
-    let mut help = vec![item("action-find-action", FindAction)];
+    let mut help = vec![
+        item("action-find-action", FindAction),
+        MenuItem::separator(),
+        item("action-check-updates", CheckForUpdates),
+        item("action-join-beta", JoinBetaProgram),
+        item("action-report-problem", ReportProblem),
+        item("action-update-settings", OpenUpdateSettings),
+    ];
     if !mac {
         help.push(MenuItem::separator());
         help.push(item("action-about", About));
