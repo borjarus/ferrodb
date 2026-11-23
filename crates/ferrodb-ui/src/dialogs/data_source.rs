@@ -93,6 +93,10 @@ pub struct DataSourceForm {
     ssl_mode: usize,
     options: Entity<InputState>,
     schemas: Entity<InputState>,
+    /// Properties of an edited data source the form has no input for
+    /// (`ssl.ca`, keys written by hand in `data-sources.toml`…): kept as
+    /// they are when the data source is saved again.
+    preserved: Vec<(String, String)>,
     pub tab: usize,
     pub test: TestState,
     _subs: Vec<Subscription>,
@@ -163,6 +167,7 @@ impl DataSourceForm {
             ssl_mode: 1,
             options,
             schemas,
+            preserved: Vec::new(),
             tab: 0,
             test: TestState::Idle,
             _subs: subs,
@@ -185,9 +190,43 @@ impl DataSourceForm {
         let folder = c.folder.join("/");
         self.folder
             .update(cx, |i, cx| i.set_value(folder, window, cx));
+        self.preserved.clear();
+        let mut options = Vec::new();
         for (k, v) in &c.properties {
             if let Some((_, input)) = self.fields.iter().find(|(p, _)| &p.key == k) {
                 input.update(cx, |i, cx| i.set_value(v.clone(), window, cx));
+                continue;
+            }
+            let ssh_input = match k.as_str() {
+                "ssh.host" => Some(0),
+                "ssh.user" => Some(1),
+                "ssh.key" => Some(2),
+                _ => None,
+            };
+            if let Some(n) = ssh_input {
+                if n == 0 {
+                    self.ssh_enabled = true;
+                }
+                self.ssh[n].update(cx, |i, cx| i.set_value(v.clone(), window, cx));
+                continue;
+            }
+            if k == "ssl.mode" {
+                if let Some(n) = SSL_MODES.iter().position(|m| m == v) {
+                    self.ssl_mode = n;
+                }
+                continue;
+            }
+            if let Some(name) = k.strip_prefix("option.") {
+                options.push(format!("{name}={v}"));
+                continue;
+            }
+            if k == "schema.filter" {
+                self.schemas
+                    .update(cx, |i, cx| i.set_value(v.clone(), window, cx));
+                continue;
+            }
+            if k != "auth" {
+                self.preserved.push((k.clone(), v.clone()));
             }
             if k == "auth"
                 && let Some(a) = self.descriptor().and_then(|d| {
@@ -200,6 +239,11 @@ impl DataSourceForm {
             {
                 self.auth = a;
             }
+        }
+        if !options.is_empty() {
+            let text = options.join("; ");
+            self.options
+                .update(cx, |i, cx| i.set_value(text, window, cx));
         }
     }
 
@@ -344,6 +388,15 @@ impl DataSourceForm {
         let schemas = self.schemas.read(cx).value().trim().to_string();
         if !schemas.is_empty() {
             properties.push(("schema.filter".into(), schemas));
+        }
+        // Keys the form has no input for; the driver's own fields win
+        // (after a driver change, a preserved key may have become a field).
+        for (k, v) in &self.preserved {
+            if !properties.iter().any(|(p, _)| p == k)
+                && !self.fields.iter().any(|(p, _)| &p.key == k)
+            {
+                properties.push((k.clone(), v.clone()));
+            }
         }
         let folder = self
             .folder
