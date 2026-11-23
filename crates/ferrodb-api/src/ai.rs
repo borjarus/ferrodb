@@ -259,8 +259,11 @@ pub trait AssistantService: Send + Sync {
     fn settings(&self) -> AiSettings;
     /// Saves the settings; `api_key`: `Some("")` removes the stored key,
     /// `None` keeps it.
-    fn save_settings(&self, settings: AiSettings, api_key: Option<String>)
-    -> BoxFuture<'_, Result<()>>;
+    fn save_settings(
+        &self,
+        settings: AiSettings,
+        api_key: Option<String>,
+    ) -> BoxFuture<'_, Result<()>>;
     /// Checks the provider with a tiny request; returns the model's name.
     fn test(&self) -> BoxFuture<'_, Result<String>>;
     /// Models offered by the provider (for the settings picker).
@@ -463,7 +466,9 @@ pub struct AuditEntry {
 pub enum AgentEvent {
     ConsentRequested(ConsentRequest),
     /// Decided by the user, timed out or cancelled by the client.
-    ConsentClosed { id: u64 },
+    ConsentClosed {
+        id: u64,
+    },
     Audit(AuditEntry),
     Status(McpStatus),
 }

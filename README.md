@@ -2,7 +2,7 @@
 
 A native, cross-platform database IDE for SQL and NoSQL, written in Rust on GPUI + GPUI Kit. The plan is in [`docs/plan-ferrodb.en.md`](docs/plan-ferrodb.en.md).
 
-**Status: phases 0–8.** Coverage of the 26 databases of version 1.0: native drivers for the PostgreSQL variants (Greenplum, CockroachDB, Redshift), SQL Server / Azure SQL, ClickHouse, Redis, Cassandra, DynamoDB and Couchbase; Oracle, Db2, Sybase, H2, Derby, HyperSQL, Exasol, Vertica and Hive through the JDBC bridge; Snowflake and BigQuery through ADBC; a driver manager downloading verified JDBC jars, ADBC libraries and a Java runtime; dialect files and level B languages (CQL, SQL++, PartiQL, Redis commands). See [`docs/phase-8.md`](docs/phase-8.md). For earlier phases, see [`docs/phase-7.md`](docs/phase-7.md), [`docs/phase-6.md`](docs/phase-6.md) and [`docs/phase-3.md`](docs/phase-3.md).
+**Status: phases 0–9.** AI and extensibility (version 1.1): natural-language query assistant (SQL, MQL, CQL…), permission layer for agents (read-only default, per-call consent), embedded MCP server and stdio bridge, and sandboxed Rhai extension scripts for custom export formats and aggregators. See [`docs/phase-9.md`](docs/phase-9.md). For earlier phases, see [`docs/phase-8.md`](docs/phase-8.md), [`docs/phase-7.md`](docs/phase-7.md), [`docs/phase-6.md`](docs/phase-6.md) and [`docs/phase-3.md`](docs/phase-3.md).
 
 ## Quick start
 
@@ -39,6 +39,8 @@ Environment variables:
 | `crates/ferrodb-net` | TLS (rustls) and SSH tunnels (russh) |
 | `crates/ferrodb-secrets` | System keyring (ADR-013) |
 | `crates/ferrodb-storage` | `app.db`: query history (FTS5), query log, Local History revisions (phase 7) |
+| `crates/ferrodb-ai` | AI Assistant (Anthropic, OpenAI-compatible, Ollama), schema context and prompt caching; permission layer for agents; embedded MCP server (`rmcp`) and stdio bridge (phase 9) |
+| `crates/ferrodb-script` | Rhai extension scripts for custom export formats and aggregators, sandboxed execution, built-in and user scripts (phase 9) |
 | `crates/ferrodb-ui-kit` | The facade over GPUI Kit (`gpui`, `kit`, `theme`, `icons`); the only place GPUI Kit is named |
 | `crates/ferrodb-ui` | Views: workspace, dock panels, palettes, settings, actions and keymap, i18n (PL/EN) |
 | `crates/ferrodb-app` | The `ferrodb` binary: startup, window, keymap file, packaging metadata |

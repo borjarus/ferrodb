@@ -286,9 +286,9 @@ pub use tds::{
 // FERRODB PATCH: the raw token stream and what it carries.
 pub use tds::{
     codec::{
-        BaseMetaDataColumn, DoneStatus, FixedLenType, MetaDataColumn, TokenColMetaData,
-        TokenDone, TokenEnvChange, TokenError, TokenInfo, TokenReturnValue, TypeInfo,
-        VarLenContext, VarLenType,
+        BaseMetaDataColumn, DoneStatus, FixedLenType, MetaDataColumn, TokenColMetaData, TokenDone,
+        TokenEnvChange, TokenError, TokenInfo, TokenReturnValue, TypeInfo, VarLenContext,
+        VarLenType,
     },
     stream::ReceivedToken,
 };

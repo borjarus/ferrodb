@@ -73,8 +73,19 @@ The work was done in four packages in parallel (assistant, agents + MCP, scripts
 |---|---|
 | `ferrodb-ai` (45 + 1 ignored) | Local HTTP servers per provider (stream order, split SSE events, usage, request bodies, refusal, errors, cancellation, models); context ranking and budget on the mock; extraction and risks; settings round trip; policy table; consent flows (once, session, deny, timeout, several subscribers, cancellation); audit file; end to end MCP with an `rmcp` client on the mock (tools, annotations, queries, denials, 401 / 403, token regeneration, busy port); the stdio bridge in process. The ignored test calls the real Anthropic API when `ANTHROPIC_API_KEY` is set |
 | `ferrodb-script` (20) | Every built-in with exact output, headers, streaming writer, helpers, runaway loops and recursion stopped, `eval` / `import` unavailable, caps, cancellation, compile errors, templates, reload |
-| `ferrodb-data`, `ferrodb-core` (`tests_phase9`), `ferrodb-mock` | Export through scripts (Arrow, BSON, empty, failing); a SQLite query exported through a built-in and a user script via the transfer service; unknown / missing / broken scripts; aggregate, extract, create, reload through `Backend` |
-| `ferrodb-ui` (`tests/phase9.rs`, 8) | On the mock with fake services: ask → stream → insert / new console / copy, history; disabled state; Fix and Explain from a console; consent queue, session → once downgrade for writes, `ConsentClosed`, Esc, status bar; both settings pages; export wizard request; Copy As; aggregator picker |
+| `ferrodb-data` (54) | Data formats, export/import, typed values, edit generators, comparison, charts, plan parsers |
+| `ferrodb-mock` (66) | Catalog, profiles, scenarios, schema, script service, mock AI and transfers |
+| `ferrodb-core` (53 + 2 ignored) | Sessions, DDL, transfers, query log/history, DuckDB file data sources, local history, phase 9 export through built-in and user extractors (`tests_phase9`), script service through backend |
+| `ferrodb-ui` (78) | Unit (36), `flows.rs` (23), `phase7.rs` (6), `phase9.rs` (8: ask → stream → insert / new console / copy, history; disabled state; Fix and Explain from a console; consent queue, session → once downgrade for writes, `ConsentClosed`, Esc, status bar; both settings pages; export wizard request; Copy As; aggregator picker), `ui.rs` (5) |
+| `ferrodb-app` | Binary build and startup harness verification |
+
+## Test runs (2026-11-23, macOS arm64, full workspace)
+
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --locked -- -D warnings` passed cleanly (0 warnings).
+- `cargo test -p ferrodb-api -p ferrodb-script -p ferrodb-data -p ferrodb-mock -p ferrodb-ai -p ferrodb-core -p ferrodb-ui -p ferrodb-app`: all target test suites passed (incl. `ferrodb-core` 53 passed / 2 ignored, `ferrodb-ui` 78 passed, `ferrodb-app` 0 unit tests).
+- `cargo test --workspace --doc --locked`: all doc tests passed.
+- `cargo xtask ci` passed.
 
 ## Not done / deviations
 
