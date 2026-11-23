@@ -1,0 +1,161 @@
+name: Database support
+description: A problem with one database (connecting, authentication, the explorer, types, editing, plans).
+title: "[DB]: "
+labels: ["database", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the database's page in docs/user/databases/ for known limitations first.
+        Do not paste passwords, tokens or data you may not share.
+  - type: input
+    id: version
+    attributes:
+      label: FerroDb version
+      description: Help ▸ About FerroDb.
+      placeholder: 1.0.0-beta.3
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11 x64
+        - Windows 10 x64
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux x64 (Wayland)
+        - Linux x64 (X11)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      options:
+        - PostgreSQL
+        - Greenplum
+        - CockroachDB
+        - Amazon Redshift
+        - MySQL
+        - MariaDB
+        - SQLite
+        - Microsoft SQL Server
+        - Azure SQL
+        - Oracle
+        - IBM Db2
+        - Sybase ASE
+        - H2
+        - Apache Derby
+        - HyperSQL
+        - Exasol
+        - Vertica
+        - Apache Hive
+        - Snowflake
+        - Google BigQuery
+        - ClickHouse
+        - Apache Cassandra
+        - MongoDB
+        - Couchbase
+        - Amazon DynamoDB
+        - Redis
+        - DuckDB
+        - Custom JDBC driver
+    validations:
+      required: true
+  - type: input
+    id: database-version
+    attributes:
+      label: Database version and edition
+      description: Shown by Test Connection. Include the edition or service (for example Aurora, Atlas, Enterprise, Serverless).
+      placeholder: SQL Server 2022 (16.0.4325.4) Developer
+    validations:
+      required: true
+  - type: dropdown
+    id: driver-layer
+    attributes:
+      label: Driver layer
+      description: Shown as "Access layer" in the data source dialog.
+      options:
+        - Native
+        - ADBC
+        - JDBC bridge
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: driver-version
+    attributes:
+      label: Driver version (ADBC and JDBC)
+      description: From File ▸ Driver Manager…; for JDBC also the Java version.
+      placeholder: ojdbc11 23.x, Java 21
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Authentication
+      options:
+        - None
+        - Password
+        - AWS IAM
+        - Entra ID
+        - Service account
+        - Key pair
+        - SSO
+        - Kerberos
+        - X.509
+    validations:
+      required: true
+  - type: checkboxes
+    id: connection
+    attributes:
+      label: Connection
+      options:
+        - label: SSH tunnel
+        - label: TLS (SSL mode require or verify-full)
+        - label: Proxy, load balancer or connection pooler in between
+  - type: dropdown
+    id: area
+    attributes:
+      label: What fails
+      multiple: true
+      options:
+        - Connecting or Test Connection
+        - Database Explorer (objects missing or wrong)
+        - DDL or generated scripts
+        - Completion or diagnostics
+        - Running or cancelling queries
+        - Data types or values shown wrongly
+        - Editing results
+        - Transactions
+        - Execution plans
+        - Import or export
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal schema or query if they matter.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+      description: Error messages from the notification or the Output panel.
+    validations:
+      required: true
+  - type: input
+    id: crash-id
+    attributes:
+      label: Crash report id
+      placeholder: 20271108-101500-1a2b
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: Optional. Output of FERRODB_LOG=debug; for the JDBC bridge FERRODB_LOG=info,ferrodb_jdbc=debug. Check it for host names or query text you may not share.
+      render: text
