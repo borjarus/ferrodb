@@ -125,7 +125,8 @@ died of out-of-memory were retried.
 - Smoke tests with many cases (test binaries run directly): `PROPTEST_CASES=40000` for `ferrodb-lang` (188 s), `100000` for `ferrodb-data` (25 s), `50000` for `ferrodb-jdbc` (8 s): all green after the fixes.
 - `cargo clippy -p ferrodb-lang -p ferrodb-data -p ferrodb-jdbc -p xtask --all-targets -- -D warnings` — clean.
 - `cargo fmt` of the four crates — clean.
-- Benchmarks: `cargo bench -p <crate> --bench <name>` with `CARGO_PROFILE_BENCH_LTO=false` (memory); medians below.
+- Benchmarks: `cargo bench -p <crate> --bench <name>` with `CARGO_PROFILE_BENCH_LTO=false` (memory); medians above.
+- `CARGO_PROFILE_BENCH_LTO=false CARGO_BUILD_JOBS=1 cargo xtask bench-check --sample-count 10` end to end: 21 of 21 benchmarks within budget, none without a budget, exit 0 (e.g. `complete/tables_10k` 12.2 ms, `complete/in_50k_line_console` 428 ms, `diagnostics_1k_lines` 19.9 ms, `ext_json_to_bson_5mb` 164 ms).
 
 ## Not done / deviations
 
