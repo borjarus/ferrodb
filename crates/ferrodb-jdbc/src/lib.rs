@@ -24,6 +24,8 @@ pub mod bridge;
 pub mod conn;
 pub mod errors;
 pub mod flavor;
+#[doc(hidden)]
+pub mod fuzzing;
 pub mod protocol;
 #[doc(hidden)]
 pub mod testing;

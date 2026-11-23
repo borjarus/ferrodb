@@ -363,35 +363,17 @@ impl Bridge {
         tokio::spawn(async move {
             let p = reader_proc;
             while let Ok(Some(f)) = protocol::read_frame(&mut stdout).await {
-                {
-                    {
-                        let msg = match f.kind {
-                            protocol::DATA => Incoming::Data(f.payload),
-                            protocol::EVENT | protocol::RESPONSE => {
-                                let v: Value = serde_json::from_slice(&f.payload)
-                                    .unwrap_or_else(|e| json!({ "error": {"kind": "protocol", "message": e.to_string()} }));
-                                if f.kind == protocol::EVENT {
-                                    Incoming::Event(v)
-                                } else if let Some(err) = v.get("error") {
-                                    Incoming::Done(Err(HostError::from_json(err)))
-                                } else {
-                                    Incoming::Done(Ok(v
-                                        .get("result")
-                                        .cloned()
-                                        .unwrap_or(Value::Null)))
-                                }
-                            }
-                            _ => continue,
-                        };
-                        let done = matches!(msg, Incoming::Done(_));
-                        let mut pending = p.pending.lock().unwrap_or_else(|x| x.into_inner());
-                        if let Some(tx) = pending.get(&f.id) {
-                            let _ = tx.send(msg);
-                        }
-                        if done {
-                            pending.remove(&f.id);
-                        }
-                    }
+                let id = f.id;
+                let Some(msg) = protocol::incoming(f) else {
+                    continue;
+                };
+                let done = matches!(msg, Incoming::Done(_));
+                let mut pending = p.pending.lock().unwrap_or_else(|x| x.into_inner());
+                if let Some(tx) = pending.get(&id) {
+                    let _ = tx.send(msg);
+                }
+                if done {
+                    pending.remove(&id);
                 }
             }
             p.alive.store(false, Ordering::Release);

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 361b3df6df61f8f127b2ced5c312e47c646edf04b4a9b8fcf74a896a8a5ea405 # shrinks to v = Object {"$regex": Object {"$date": Number(-9223372036854776)}}

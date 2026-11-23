@@ -16,6 +16,11 @@ bson.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+divan.workspace = true
+
+[[bench]]
+name = "lang"
+harness = false
 
 [lints]
 workspace = true

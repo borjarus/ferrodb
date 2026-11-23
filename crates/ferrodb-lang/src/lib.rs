@@ -13,6 +13,8 @@
 //!   implementations on top of both.
 
 pub mod cql;
+#[doc(hidden)]
+pub mod fuzzing;
 pub mod mql;
 pub mod partiql;
 pub mod redis;

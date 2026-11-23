@@ -1,0 +1,93 @@
+name: Quality (fuzzing, benchmarks)
+
+# Phase 10.2: cargo-fuzz on every target and the benchmark budgets, every
+# night and on demand. The fuzz harness also runs on every PR as stable
+# proptest smoke tests (`tests/fuzz_smoke.rs`, part of `cargo nextest run`).
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: Seconds per fuzz target
+        default: "300"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [lang, mql_value, ext_json, cell_value, import, jdbc_protocol, jdbc_errors]
+    steps:
+      - uses: actions/checkout@v4
+      # 1.99.0 runs xtask (rust-toolchain.toml); cargo-fuzz runs on nightly.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - run: rustup toolchain install nightly --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            fuzz
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Fuzz
+        run: cargo xtask fuzz ${{ matrix.target }} ${{ inputs.fuzz_seconds || '600' }}
+      - name: Upload crashes
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
+      - name: Upload the grown corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-corpus-${{ matrix.target }}
+          path: target/fuzz-corpus/${{ matrix.target }}
+          retention-days: 7
+          if-no-files-found: ignore
+
+  fuzz-smoke:
+    name: fuzz smoke (proptest, many cases)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo xtask fuzz-smoke 5000
+
+  bench:
+    name: benchmark budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+      - name: Benchmarks against benches/budgets.toml
+        run: cargo xtask bench-check 2>&1 | tee bench.txt
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-results
+          path: bench.txt

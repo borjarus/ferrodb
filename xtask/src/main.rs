@@ -9,8 +9,15 @@
 //! - `spike <name> [args]` — run a phase 0 spike (`gui`, `adbc`, `jdbc-reader`)
 //! - `db-up` / `db-down` — start / remove the TCK database containers
 //! - `tck`      — run the driver TCK against those containers
+//! - `fuzz <target|all> [secs]` — cargo-fuzz on a target of `fuzz/`
+//!   (nightly + libFuzzer; explains what is missing otherwise)
+//! - `fuzz-smoke [cases]` — the fuzz harness as stable proptest tests
+//! - `bench [divan args]` — the divan regression benchmarks
+//! - `bench-check [divan args]` — the benchmarks against
+//!   `benches/budgets.toml` (fails over budget × tolerance)
 
 mod db;
+mod quality;
 
 use std::{
     env,
@@ -35,6 +42,10 @@ fn main() -> ExitCode {
         "db-up" => db::up(),
         "db-down" => db::down(),
         "tck" => db::tck(),
+        "fuzz" => quality::fuzz(rest),
+        "fuzz-smoke" => quality::fuzz_smoke(rest),
+        "bench" => quality::bench(rest),
+        "bench-check" => quality::bench_check(rest),
         "help" | "-h" | "--help" => {
             print_help();
             Ok(())
@@ -52,7 +63,13 @@ fn main() -> ExitCode {
 
 fn print_help() {
     eprintln!(
-        "usage: cargo xtask <ci|fmt|lint|test|package|db-up|db-down|tck|spike <gui|adbc|jdbc-reader> [args]>"
+        "usage: cargo xtask <command>\n\
+         \x20 ci | fmt | lint | test | package | db-up | db-down | tck\n\
+         \x20 spike <gui|adbc|jdbc-reader> [args]\n\
+         \x20 fuzz <target|all> [seconds]   cargo-fuzz (nightly) on a target of fuzz/\n\
+         \x20 fuzz-smoke [cases]            the fuzz harness as stable proptest tests\n\
+         \x20 bench [divan args]            regression benchmarks (divan)\n\
+         \x20 bench-check [divan args]      benchmarks against benches/budgets.toml"
     );
 }
 
