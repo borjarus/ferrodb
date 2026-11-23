@@ -15,6 +15,7 @@ ferrodb-api.workspace = true
 ferrodb-mock.workspace = true
 ferrodb-core.workspace = true
 ferrodb-ai.workspace = true
+ferrodb-release.workspace = true
 ferrodb-secrets.workspace = true
 ferrodb-ui.workspace = true
 ferrodb-ui-kit.workspace = true

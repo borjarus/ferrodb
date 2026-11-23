@@ -1,5 +1,5 @@
 //! Settings dialog: appearance, language, editor, AI assistant, agents and
-//! MCP (phase 9), developer.
+//! MCP (phase 9), updates and privacy (phase 10), developer.
 
 use ferrodb_ui_kit::{
     gpui::{prelude::*, *},
@@ -17,6 +17,7 @@ use crate::{
     ai_settings::{AgentsSettingsView, AiSettingsView, LastSettingsViews},
     apply_look,
     i18n::{self, Locale, t},
+    release::ReleaseSettingsView,
     settings::{AppSettings, SettingsStore},
 };
 
@@ -27,6 +28,7 @@ pub enum SettingsPageId {
     Editor,
     Ai,
     Agents,
+    Updates,
     Developer,
 }
 
@@ -37,7 +39,8 @@ impl SettingsPageId {
             Self::Editor => 1,
             Self::Ai => 2,
             Self::Agents => 3,
-            Self::Developer => 4,
+            Self::Updates => 4,
+            Self::Developer => 5,
         }
     }
 }
@@ -80,6 +83,7 @@ fn locale_options() -> Vec<(SharedString, SharedString)> {
 pub fn settings_element(
     ai: Entity<AiSettingsView>,
     agents: Entity<AgentsSettingsView>,
+    release: Entity<ReleaseSettingsView>,
     page: SettingsPageId,
 ) -> Settings {
     let general = SettingPage::new(t("settings-general"))
@@ -176,6 +180,20 @@ pub fn settings_element(
                     .keywords(["mcp", "agents", "consent", "audit", "token", "policy"]),
             ),
         );
+    let updates_page = SettingPage::new(t("settings-updates"))
+        .icon(icons::Lucide::RefreshCw)
+        .default_open(page == SettingsPageId::Updates)
+        .group(SettingGroup::new().item(
+            SettingItem::render(move |_, _, _| release.clone()).keywords([
+                "update",
+                "beta",
+                "channel",
+                "crash",
+                "privacy",
+                "telemetry",
+                "consent",
+            ]),
+        ));
     let developer = SettingPage::new(t("settings-developer"))
         .icon(icons::Lucide::Bug)
         .group(
@@ -196,7 +214,14 @@ pub fn settings_element(
             page_ix: page.index(),
             group_ix: None,
         })
-        .pages([general, editor, ai_page, agents_page, developer])
+        .pages([
+            general,
+            editor,
+            ai_page,
+            agents_page,
+            updates_page,
+            developer,
+        ])
 }
 
 pub fn open(window: &mut Window, cx: &mut App) {
@@ -207,19 +232,22 @@ pub fn open(window: &mut Window, cx: &mut App) {
 pub fn open_page(page: SettingsPageId, window: &mut Window, cx: &mut App) {
     let ai = cx.new(|cx| AiSettingsView::new(window, cx));
     let agents = cx.new(|cx| AgentsSettingsView::new(window, cx));
+    let release = cx.new(|cx| ReleaseSettingsView::new(window, cx));
     cx.set_global(LastSettingsViews {
         ai: Some(ai.clone()),
         agents: Some(agents.clone()),
+        release: Some(release.clone()),
     });
     window.open_dialog(cx, move |dialog, _, _| {
         dialog
             .title(t("action-open-settings"))
             .w(px(860.))
             .h(px(600.))
-            .child(
-                div()
-                    .size_full()
-                    .child(settings_element(ai.clone(), agents.clone(), page)),
-            )
+            .child(div().size_full().child(settings_element(
+                ai.clone(),
+                agents.clone(),
+                release.clone(),
+                page,
+            )))
     });
 }

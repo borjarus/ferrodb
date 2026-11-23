@@ -68,6 +68,11 @@ actions!(
         NewExtractorScript,
         NewAggregatorScript,
         ReloadScripts,
+        // release (phase 10)
+        CheckForUpdates,
+        ReportProblem,
+        JoinBetaProgram,
+        OpenUpdateSettings,
         // developer
         DeveloperScenarios,
         OpenGallery,
@@ -635,6 +640,42 @@ pub static ACTIONS: &[ActionSpec] = &[
         None,
         None,
         ["rhai", "refresh"]
+    ),
+    spec!(
+        CheckForUpdates,
+        "action-check-updates",
+        Application,
+        None,
+        None,
+        None,
+        ["update", "upgrade", "version", "download"]
+    ),
+    spec!(
+        ReportProblem,
+        "action-report-problem",
+        Application,
+        None,
+        None,
+        None,
+        ["bug", "issue", "crash", "feedback", "diagnostics"]
+    ),
+    spec!(
+        JoinBetaProgram,
+        "action-join-beta",
+        Application,
+        None,
+        None,
+        None,
+        ["beta", "preview", "channel", "update"]
+    ),
+    spec!(
+        OpenUpdateSettings,
+        "action-update-settings",
+        Application,
+        None,
+        None,
+        None,
+        ["update", "crash", "privacy", "telemetry", "consent", "beta"]
     ),
     spec!(
         DeveloperScenarios,

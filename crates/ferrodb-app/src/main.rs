@@ -9,6 +9,11 @@
 //!
 //! `ferrodb mcp` runs no GUI: it is the stdio bridge to the MCP server of a
 //! running FerroDb, for agents that launch a command (see [`run_mcp_bridge`]).
+//! `ferrodb --version` prints the version and exits.
+//!
+//! Phase 10: the panic hook (crash reports in `<data>/crashes`) and the log
+//! ring buffer are installed before anything else; the backend is wrapped
+//! in `ReleaseBackend` (updates, crash reports).
 
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
@@ -44,10 +49,21 @@ impl ScenarioControl for MockScenarios {
     }
 }
 
+/// Logs to stderr, and the last lines (masked) into the ring buffer that
+/// crash reports include.
 fn init_tracing() {
-    use tracing_subscriber::{EnvFilter, fmt};
+    use tracing_subscriber::{EnvFilter, fmt, prelude::*};
     let filter = EnvFilter::try_from_env("FERRODB_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
-    let _ = fmt().with_env_filter(filter).with_target(false).try_init();
+    let _ = tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt::layer().with_target(false))
+        .with(ferrodb_release::log_layer())
+        .try_init();
+}
+
+/// Where the mock keeps crash reports (nothing in the user's data).
+fn mock_data_dir() -> PathBuf {
+    std::env::temp_dir().join("ferrodb-mock")
 }
 
 fn app_paths() -> anyhow::Result<AppPaths> {
@@ -150,11 +166,31 @@ fn run_mcp_bridge() -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
-    if std::env::args_os().nth(1).is_some_and(|a| a == "mcp") {
+    let first = std::env::args_os().nth(1);
+    if first
+        .as_ref()
+        .is_some_and(|a| a == "--version" || a == "-V")
+    {
+        println!(
+            "ferrodb {} (API v{}, {} channel)",
+            ferrodb_release::VERSION,
+            ferrodb_api::API_VERSION,
+            ferrodb_release::build_channel()
+        );
+        return Ok(());
+    }
+    if first.is_some_and(|a| a == "mcp") {
         return run_mcp_bridge();
     }
-    init_tracing();
     let paths = app_paths()?;
+    // Before anything else: every later panic leaves a (masked) report.
+    let crash_data = if use_mock() {
+        mock_data_dir()
+    } else {
+        paths.data_dir.clone()
+    };
+    ferrodb_release::install_panic_hook(&crash_data, ferrodb_release::VERSION);
+    init_tracing();
     let (backend, scenarios): (Arc<dyn Backend>, Option<Arc<dyn ScenarioControl>>) = if use_mock() {
         let mock = MockBackend::new();
         let scenarios: Arc<dyn ScenarioControl> = Arc::new(MockScenarios(mock.clone()));
@@ -180,7 +216,21 @@ fn main() -> anyhow::Result<()> {
             }
         },
     );
+    // Phase 10: signed updates and crash reports on top of either backend
+    // (the mock keeps its settings in memory).
+    let backend: Arc<dyn Backend> = ferrodb_release::ReleaseBackend::new(
+        backend,
+        if use_mock() {
+            ferrodb_release::ReleaseOptions::from_build(None, Some(crash_data))
+        } else {
+            ferrodb_release::ReleaseOptions::from_build(
+                Some(paths.config_dir.clone()),
+                Some(paths.data_dir.clone()),
+            )
+        },
+    );
     tracing::info!(
+        version = ferrodb_release::VERSION,
         backend = backend.name(),
         config = %paths.config_dir.display(),
         data = %paths.data_dir.display(),
