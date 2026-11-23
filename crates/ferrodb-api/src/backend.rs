@@ -41,6 +41,14 @@ pub trait Backend: Send + Sync + 'static {
     fn scripts(&self) -> &dyn crate::ScriptService {
         &crate::NoScripts
     }
+    /// Signed application updates and the beta channel (phase 10).
+    fn updates(&self) -> &dyn crate::UpdateService {
+        &crate::NoUpdates
+    }
+    /// Crash reports, sent only with consent (phase 10).
+    fn crash_reports(&self) -> &dyn crate::CrashReportService {
+        &crate::NoCrashReports
+    }
 }
 
 #[cfg(test)]

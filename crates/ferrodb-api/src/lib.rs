@@ -1,4 +1,4 @@
-//! # ferrodb-api v7
+//! # ferrodb-api v8
 //!
 //! Contracts between the GUI and the logic. The GUI talks to the rest of the
 //! application **exclusively** through [`Backend`]; in phases 1–2 it is
@@ -23,6 +23,7 @@ mod language;
 mod local_history;
 mod metadata;
 mod query;
+mod release;
 mod schema;
 mod scripts;
 mod search;
@@ -40,6 +41,7 @@ pub use language::*;
 pub use local_history::*;
 pub use metadata::*;
 pub use query::*;
+pub use release::*;
 pub use schema::*;
 pub use scripts::*;
 pub use search::*;
@@ -52,4 +54,4 @@ pub use bson;
 pub use futures::future::BoxFuture;
 
 /// Version of the contract. Bumped on every breaking change of this crate.
-pub const API_VERSION: u32 = 7;
+pub const API_VERSION: u32 = 8;
