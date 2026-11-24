@@ -58,13 +58,15 @@ cargo test --workspace --doc --locked
 | `ferrodb-driver-manager`, `xtask`, `ferrodb-mock` (66), `ferrodb-ai` (45 + 1 ignored) | wszystkie zielone | ✅ |
 | `ferrodb-drivers` | 58 (lib) | ✅ lib; testy integracyjne bez baz sprawdzają tylko SQLite |
 | `ferrodb-ui` | 88 (lib 36, flows 23, phase7 6, phase9 8, phase10 10, ui 5) | ✅ |
-| `ferrodb-core` | ok. 53 (+2 ignored) | ⏳ **do sprawdzenia** (przerwane, brak pamięci i czasu) |
-| `ferrodb-script` | 20 | ⏳ **do sprawdzenia** (kod bez zmian w fazie 10) |
+| `ferrodb-core` | ok. 53 (+2 ignored) | ✅ 53 passed, 2 ignored (sprawdzone 2026-11-24) |
+| `ferrodb-script` | 20 | ✅ 20 passed (sprawdzone 2026-11-24) |
 | `ferrodb-app` | build | ✅ clippy; testów nie ma |
 
 Jeśli build `ferrodb-ui` kończy się błędem „paging file is too small”, dodaj `--config 'profile.dev.package.ferrodb-ui.debug=0'`.
 
 ## 2. Ręczne przeklikanie nowego UI (obowiązkowe, nikt tego nie zrobił)
+
+Szczegółowy przewodnik krok po kroku oraz instrukcje symulacji raportów awarii znajdują się w dokumencie [`docs/manual-testing.md`](manual-testing.md).
 
 ```sh
 cargo run -p ferrodb-app -- --mock     # bez baz; aktualizacje i raporty działają w pamięci

@@ -64,7 +64,20 @@ Run with `CARGO_INCREMENTAL=0`, `-j 2` (memory-constrained machine; `ferrodb-ui`
 | `ferrodb-drivers` (lib) | 58 passed |
 | `ferrodb-ui` | 88 passed (lib 36, flows 23, phase7 6, phase9 8, phase10 10, ui 5) |
 | `ferrodb-app` | clippy only (no tests) |
-| `ferrodb-core`, `ferrodb-script` | **not run** (stopped: memory and time); see `docs/phase-10-next-steps.md` |
+| `ferrodb-core` | 53 passed, 2 ignored (sprawdzone 2026-11-24) |
+| `ferrodb-script` | 20 passed (sprawdzone 2026-11-24) |
+
+- Dodatkowy pełny przebieg weryfikacyjny (2026-11-24, macOS Apple Silicon):
+  - `cargo fmt --all -- --check` passed.
+  - `cargo clippy --workspace --all-targets --locked -- -D warnings` passed (0 warnings).
+  - Wszystkie pakiety przetestowane, w tym zaległe `ferrodb-core` (53 passed, 2 ignored) i `ferrodb-script` (20 passed).
+  - `cargo test --workspace --doc --locked` passed.
+  - `cargo test -p ferrodb-driver-tck --test tck -- --exact sqlite` passed (14/14 scenariuszy TCK SQLite).
+  - `cargo xtask tck --only embedded` passed (SQLite TCK + 56 testów `ferrodb-meta`, w tym roundtripy MariaDB, MongoDB, MySQL, PostgreSQL).
+  - `cargo test -p ferrodb-drivers --features duckdb --lib duckdb` passed (3/3 testy DuckDB).
+  - `cargo xtask bench-check` 21/21 w budżecie.
+  - `cargo xtask fuzz-smoke 2000` (lang, data, jdbc) passed.
+  - `cargo run -p ferrodb-app -- --version` passed (`ferrodb 0.1.0 (API v8, dev channel)`).
 
 - Earlier, per package: Redis 7.4 / 8.10 TCK 13/13 and SQLite TCK in Docker (WSL); `cargo xtask bench-check` 21/21 within budget; smoke tests at 40k (lang), 100k (data), 50k (jdbc) cases.
 
