@@ -249,8 +249,11 @@ impl DataSourceService for Inner {
                     .map(|e| e.state.clone())
                     .unwrap_or(ConnectionState::Disconnected);
                 st.sources.insert(id.clone(), SourceEntry { config, state });
-                // New settings apply to new connections.
+                // New settings apply to new connections, including the
+                // explorer's metadata connection (otherwise it keeps reading
+                // the old database after e.g. a database name change).
                 st.pool.remove(&id);
+                st.meta.remove(&id);
                 existed
             };
             me.persist()?;

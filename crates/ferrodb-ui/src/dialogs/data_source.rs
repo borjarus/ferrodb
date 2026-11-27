@@ -939,6 +939,7 @@ impl Render for DataSourceForm {
         let body = if has_driver {
             v_flex()
                 .flex_1()
+                .h_full()
                 .gap_2()
                 .min_w_0()
                 .children(status)
@@ -988,6 +989,8 @@ impl Render for DataSourceForm {
             .id("data-source-form")
             .test_support()
             .h(px(480.))
+            // The form starts at the top; `h_flex` would centre it vertically.
+            .items_start()
             .gap_2()
             .child(self.render_driver_list(cx))
             .child(body)

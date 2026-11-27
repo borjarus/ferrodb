@@ -691,35 +691,43 @@ impl Workspace {
                 )
                 .children(self.menu_bar.clone())
                 .child(
-                    Button::new("title-project")
-                        .ghost()
-                        .xsmall()
-                        .label(self.project.name())
-                        .tooltip(self.project.root.display().to_string())
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(actions::RecentProjects), cx)
-                        }),
+                    // Inside the title bar's drag area: without `occlude` Windows
+                    // treats the click as a window move and the button never fires.
+                    div().occlude().child(
+                        Button::new("title-project")
+                            .ghost()
+                            .xsmall()
+                            .label(self.project.name())
+                            .tooltip(self.project.root.display().to_string())
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(actions::RecentProjects), cx)
+                            }),
+                    ),
                 )
                 .child(div().flex_1())
                 .child(
-                    Button::new("title-search")
-                        .ghost()
-                        .xsmall()
-                        .icon(icons::Lucide::Search)
-                        .tooltip(t("action-search-everywhere"))
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(actions::SearchEverywhere), cx)
-                        }),
+                    div().occlude().child(
+                        Button::new("title-search")
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::Search)
+                            .tooltip(t("action-search-everywhere"))
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(actions::SearchEverywhere), cx)
+                            }),
+                    ),
                 )
                 .child(
-                    Button::new("title-settings")
-                        .ghost()
-                        .xsmall()
-                        .icon(icons::Lucide::Settings)
-                        .tooltip(t("action-open-settings"))
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(actions::OpenSettings), cx)
-                        }),
+                    div().occlude().child(
+                        Button::new("title-settings")
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::Settings)
+                            .tooltip(t("action-open-settings"))
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(actions::OpenSettings), cx)
+                            }),
+                    ),
                 ),
         )
     }

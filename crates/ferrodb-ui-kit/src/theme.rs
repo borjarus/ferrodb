@@ -4,7 +4,7 @@
 use ferrodb_api::Environment;
 use gpui_kit::{App, Hsla, Pixels, Window, hsla, px};
 
-pub use gpui_kit::component::{ActiveTheme, Theme, ThemeMode};
+pub use gpui_kit::component::{ActiveTheme, Theme, ThemeMode, scroll::ScrollbarMode};
 
 /// User-selectable appearance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -40,6 +40,9 @@ pub fn apply_appearance(appearance: Appearance, window: Option<&mut Window>, cx:
         Appearance::Light => Theme::change(ThemeMode::Light, window, cx),
         Appearance::Dark => Theme::change(ThemeMode::Dark, window, cx),
     }
+    // Result grids and long lists need visible scrollbars: the default
+    // (shown only while scrolling, or on hover) left them invisible.
+    Theme::set_scrollbar_mode(ScrollbarMode::Always, cx);
 }
 
 /// Applies font settings (UI and editor sizes, families).

@@ -617,6 +617,40 @@ fn live_explorer_cache_refresh_and_ddl() {
 }
 
 #[test]
+fn saving_new_connection_settings_reconnects_the_explorer() {
+    // Regression: the explorer's metadata connection survived a save, so
+    // after changing the database it kept listing the old one.
+    let f = fixture(|_| {});
+    let first = f.core.data_sources().get(&f.ds).unwrap().config;
+    let s = f.session();
+    assert!(errors(&f.exec(s, "create table only_in_first (x integer)")).is_empty());
+    let md = f.core.metadata();
+    let main = NodeRef::root(f.ds.clone()).child(ObjectKind::Schema, "main");
+    let names = |md: &dyn MetadataService| -> Vec<String> {
+        block_on(md.children(main.clone()))
+            .unwrap()
+            .into_iter()
+            .map(|o| o.name)
+            .collect()
+    };
+    assert_eq!(names(md), ["only_in_first"]);
+
+    let mut second = first.clone();
+    second.properties[0].1 = f
+        ._dir
+        .path()
+        .join("other.sqlite")
+        .to_string_lossy()
+        .into_owned();
+    block_on(f.core.data_sources().save(second, SecretValues::new())).unwrap();
+    block_on(md.refresh(&f.ds, RefreshScope::All)).unwrap();
+    assert!(
+        names(md).is_empty(),
+        "explorer still reads the old database"
+    );
+}
+
+#[test]
 fn schema_switch_and_unknown_drivers() {
     let f = fixture(|_| {});
     let s = f.session();
