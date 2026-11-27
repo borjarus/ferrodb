@@ -86,6 +86,43 @@ Environment variables:
 - **drivers and TCK**: these run against real servers when `FERRODB_TEST_*` / `FERRODB_TCK_*` are set (see `cargo xtask db-up`); SQLite always runs;
 - **phase-2 flows** (`crates/ferrodb-ui/tests/flows.rs`, 23 tests on `MockBackend::deterministic()`): explorer, data source dialog and driver download, console, grid editing with preview, documents, keys, Services and history, load scenarios, mockups and the gallery.
 
+## Release packaging
+
+For the current host OS (`cargo-packager` required, `cargo install cargo-packager --locked`):
+
+```sh
+cargo xtask package            # builds release binary and packages into target/packages/
+```
+
+### All platforms from macOS (`xtask/release-all.sh`)
+
+[`xtask/release-all.sh`](xtask/release-all.sh) builds macOS natively, Linux inside Docker (`ubuntu:24.04`), and Windows via Parallels (`prlctl`), writing artifacts to `target/releases/{macos,linux,windows}/`:
+
+```sh
+./xtask/release-all.sh                  # build macOS + Linux + Windows
+./xtask/release-all.sh macos linux      # build selected platforms only
+```
+
+Environment overrides:
+- `MACOS_TARGETS` — space-separated targets (default: `aarch64-apple-darwin`)
+- `LINUX_ARCH` — Docker architecture: `amd64` or `arm64` (default: `amd64`)
+- `WIN_VM` — Parallels VM name (default: `Windows 11`)
+- `WIN_TARGET` — Windows Rust target (default: `x86_64-pc-windows-msvc`)
+- `STOP_WIN_VM` — set to `1` to suspend the VM after the build if the script started it
+
+Prerequisites: running Docker daemon for `linux`; Parallels VM with Rust, Visual Studio C++ Build Tools (including x64 MSVC tools for `x86_64-pc-windows-msvc`), and Home folder sharing (`\\Mac\Home`) for `windows`.
+
+### Windows PowerShell (`xtask/release-windows.ps1`)
+
+To build directly on Windows (or inside a Parallels Windows VM), run [`xtask/release-windows.ps1`](xtask/release-windows.ps1):
+
+```powershell
+.\xtask\release-windows.ps1                                  # default: x86_64-pc-windows-msvc
+.\xtask\release-windows.ps1 -Targets aarch64-pc-windows-msvc # Windows on ARM64
+```
+
+When invoked from a UNC path (such as Parallels `\\Mac\Home\...`), the script mirrors the repository to `C:\ferrodb-build` via `robocopy` before building so CMake (`duckdb`) does not fail on network paths.
+
 ## Phase 0 spike results
 
 See the ADRs and [`docs/spike-results.md`](docs/spike-results.md).
