@@ -65,7 +65,15 @@ fn named_object(message: &str, sql: &str) -> Option<usize> {
     if let Some((_, rest)) = message.split_once("not found: ") {
         names.push(rest.split_whitespace().next().unwrap_or_default());
     }
-    let lower = sql.to_lowercase();
+    // Lower-cased char by char, with the statement's char index of each
+    // byte: lower-casing may change the number of chars (`İ` → `i̇`), so
+    // char offsets in `lower` are not char offsets in `sql`.
+    let mut lower = String::with_capacity(sql.len());
+    let mut char_of = Vec::with_capacity(sql.len());
+    for (ci, c) in sql.chars().enumerate() {
+        lower.extend(c.to_lowercase());
+        char_of.resize(lower.len(), ci);
+    }
     for name in names {
         let name = name.rsplit('.').next().unwrap_or(name).trim();
         if name.len() < 2 || !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
@@ -83,7 +91,7 @@ fn named_object(message: &str, sql: &str) -> Option<usize> {
             })
             .collect();
         if let [one] = hits[..] {
-            return Some(lower[..one].chars().count());
+            return Some(char_of[one]);
         }
     }
     None
@@ -137,6 +145,13 @@ mod tests {
         );
         // Ambiguous: named twice.
         assert_eq!(position("'T' x 'AB' y", "select ab from ab"), None);
+    }
+
+    #[test]
+    fn positions_count_chars_of_the_statement() {
+        // `İ` lower-cases to two chars: the offset used to be one too far.
+        let sql = "select 'İ' from missing_t";
+        assert_eq!(position("Table 'MISSING_T' not found", sql), Some(16));
     }
 
     #[test]

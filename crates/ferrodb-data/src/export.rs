@@ -72,6 +72,22 @@ pub struct ExportStats {
     pub warnings: Vec<String>,
 }
 
+/// The field separator of CSV / TSV (import and export). A separator
+/// outside ASCII is refused: the CSV codec works on bytes, and the
+/// character used to be truncated to its low byte.
+pub(crate) fn csv_delimiter(format: DataFormat, opts: &FormatOptions) -> Result<u8> {
+    if format == DataFormat::Tsv {
+        return Ok(b'\t');
+    }
+    match opts.delimiter {
+        None => Ok(b','),
+        Some(c) if c.is_ascii() => Ok(c as u8),
+        Some(c) => Err(Error::Other(format!(
+            "the CSV separator `{c}` is not an ASCII character"
+        ))),
+    }
+}
+
 pub struct Exporter {
     path: PathBuf,
     writer: Box<dyn Writer>,
@@ -101,11 +117,7 @@ impl Exporter {
         };
         let writer: Box<dyn Writer> = match format {
             DataFormat::Csv | DataFormat::Tsv => {
-                let delim = if format == DataFormat::Tsv {
-                    b'\t'
-                } else {
-                    opts.delimiter.map_or(b',', |c| c as u8)
-                };
+                let delim = csv_delimiter(format, opts)?;
                 Box::new(CsvWriter {
                     w: csv::WriterBuilder::new()
                         .delimiter(delim)

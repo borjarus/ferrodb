@@ -1,0 +1,93 @@
+name: Beta feedback
+description: Impressions, usability, performance or missing features in a beta build.
+title: "[Beta]: "
+labels: ["beta", "feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing a FerroDb beta. For a clear bug, the "Bug report" form is better; for a problem with one database, use "Database support".
+  - type: input
+    id: version
+    attributes:
+      label: FerroDb version
+      description: Help ▸ About FerroDb.
+      placeholder: 1.0.0-rc.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11 x64
+        - Windows 10 x64
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux x64 (Wayland)
+        - Linux x64 (X11)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Installation and updates
+        - Data sources and drivers
+        - Database Explorer
+        - Console (editor, completion, running)
+        - Results and editing
+        - Import and export
+        - Tools (plans, ER diagrams, schema compare, Local History)
+        - AI assistant
+        - Agents and MCP
+        - Extension scripts
+        - Keyboard and accessibility
+        - Performance
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: databases
+    attributes:
+      label: Databases you use with FerroDb (with versions)
+      placeholder: PostgreSQL 18, Redis 8, Snowflake
+  - type: dropdown
+    id: driver-layer
+    attributes:
+      label: Driver layers involved
+      multiple: true
+      options:
+        - Native
+        - ADBC
+        - JDBC bridge
+        - Not sure
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of feedback
+      options:
+        - Something is hard to use or confusing
+        - Something is slow
+        - Something is missing
+        - Something works well
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback
+      description: What did you try to do, what happened, what would you expect? Steps and screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: crash-id
+    attributes:
+      label: Crash report id
+      description: If a crash is involved.
+      placeholder: 20271108-101500-1a2b

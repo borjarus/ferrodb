@@ -1,3 +1,7 @@
 [default.extend-words]
 # Polish words in translations / docs
 nie = "nie"
+
+[files]
+# Fuzz seed inputs are deliberately malformed text.
+extend-exclude = ["fuzz/corpus/", "*.proptest-regressions"]

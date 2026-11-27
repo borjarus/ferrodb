@@ -22,6 +22,41 @@ Environment variables:
 - `FERRODB_LOG=debug` changes the log level.
 - `FERRODB_BACKEND=mock` is the same as `--mock`.
 
+## Building the executable
+
+### Prerequisites
+
+- **Windows:** Visual Studio 2022 Build Tools (or full VS) with the *Desktop development with C++* workload, including MSVC v143 and the Windows 11 SDK. DuckDB (C++), SQLite (C) and GPUI (DirectX) need them.
+  ```powershell
+  winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+  winget install Rustlang.Rustup
+  ```
+- **Linux:** `build-essential`, rustup, then `./xtask/linux-deps.sh` (GPUI libraries: X11/Wayland, Vulkan, fontconfig…).
+- **macOS:** `xcode-select --install` and rustup.
+
+rustup installs the pinned toolchain (see `rust-toolchain.toml`) on the first `cargo` call. CMake, NASM, OpenSSL and Perl are not needed: TLS is rustls + `ring`.
+
+### Release build
+
+```sh
+cargo build --release -p ferrodb-app
+```
+
+The binary lands in `target/release/ferrodb.exe` (Windows) or `target/release/ferrodb` (Linux, macOS). It is self-contained: dialects, translations and icons are embedded, so the file can be copied anywhere and run on its own. On Windows the release build uses the GUI subsystem, so it opens no console window and log output on stderr is not visible; use a debug build (`cargo run`) to see logs (`FERRODB_LOG=debug` for more detail).
+
+The first build takes a long time (DuckDB compiles from C++; expect 30–90 minutes) and needs plenty of memory (≥ 20 GB free commit). Running out of it does not look like an out-of-memory error: rustc crashes with `STATUS_STACK_BUFFER_OVERRUN` (0xc0000409) or reports nonsense such as ``cannot find trait `From` in this scope``. In that case close memory-heavy programs (`wsl --shutdown`, rust-analyzer), raise the page file to 16–32 GB, or limit parallelism with `cargo build --release -p ferrodb-app -j 3`. If another process holds files in `target/`, build into a separate directory with `CARGO_TARGET_DIR=<dir>`.
+
+### Installers
+
+```sh
+cargo install cargo-packager --locked
+cargo xtask package
+```
+
+`cargo xtask package` builds the release binary and creates installers in `target/packages/` (NSIS `-setup.exe` and `.msi` on Windows, `.app`/`.dmg` on macOS, AppImage and `.deb` on Linux). Signing runs only when the signing environment is set; see `xtask/src/release.rs`.
+
+More detail (memory, troubleshooting, running the tests) is in [`docs/running-tests.md`](docs/running-tests.md) (Polish).
+
 ## Workspace
 
 | Crate | Role |

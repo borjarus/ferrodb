@@ -237,6 +237,9 @@ pub fn download_temurin(
     fs::rename(&top, &target)?;
     let _ = fs::remove_dir_all(&unpacked);
     let _ = fs::remove_file(&archive);
+    // macOS: the bundle must carry its vendor's valid signature (deleted
+    // otherwise); quarantine removed only then. No-op elsewhere.
+    crate::codesign::trust_runtime(&target)?;
     let home = if target.join("Contents/Home").is_dir() {
         target.join("Contents/Home")
     } else {

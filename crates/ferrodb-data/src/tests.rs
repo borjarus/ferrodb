@@ -357,3 +357,31 @@ fn export_through_extractor_scripts() {
     assert!(e.to_string().contains("script `bad`"), "{e}");
     assert!(Exporter::create(&p, DataFormat::Script, &FormatOptions::default(), "sql").is_err());
 }
+
+/// Found by fuzzing (phase 10.2): extreme dates and times overflowed.
+#[test]
+fn extreme_dates_and_times_do_not_overflow() {
+    use bson::Bson;
+
+    use crate::value::{format_date, format_time};
+
+    // A BSON date beyond ±292k years has no microsecond timestamp.
+    let far = Bson::DateTime(bson::DateTime::from_millis(-9_223_372_036_854_776));
+    assert_eq!(Value::from_bson(&far), Value::Bson(far.clone()));
+    let near = Bson::DateTime(bson::DateTime::from_millis(1_000));
+    assert_eq!(
+        Value::from_bson(&near),
+        Value::Timestamp {
+            micros: 1_000_000,
+            tz: true
+        }
+    );
+    assert_eq!(format_date(i32::MAX), i32::MAX.to_string());
+    assert_eq!(format_time(-1), "-1");
+    assert_eq!(format_time(86_400_000_000), "86400000000");
+    assert!(
+        Value::Date(i32::MAX)
+            .convert(ValueType::Timestamp { tz: false })
+            .is_err()
+    );
+}

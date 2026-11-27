@@ -220,7 +220,7 @@ goto-not-found = Brak obiektu „{ $name }” w metadanych w pamięci podręczne
 menu-modify-table = Modyfikuj tabelę…
 menu-remove-data-source = Usuń źródło danych…
 remove-data-source-title = Usunąć źródło danych?
-remove-data-source-description = Źródło danych „{ $id }” zostanie usunięte. Jego sekrety pozostaną w magazynie kluczy.
+remove-data-source-description = Źródło danych „{ $id }” zostanie usunięte razem z jego sekretami w magazynie kluczy.
 ddl-copied = DDL skopiowano do schowka
 inspector-path = Ścieżka
 inspector-detail = Szczegóły
@@ -750,3 +750,94 @@ grid-script-failed = Skrypt { $script } nie powiódł się: { $error }
 grid-aggregator = Podsumowanie zaznaczonej kolumny
 grid-aggregate-builtin = Podsumowanie
 grid-aggregate-failed = Agregat nie powiódł się: { $error }
+
+## Faza 10: aktualizacje, raporty awarii, menu Pomoc
+
+action-check-updates = Sprawdź aktualizacje…
+action-report-problem = Zgłoś problem…
+action-join-beta = Dołącz do programu beta…
+action-update-settings = Aktualizacje i prywatność
+settings-updates = Aktualizacje i prywatność
+about-api = Wersja API { $version }
+about-channel = Kanał aktualizacji: { $channel }
+about-channel-label = Kanał aktualizacji
+about-backend-label = Backend
+status-update = Dostępny FerroDb { $version }
+status-update-downloading = Pobieranie FerroDb { $version }: { $percent }%
+status-update-ready = FerroDb { $version } gotowy do instalacji
+updates-section = Aktualizacje
+update-channel = Kanał
+update-channel-stable = Stabilny
+update-channel-beta = Beta
+update-beta-description = Dołącz do programu beta: otrzymuj wersje kandydujące i beta przed wydaniem, a także wersje stabilne.
+update-check-automatically = Sprawdzaj aktualizacje automatycznie
+update-check-now = Sprawdź teraz
+update-unavailable = Aktualizacje nie są dostępne w tej kompilacji.
+update-available = Dostępny jest FerroDb { $version }
+update-none = Masz najnowszą wersję (FerroDb { $version }).
+update-check-failed = Sprawdzanie aktualizacji nie powiodło się: { $error }
+update-view = Pokaż aktualizację
+update-title = FerroDb { $version }
+update-description = Dostępna jest wersja { $version } ({ $date }). Masz wersję { $current }.
+update-is-beta = To jest wersja beta.
+update-no-notes = Brak informacji o wydaniu.
+update-size = Rozmiar pobierania: { $size }
+update-download = Pobierz
+update-cancel = Anuluj
+update-later = Później
+update-install = Zainstaluj i uruchom ponownie
+update-progress = { $done } z { $total }
+update-ready = Pobrano i zweryfikowano. Zainstaluj teraz, aby uruchomić FerroDb w nowej wersji.
+update-failed = Pobieranie nie powiodło się: { $error }
+update-cancelled = Anulowano.
+update-downloaded = Aktualizacja pobrana i zweryfikowana: { $path }
+update-installing = Uruchamianie instalatora…
+update-install-failed = Nie można uruchomić instalatora: { $error }
+beta-joined = Dołączono do programu beta. FerroDb będzie proponować wersje beta.
+beta-already = Już uczestniczysz w programie beta (Pomoc ▸ Aktualizacje i prywatność, aby z niego zrezygnować).
+report-problem-copied = Informacje diagnostyczne skopiowano do schowka: wklej je do zgłoszenia.
+crash-section = Raporty awarii
+crash-unavailable = Raporty awarii nie są dostępne w tej kompilacji.
+crash-consent = Wysyłanie raportów awarii
+crash-consent-ask = Pytaj za każdym razem
+crash-consent-always = Zawsze wysyłaj
+crash-consent-never = Nigdy nie wysyłaj
+crash-consent-description = Raport zawiera błąd, ślad stosu, platformę i ostatnie wiersze dziennika, z zamaskowanymi hasłami i kluczami. Nic nie jest wysyłane bez Twojej zgody, a FerroDb nie zbiera żadnych innych danych.
+crash-view-reports = Pokaż raporty
+crash-hide-reports = Ukryj raporty
+crash-open-folder = Otwórz folder raportów
+crash-clear = Wyczyść
+crash-cleared = Usunięto raporty awarii.
+crash-none = Brak raportów awarii.
+crash-status-sent = wysłany
+crash-status-local = na tym komputerze
+crash-title = Ostatnim razem FerroDb nieoczekiwanie się zamknął
+crash-intro = Zapisano raport awarii. Wysłanie go pomoże naprawić problem.
+crash-details = Pokaż szczegóły
+crash-comment = Co robiłeś(-aś)? (opcjonalnie)
+crash-privacy = Hasła, tokeny i klucze są zamaskowane. Raport nie zawiera danych z zapytań.
+crash-send = Wyślij
+crash-dont-send = Nie wysyłaj
+crash-always-send = Zawsze wysyłaj
+crash-sent = { $count ->
+    [one] Wysłano raport awarii. Dziękujemy!
+    [few] Wysłano { $count } raporty awarii. Dziękujemy!
+   *[other] Wysłano { $count } raportów awarii. Dziękujemy!
+}
+crash-sent-auto = { $count ->
+    [one] Wysłano raport awarii z poprzedniego uruchomienia.
+    [few] Wysłano { $count } raporty awarii z poprzedniego uruchomienia.
+   *[other] Wysłano { $count } raportów awarii z poprzedniego uruchomienia.
+}
+crash-send-failed = Nie można wysłać: { $error }. Możesz skopiować raport lub otworzyć jego folder i dołączyć go do zgłoszenia.
+crash-copy = Kopiuj raport
+crash-copied = Raport awarii skopiowano do schowka.
+crash-no-folder = Raporty są przechowywane tylko w pamięci.
+crash-last = Ostatnia awaria
+crash-field-version = Wersja
+crash-field-os = System
+crash-field-thread = Wątek
+crash-field-location = Miejsce
+crash-field-backtrace = Ślad stosu
+crash-field-log = Ostatnie wiersze dziennika
+privacy-no-telemetry = FerroDb nie wysyła telemetrii. Sprawdzenie aktualizacji to jedno żądanie bez identyfikatorów.

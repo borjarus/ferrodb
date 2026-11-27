@@ -218,7 +218,14 @@ pub fn lex(src: &str) -> (Vec<Token>, Vec<LexError>) {
                     range: start..i,
                 });
             }
-            _ if c == b'_' || c == b'$' || c.is_ascii_alphabetic() || c >= 0x80 => {
+            // A non-ASCII char starts an identifier only when it is
+            // alphanumeric: an emoji or a BOM used to give an empty token
+            // without advancing (an endless loop, found by fuzzing).
+            _ if c == b'_'
+                || c == b'$'
+                || c.is_ascii_alphabetic()
+                || (c >= 0x80 && src[i..].chars().next().is_some_and(char::is_alphanumeric)) =>
+            {
                 while i < b.len() {
                     let ch = src[i..].chars().next().unwrap_or('\0');
                     if ch == '_' || ch == '$' || ch.is_alphanumeric() {
@@ -294,6 +301,20 @@ mod tests {
 
     fn toks(s: &str) -> Vec<Tok> {
         lex(s).0.into_iter().map(|t| t.tok).collect()
+    }
+
+    #[test]
+    fn non_alphanumeric_unicode_is_punctuation() {
+        // Found by fuzzing: an endless loop (and unbounded memory).
+        assert_eq!(
+            toks("a😀\u{feff}é"),
+            vec![
+                Tok::Ident("a".into()),
+                Tok::Punct('😀'),
+                Tok::Punct('\u{feff}'),
+                Tok::Ident("é".into()),
+            ]
+        );
     }
 
     #[test]

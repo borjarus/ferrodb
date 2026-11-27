@@ -5,12 +5,31 @@
 //! - `fmt`      — format the workspace
 //! - `lint`     — clippy with `-D warnings`
 //! - `test`     — workspace tests (nextest when installed, otherwise `cargo test`)
-//! - `package`  — build the release binary and package it with `cargo-packager`
+//! - `package`  — build the release binary, package it with `cargo-packager`
+//!   and sign what the environment allows (see `release.rs`)
+//! - `release-keygen [--out F]` — a new Ed25519 update signing key
+//! - `release-manifest --version V --channel C --notes N --dir D --base-url U`
+//!   — the signed update manifest of the packages in `D`
 //! - `spike <name> [args]` — run a phase 0 spike (`gui`, `adbc`, `jdbc-reader`)
 //! - `db-up` / `db-down` — start / remove the TCK database containers
 //! - `tck`      — run the driver TCK against those containers
+//! - `env`      — print the TCK variables (`KEY=value`, for `$GITHUB_ENV`)
+//!
+//!   These four take `--only key,key` or `--group native|nosql|jdbc|all`;
+//!   `db-up` also `--image key=image` and `--no-wait`, `tck` `--skip-meta`.
+//! - `matrix`   — print the integration test matrix (`--check` / `--write`
+//!   `docs/test-matrix.md`, `--gha` for the nightly workflow)
+//! - `fuzz <target|all> [secs]` — cargo-fuzz on a target of `fuzz/`
+//!   (nightly + libFuzzer; explains what is missing otherwise)
+//! - `fuzz-smoke [cases]` — the fuzz harness as stable proptest tests
+//! - `bench [divan args]` — the divan regression benchmarks
+//! - `bench-check [divan args]` — the benchmarks against
+//!   `benches/budgets.toml` (fails over budget × tolerance)
 
 mod db;
+mod matrix;
+mod quality;
+mod release;
 
 use std::{
     env,
@@ -31,10 +50,18 @@ fn main() -> ExitCode {
         "lint" => lint(),
         "test" => test(),
         "package" => package(),
+        "release-keygen" => release::keygen(rest),
+        "release-manifest" => release::manifest_cmd(rest),
         "spike" => spike(rest),
-        "db-up" => db::up(),
-        "db-down" => db::down(),
-        "tck" => db::tck(),
+        "db-up" => db::Selection::parse(rest).and_then(|s| db::up(&s)),
+        "db-down" => db::Selection::parse(rest).and_then(|s| db::down(&s)),
+        "tck" => db::Selection::parse(rest).and_then(|s| db::tck(&s)),
+        "env" => db::Selection::parse(rest).and_then(|s| db::print_env(&s)),
+        "matrix" => matrix::run(rest),
+        "fuzz" => quality::fuzz(rest),
+        "fuzz-smoke" => quality::fuzz_smoke(rest),
+        "bench" => quality::bench(rest),
+        "bench-check" => quality::bench_check(rest),
         "help" | "-h" | "--help" => {
             print_help();
             Ok(())
@@ -52,7 +79,16 @@ fn main() -> ExitCode {
 
 fn print_help() {
     eprintln!(
-        "usage: cargo xtask <ci|fmt|lint|test|package|db-up|db-down|tck|spike <gui|adbc|jdbc-reader> [args]>"
+        "usage: cargo xtask <command>
+           ci | fmt | lint | test | package | matrix
+           db-up | db-down | tck | env  [--only key,key | --group native|nosql|jdbc|all]
+                                        [--image key=image] [--no-wait] [--skip-meta]
+           release-keygen | release-manifest
+           spike <gui|adbc|jdbc-reader> [args]
+           fuzz <target|all> [seconds]   cargo-fuzz (nightly) on a target of fuzz/
+           fuzz-smoke [cases]            the fuzz harness as stable proptest tests
+           bench [divan args]            regression benchmarks (divan)
+           bench-check [divan args]      benchmarks against benches/budgets.toml"
     );
 }
 
@@ -131,9 +167,58 @@ fn package() -> Result<(), String> {
             "cargo-packager is not installed (`cargo install cargo-packager --locked`)".into(),
         );
     }
-    run(Command::new("cargo-packager")
-        .args(["--release", "-p", "ferrodb-app", "--out-dir"])
-        .arg(root().join("target").join("packages")))
+    let out = root().join("target").join("packages");
+    let packager = |formats: Option<&str>| {
+        let mut cmd = Command::new("cargo-packager");
+        cmd.args(["--release", "-p", "ferrodb-app", "--out-dir"])
+            .arg(&out);
+        if let Some(f) = formats {
+            cmd.args(["--formats", f]);
+        }
+        run(&mut cmd)
+    };
+    if cfg!(windows) {
+        // The installed executable, then the installer.
+        let exe = root().join("target").join("release").join("ferrodb.exe");
+        release::sign_windows(std::slice::from_ref(&exe))?;
+        packager(None)?;
+        release::sign_windows(&release::files_with(&out, &["-setup.exe", ".msi"]))
+    } else if cfg!(target_os = "macos") {
+        let Ok(identity) = env::var("FERRODB_MACOS_SIGN_IDENTITY") else {
+            eprintln!(
+                "xtask: warning: macOS signing skipped (FERRODB_MACOS_SIGN_IDENTITY not set)"
+            );
+            return packager(None);
+        };
+        // Sign the bundle, then build, sign, notarize and staple the disk image.
+        packager(Some("app"))?;
+        let app = out.join("FerroDb.app");
+        release::codesign_macos(&identity, &app)?;
+        let arch = if env::consts::ARCH == "aarch64" {
+            "aarch64"
+        } else {
+            "x64"
+        };
+        let dmg = out.join(format!("FerroDb_{}_{arch}.dmg", env!("CARGO_PKG_VERSION")));
+        let _ = std::fs::remove_file(&dmg);
+        run(Command::new("hdiutil")
+            .args([
+                "create",
+                "-volname",
+                "FerroDb",
+                "-format",
+                "UDZO",
+                "-ov",
+                "-srcfolder",
+            ])
+            .arg(&app)
+            .arg(&dmg))?;
+        release::codesign_macos(&identity, &dmg)?;
+        release::notarize_macos(&dmg)
+    } else {
+        packager(None)?;
+        release::gpg_sign(&release::files_with(&out, &[".appimage", ".deb"]))
+    }
 }
 
 fn spike(rest: &[String]) -> Result<(), String> {

@@ -1,0 +1,1 @@
+{"name":"Zażółć","age":42,"score":1.5,"tags":["a","b",null],"address":{"city":"Kraków","zip":"30-001"},"when":{"$date":"2024-02-29T12:00:00Z"},"uuid":{"$uuid":"3b241101-e2bb-4255-8caf-4136c566a962"}}

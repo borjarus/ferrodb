@@ -45,6 +45,7 @@ use crate::{
         assistant::ActiveAssistant, console::RunTarget, explorer,
     },
     project::{LAYOUT_VERSION, Project},
+    release::{self, DownloadState},
     scripts,
     settings::SettingsStore,
     settings_view::{self, SettingsPageId},
@@ -116,6 +117,8 @@ pub struct Workspace {
     _events: Task<()>,
     /// Agent events (consent requests, MCP status) for this window.
     _agents: Task<()>,
+    /// Crash reports of the last run and the automatic update check.
+    _release: Task<()>,
 }
 
 impl Workspace {
@@ -153,8 +156,11 @@ impl Workspace {
             }),
             // MCP status in the status bar.
             cx.observe_global::<agents::AgentsHub>(|_, cx| cx.notify()),
+            // Update availability / download progress in the status bar.
+            cx.observe_global::<release::ReleaseHub>(|_, cx| cx.notify()),
         ];
         let agents_task = agents::listen(window, cx);
+        let release_task = release::startup(window, cx);
 
         // Status bar reflects connection changes.
         let rx = AppState::backend(cx).data_sources().subscribe();
@@ -194,6 +200,7 @@ impl Workspace {
             _subscriptions: subscriptions,
             _events: events,
             _agents: agents_task,
+            _release: release_task,
         };
         // The initial layout was built before we subscribed: persist it once.
         this.schedule_save(cx);
@@ -593,24 +600,34 @@ impl Workspace {
 
     fn about(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let backend = AppState::backend(cx).name().to_owned();
+        let lines = release::about_lines(cx);
         window.open_dialog(cx, move |dialog, _, cx| {
             dialog
                 .title(t("action-about"))
                 .w(px(420.))
                 .child(
                     v_flex()
+                        .id("about-dialog")
+                        .test_support()
                         .gap_2()
                         .child(div().text_xl().child(t("app-name")))
-                        .child(t_args(
-                            "about-version",
-                            &[("version", env!("CARGO_PKG_VERSION").into())],
-                        ))
+                        .children(lines.iter().map(|l| div().child(l.clone())))
                         .child(div().text_color(cx.theme().muted_foreground).child(t_args(
                             "about-backend",
                             &[("backend", backend.clone().into())],
                         ))),
                 )
-                .footer(DialogFooter::new())
+                .footer(
+                    DialogFooter::new().child(
+                        Button::new("about-check-updates")
+                            .small()
+                            .label(t("action-check-updates"))
+                            .on_click(|_, window, cx| {
+                                window.close_dialog(cx);
+                                release::check(true, window, cx);
+                            }),
+                    ),
+                )
         });
     }
 
@@ -674,35 +691,43 @@ impl Workspace {
                 )
                 .children(self.menu_bar.clone())
                 .child(
-                    Button::new("title-project")
-                        .ghost()
-                        .xsmall()
-                        .label(self.project.name())
-                        .tooltip(self.project.root.display().to_string())
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(actions::RecentProjects), cx)
-                        }),
+                    // Inside the title bar's drag area: without `occlude` Windows
+                    // treats the click as a window move and the button never fires.
+                    div().occlude().child(
+                        Button::new("title-project")
+                            .ghost()
+                            .xsmall()
+                            .label(self.project.name())
+                            .tooltip(self.project.root.display().to_string())
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(actions::RecentProjects), cx)
+                            }),
+                    ),
                 )
                 .child(div().flex_1())
                 .child(
-                    Button::new("title-search")
-                        .ghost()
-                        .xsmall()
-                        .icon(icons::Lucide::Search)
-                        .tooltip(t("action-search-everywhere"))
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(actions::SearchEverywhere), cx)
-                        }),
+                    div().occlude().child(
+                        Button::new("title-search")
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::Search)
+                            .tooltip(t("action-search-everywhere"))
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(actions::SearchEverywhere), cx)
+                            }),
+                    ),
                 )
                 .child(
-                    Button::new("title-settings")
-                        .ghost()
-                        .xsmall()
-                        .icon(icons::Lucide::Settings)
-                        .tooltip(t("action-open-settings"))
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(actions::OpenSettings), cx)
-                        }),
+                    div().occlude().child(
+                        Button::new("title-settings")
+                            .ghost()
+                            .xsmall()
+                            .icon(icons::Lucide::Settings)
+                            .tooltip(t("action-open-settings"))
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(actions::OpenSettings), cx)
+                            }),
+                    ),
                 ),
         )
     }
@@ -815,6 +840,17 @@ impl Workspace {
                     )
                 },
             )
+            .when_some(release_status(cx), |bar, text| {
+                bar.right(
+                    Button::new("status-update")
+                        .ghost()
+                        .xsmall()
+                        .icon(icons::Lucide::CircleArrowDown)
+                        .label(text)
+                        .tooltip(t("update-view"))
+                        .on_click(|_, window, cx| release::open_update_dialog(window, cx)),
+                )
+            })
             .right(
                 div()
                     .text_color(muted)
@@ -1262,11 +1298,41 @@ impl Render for Workspace {
                 scripts::new_script(ExtScriptKind::Aggregator, w, cx)
             }))
             .on_action(cx.listener(|_, _: &actions::ReloadScripts, w, cx| scripts::reload(w, cx)))
+            .on_action(
+                cx.listener(|_, _: &actions::CheckForUpdates, w, cx| release::check(true, w, cx)),
+            )
+            .on_action(
+                cx.listener(|_, _: &actions::ReportProblem, w, cx| release::report_problem(w, cx)),
+            )
+            .on_action(
+                cx.listener(|_, _: &actions::JoinBetaProgram, w, cx| release::join_beta(w, cx)),
+            )
+            .on_action(cx.listener(|_, _: &actions::OpenUpdateSettings, w, cx| {
+                settings_view::open_page(SettingsPageId::Updates, w, cx)
+            }))
             .child(self.render_title_bar(cx))
             .child(self.render_toolbar(cx))
             .child(div().flex_1().min_h_0().child(self.dock.clone()))
             .child(self.render_status_bar(cx))
     }
+}
+
+/// Status-bar text of a found update (with the download progress).
+fn release_status(cx: &App) -> Option<String> {
+    let h = release::hub(cx)?;
+    let u = h.update.as_ref()?;
+    let version = u.version.clone();
+    Some(match &h.download {
+        DownloadState::Running { done, total } if *total > 0 => t_args(
+            "status-update-downloading",
+            &[
+                ("version", version.into()),
+                ("percent", (done * 100 / total).into()),
+            ],
+        ),
+        DownloadState::Ready(_) => t_args("status-update-ready", &[("version", version.into())]),
+        _ => t_args("status-update", &[("version", version.into())]),
+    })
 }
 
 /// Opens a console on `data_source` with `query` and runs it.

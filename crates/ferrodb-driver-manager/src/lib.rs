@@ -24,6 +24,7 @@
 //! blocking pool.
 
 pub mod catalog;
+pub mod codesign;
 pub mod download;
 pub mod java;
 
@@ -298,6 +299,13 @@ impl DriverManager {
         }
     }
 
+    /// ADBC libraries (loaded in-process): code signature checks on macOS.
+    fn is_native(&self, id: &str) -> bool {
+        self.catalog
+            .get(id)
+            .is_some_and(|a| a.kind == ArtifactKind::NativeLibrary)
+    }
+
     fn version_of(&self, id: &str, version: Option<&str>) -> Result<ArtifactVersion, ManagerError> {
         let a = self.catalog.get(id).ok_or_else(|| {
             ManagerError::NotFound(format!("driver `{id}` is not in the catalog"))
@@ -366,6 +374,7 @@ impl DriverManager {
     /// accepting its license (the UI shows it before calling this).
     pub fn download(&self, id: &str, version: Option<&str>) -> Result<String, ManagerError> {
         let v = self.version_of(id, version)?;
+        let native = self.is_native(id);
         let files: Vec<ArtifactFile> = v.files_for_this_platform().cloned().collect();
         let total: u64 = files.iter().filter_map(|f| f.size).sum();
         let rel_dir = self.version_dir(id, &v.version);
@@ -428,6 +437,10 @@ impl DriverManager {
                                 fs::rename(out, &dest)?;
                             }
                         }
+                    }
+                    // macOS: code signature after the checksum (no-op elsewhere).
+                    if native {
+                        codesign::trust_native_library(&dest)?;
                     }
                 }
                 done_before += f.size.unwrap_or(0);
@@ -511,6 +524,9 @@ impl DriverManager {
             let rel = rel_dir.join(f.local_name());
             let dest = self.dir.join(&rel);
             download::install_file(src, Some(&f.sha256), &dest)?;
+            if self.is_native(id) {
+                codesign::trust_native_library(&dest)?;
+            }
             self.mark_verified(&dest);
             rel_files.push(rel);
         }

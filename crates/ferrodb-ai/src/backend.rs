@@ -98,6 +98,12 @@ impl Backend for AiBackend {
     fn scripts(&self) -> &dyn ScriptService {
         self.inner.scripts()
     }
+    fn updates(&self) -> &dyn ferrodb_api::UpdateService {
+        self.inner.updates()
+    }
+    fn crash_reports(&self) -> &dyn ferrodb_api::CrashReportService {
+        self.inner.crash_reports()
+    }
     fn assistant(&self) -> &dyn AssistantService {
         &*self.assistant
     }

@@ -19,6 +19,7 @@ pub mod output;
 pub mod palette;
 pub mod panels;
 pub mod project;
+pub mod release;
 pub mod results;
 pub mod scripts;
 pub mod settings;
@@ -105,6 +106,7 @@ pub fn init(state: AppState, cx: &mut App) {
     inspector::init(cx);
     activity::init(cx);
     agents::init(cx);
+    release::init(cx);
     panels::register(cx);
     menus::install(cx);
 }

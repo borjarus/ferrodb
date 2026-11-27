@@ -33,10 +33,12 @@ use crate::{
 pub struct LastSettingsViews {
     pub ai: Option<Entity<AiSettingsView>>,
     pub agents: Option<Entity<AgentsSettingsView>>,
+    /// "Updates and Privacy" (phase 10).
+    pub release: Option<Entity<crate::release::ReleaseSettingsView>>,
 }
 impl Global for LastSettingsViews {}
 
-fn label_cell(text: String, cx: &App) -> Div {
+pub(crate) fn label_cell(text: String, cx: &App) -> Div {
     div()
         .w(px(170.))
         .flex_shrink_0()
@@ -45,7 +47,7 @@ fn label_cell(text: String, cx: &App) -> Div {
         .child(text)
 }
 
-fn field_row(label: String, control: impl IntoElement, cx: &App) -> Div {
+pub(crate) fn field_row(label: String, control: impl IntoElement, cx: &App) -> Div {
     h_flex()
         .gap_2()
         .items_center()
@@ -53,7 +55,7 @@ fn field_row(label: String, control: impl IntoElement, cx: &App) -> Div {
         .child(div().flex_1().min_w_0().child(control))
 }
 
-fn section(title: String, cx: &App) -> Div {
+pub(crate) fn section(title: String, cx: &App) -> Div {
     div()
         .pt_2()
         .text_sm()
@@ -62,7 +64,7 @@ fn section(title: String, cx: &App) -> Div {
         .child(title)
 }
 
-fn outcome(r: &Result<String, String>, cx: &App) -> Div {
+pub(crate) fn outcome(r: &Result<String, String>, cx: &App) -> Div {
     let theme = cx.theme();
     match r {
         Ok(m) => div().text_sm().text_color(theme.success).child(m.clone()),
@@ -71,7 +73,7 @@ fn outcome(r: &Result<String, String>, cx: &App) -> Div {
 }
 
 /// A button showing the current choice with a menu of options.
-fn choice<V: 'static, T: Copy + 'static>(
+pub(crate) fn choice<V: 'static, T: Copy + 'static>(
     id: impl Into<ElementId>,
     current: String,
     options: Vec<(T, String)>,

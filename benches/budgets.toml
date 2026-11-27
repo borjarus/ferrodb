@@ -1,0 +1,40 @@
+# Performance budgets of the regression benchmarks (plan, sections 3 and 9;
+# phase 10.2). `cargo xtask bench-check` runs every divan benchmark and fails
+# when a median exceeds its budget × `tolerance` (FERRODB_BENCH_TOLERANCE
+# overrides it), or when a budget names a benchmark that no longer exists.
+#
+# Keys: "<package>/<bench target>/<divan path>". Budgets are about 1.5× the
+# medians measured on a busy developer machine, 3–4× quiet ones (see
+# docs/profiling.md and docs/phase-10/quality.md). Completion with 10k tables
+# keeps the plan's 50 ms; completion at the end of a 50k-line console does not
+# meet it yet (its budget is the current value, so that it does not get worse).
+
+tolerance = 1.25
+
+[budgets]
+# ferrodb-lang: crates/ferrodb-lang/benches/lang.rs
+"ferrodb-lang/lang/complete/tables_10k" = "50 ms"
+"ferrodb-lang/lang/complete/columns_10k" = "1 ms"
+"ferrodb-lang/lang/complete/in_50k_line_console" = "1.5 s"
+"ferrodb-lang/lang/diagnostics_1k_lines" = "40 ms"
+"ferrodb-lang/lang/format/mql_2k_lines" = "80 ms"
+"ferrodb-lang/lang/format/postgresql_2k_lines" = "40 ms"
+"ferrodb-lang/lang/split/mql_50k_lines" = "260 ms"
+"ferrodb-lang/lang/split/postgresql_50k_lines" = "110 ms"
+"ferrodb-lang/lang/split/tsql_50k_lines" = "60 ms"
+"ferrodb-lang/lang/statements_service_50k_lines" = "120 ms"
+"ferrodb-lang/lang/tokenize/mql_50k_lines" = "210 ms"
+"ferrodb-lang/lang/tokenize/postgresql_50k_lines" = "75 ms"
+
+# ferrodb-data: crates/ferrodb-data/benches/data.rs
+"ferrodb-data/data/bson_to_ext_json_5mb" = "350 ms"
+"ferrodb-data/data/export/csv_100k_rows" = "300 ms"
+"ferrodb-data/data/export/json_100k_rows" = "470 ms"
+"ferrodb-data/data/export/json_lines_100k_rows" = "450 ms"
+"ferrodb-data/data/ext_json_to_bson_5mb" = "350 ms"
+"ferrodb-data/data/grid_cell_text_100k_rows" = "220 ms"
+"ferrodb-data/data/import_csv_100k_rows" = "420 ms"
+
+# ferrodb-jdbc: crates/ferrodb-jdbc/benches/jdbc.rs
+"ferrodb-jdbc/jdbc/arrow_result_100k_rows" = "10 ms"
+"ferrodb-jdbc/jdbc/read_frames_64mib" = "15 ms"

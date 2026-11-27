@@ -1,8 +1,12 @@
 name: CI
 
+# Fast per-PR subset (plan, section 9). The full matrix of containers, server
+# versions, cloud accounts and the three systems runs in nightly.yml;
+# docs/test-matrix.md lists what runs where.
+
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
 
 concurrency:
@@ -27,6 +31,8 @@ jobs:
         run: ./xtask/linux-deps.sh
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
+      - name: docs/test-matrix.md matches `cargo xtask matrix`
+        run: cargo xtask matrix --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - uses: EmbarkStudios/cargo-deny-action@v2
       - uses: crate-ci/typos@v1
@@ -58,7 +64,7 @@ jobs:
         run: cargo test --workspace --doc --locked
 
   tck:
-    name: driver TCK (PostgreSQL, MySQL, MariaDB, SQLite)
+    name: driver TCK (PostgreSQL, MySQL, MariaDB, DynamoDB Local, SQLite, H2, Derby, HyperSQL)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -81,6 +87,10 @@ jobs:
           MARIADB_DATABASE: tck
         ports: ["53307:3306"]
         options: --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s --health-retries 30
+      # The image's default command runs in memory.
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        ports: ["56520:8000"]
     env:
       FERRODB_TCK_POSTGRES: postgres://postgres:ferrodb@localhost:55432/postgres?ssl.mode=disable
       FERRODB_TCK_MYSQL: mysql://root:ferrodb@127.0.0.1:53306/tck
@@ -88,12 +98,22 @@ jobs:
       FERRODB_TEST_POSTGRES: postgres://postgres:ferrodb@localhost:55432/postgres?ssl.mode=disable
       FERRODB_TEST_MYSQL: mysql://root:ferrodb@127.0.0.1:53306/tck
       FERRODB_TEST_MARIADB: mariadb://root:ferrodb@127.0.0.1:53307/tck
+      FERRODB_TCK_DYNAMODB: http://127.0.0.1:56520
+      # H2, Derby and HyperSQL embedded in the JDBC host (jars downloaded).
+      FERRODB_TCK_JDBC: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.99.0"
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: JDBC host
+        run: mvn -B -q -f java/jdbc-host package -DskipTests
       - name: Driver integration tests
         run: cargo test -p ferrodb-drivers --locked
       - name: TCK

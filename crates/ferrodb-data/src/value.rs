@@ -210,12 +210,14 @@ pub fn value_at(array: &dyn Array, row: usize) -> Value {
         }
         DataType::Timestamp(unit, tz) => {
             let micros = match unit {
-                TimeUnit::Second => {
-                    array.as_primitive::<TimestampSecondType>().value(row) * 1_000_000
-                }
-                TimeUnit::Millisecond => {
-                    array.as_primitive::<TimestampMillisecondType>().value(row) * 1_000
-                }
+                TimeUnit::Second => array
+                    .as_primitive::<TimestampSecondType>()
+                    .value(row)
+                    .saturating_mul(1_000_000),
+                TimeUnit::Millisecond => array
+                    .as_primitive::<TimestampMillisecondType>()
+                    .value(row)
+                    .saturating_mul(1_000),
                 TimeUnit::Microsecond => {
                     array.as_primitive::<TimestampMicrosecondType>().value(row)
                 }
@@ -256,12 +258,17 @@ pub fn format_decimal(v: i128, scale: i8) -> String {
 // ------------------------------------------------------------------ text
 
 pub fn format_date(days: i32) -> String {
-    NaiveDate::from_num_days_from_ce_opt(days + EPOCH_DAYS_FROM_CE)
+    days.checked_add(EPOCH_DAYS_FROM_CE)
+        .and_then(NaiveDate::from_num_days_from_ce_opt)
         .map(|d| d.format("%Y-%m-%d").to_string())
         .unwrap_or_else(|| days.to_string())
 }
 
 pub fn format_time(micros: i64) -> String {
+    // Outside a day (negative values used to wrap and overflow below).
+    if !(0..86_400_000_000).contains(&micros) {
+        return micros.to_string();
+    }
     let secs = (micros / 1_000_000) as u32;
     let frac = (micros % 1_000_000) as u32;
     NaiveTime::from_num_seconds_from_midnight_opt(secs, frac * 1000)
@@ -461,9 +468,11 @@ impl Value {
             Bson::Decimal128(d) => Value::Decimal(d.to_string()),
             Bson::String(s) => Value::Text(s.clone()),
             Bson::Binary(bin) => Value::Bytes(bin.bytes.clone()),
-            Bson::DateTime(dt) => Value::Timestamp {
-                micros: dt.timestamp_millis() * 1000,
-                tz: true,
+            // Dates beyond ±292k years do not fit in microseconds: kept as
+            // BSON (the multiplication used to overflow).
+            Bson::DateTime(dt) => match dt.timestamp_millis().checked_mul(1000) {
+                Some(micros) => Value::Timestamp { micros, tz: true },
+                None => Value::Bson(b.clone()),
             },
             Bson::Document(_) | Bson::Array(_) => Value::Json(b.clone().into_relaxed_extjson()),
             other => Value::Bson(other.clone()),
@@ -592,9 +601,10 @@ impl Value {
             (Value::Timestamp { micros, .. }, T::Date) => {
                 Value::Date(micros.div_euclid(86_400_000_000) as i32)
             }
-            (Value::Date(d), T::Timestamp { tz }) => Value::Timestamp {
-                micros: i64::from(d) * 86_400_000_000,
-                tz,
+            (Value::Date(d), T::Timestamp { tz }) => match i64::from(d).checked_mul(86_400_000_000)
+            {
+                Some(micros) => Value::Timestamp { micros, tz },
+                None => return Err(bad(&Value::Date(d))),
             },
             (Value::Timestamp { micros, .. }, T::Time) => {
                 Value::Time(micros.rem_euclid(86_400_000_000))

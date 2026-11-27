@@ -20,6 +20,7 @@ members = [
   "crates/ferrodb-adbc",
   "crates/ferrodb-ai",
   "crates/ferrodb-script",
+  "crates/ferrodb-release",
   "apps/ferrodb-gallery",
   "xtask",
   "spikes/gui",
@@ -27,8 +28,9 @@ members = [
   "spikes/jdbc-bridge/reader",
 ]
 default-members = ["crates/ferrodb-app"]
-# Vendored third-party crates are built as dependencies, not linted as members.
-exclude = ["third_party"]
+# Vendored third-party crates are built as dependencies, not linted as members;
+# `fuzz` is the cargo-fuzz project (nightly, its own workspace).
+exclude = ["third_party", "fuzz"]
 
 [workspace.package]
 version = "0.1.0"
@@ -57,6 +59,7 @@ ferrodb-driver-manager = { path = "crates/ferrodb-driver-manager" }
 ferrodb-adbc = { path = "crates/ferrodb-adbc" }
 ferrodb-ai = { path = "crates/ferrodb-ai" }
 ferrodb-script = { path = "crates/ferrodb-script" }
+ferrodb-release = { path = "crates/ferrodb-release" }
 
 # GUI — exactly pinned (pins the gpui-pre 0.3.10 snapshot); see ADR-001
 gpui-kit = { version = "=0.8.1" }
@@ -157,6 +160,8 @@ tar = "0.4.46"
 
 # tests
 proptest = "1"
+# benchmarks (phase 10.2): `cargo xtask bench`, budgets in benches/budgets.toml
+divan = "0.1.21"
 tempfile = "3"
 
 # misc

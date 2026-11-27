@@ -81,8 +81,9 @@ pub fn relational_capabilities(dialect: &str, auth: Vec<AuthMethod>) -> Capabili
             _ => ExplainSupport::None,
         },
         server_cancel: true,
-        // Editing results arrives in phase 6.
-        editable_results: false,
+        // Results of single-table `SELECT`s are edited through the core's
+        // generated DML (phase 6); views and joins are refused there.
+        editable_results: true,
         cost_estimate: false,
         auth_methods: auth,
     }

@@ -1015,6 +1015,149 @@ pub mod profiles {
         }
     }
 
+    /// IBM Db2 (Community Edition) through the JDBC bridge. Written in
+    /// phase 10 from the documentation; the nightly run validates it.
+    pub fn db2() -> Profile {
+        Profile {
+            series: |n| {
+                format!(
+                    "select cast(row_number() over () as bigint) as i                      from syscat.columns a, syscat.columns b fetch first {n} rows only"
+                )
+            },
+            sleep: |_| {
+                "select count(*) from syscat.columns a, syscat.columns b, syscat.columns c".into()
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d decimal(10,2), s varchar(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: jdbc_types(),
+            error_positions: false,
+            container: ObjectKind::Schema,
+        }
+    }
+
+    /// Sybase ASE (jTDS) through the JDBC bridge: no row generator, no
+    /// window functions; `bit` for booleans, `datetime` for timestamps.
+    /// Not yet run against a server.
+    pub fn sybase() -> Profile {
+        Profile {
+            series: |n| {
+                format!(
+                    "select top {n} convert(bigint, a.colid) as i                      from master..syscolumns a, master..syscolumns b"
+                )
+            },
+            sleep: |s| {
+                format!(
+                    "waitfor delay '{:02}:{:02}:{:02}'",
+                    s / 3600,
+                    (s / 60) % 60,
+                    s % 60
+                )
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i int null, d decimal(10,2) null, s varchar(20) null, b bit not null, dt date null, ts datetime null)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', 1, '2026-11-09', '2026-11-09 10:11:12')",
+            types: jdbc_types(),
+            error_positions: false,
+            container: ObjectKind::Database,
+        }
+    }
+
+    /// Exasol through the JDBC bridge: `INTEGER` is `DECIMAL(18,0)`.
+    /// Not yet run against a server.
+    pub fn exasol() -> Profile {
+        Profile {
+            series: |n| {
+                format!(
+                    "select cast(level as decimal(18,0)) as i from dual connect by level <= {n}"
+                )
+            },
+            sleep: |_| {
+                "select max(a.l * b.l) from (select level as l from dual connect by level <= 200000) a,                  (select level as l from dual connect by level <= 200000) b"
+                    .into()
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d decimal(10,2), s varchar(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: [
+                DataType::Decimal128(18, 0),
+                DataType::Decimal128(10, 2),
+                DataType::Utf8,
+                DataType::Boolean,
+                DataType::Date32,
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+            ],
+            error_positions: false,
+            container: ObjectKind::Schema,
+        }
+    }
+
+    /// Vertica through the JDBC bridge: `INTEGER` is 64-bit. Not yet run
+    /// against a server.
+    pub fn vertica() -> Profile {
+        Profile {
+            series: |n| {
+                format!(
+                    "select row_number() over () as i                      from system_tables a cross join system_tables b cross join system_tables c limit {n}"
+                )
+            },
+            sleep: |s| format!("select sleep({s})"),
+            types_table: |t| {
+                format!(
+                    "create table {t} (i integer, d numeric(10,2), s varchar(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: [
+                DataType::Int64,
+                DataType::Decimal128(10, 2),
+                DataType::Utf8,
+                DataType::Boolean,
+                DataType::Date32,
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+            ],
+            error_positions: false,
+            container: ObjectKind::Schema,
+        }
+    }
+
+    /// Apache Hive (HiveServer2) through the JDBC bridge: rows from
+    /// `posexplode`, a sleep through `reflect`. Not yet run against a
+    /// server.
+    pub fn hive() -> Profile {
+        Profile {
+            series: |n| {
+                format!(
+                    "select cast(pos + 1 as bigint) as i                      from (select posexplode(split(space({n} - 1), ' ')) as (pos, val)) s"
+                )
+            },
+            sleep: |s| {
+                format!(
+                    "select reflect('java.lang.Thread', 'sleep', cast({} as bigint))",
+                    s * 1000
+                )
+            },
+            types_table: |t| {
+                format!(
+                    "create table {t} (i int, d decimal(10,2), s varchar(20), b boolean, dt date, ts timestamp)"
+                )
+            },
+            types_row: "(42, 12.5, 'zażółć', true, '2026-11-09', '2026-11-09 10:11:12')",
+            types: jdbc_types(),
+            error_positions: false,
+            container: ObjectKind::Database,
+        }
+    }
+
     /// What the JDBC bridge produces for the types table.
     fn jdbc_types() -> [DataType; 6] {
         [
